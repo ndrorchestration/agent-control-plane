@@ -1,13 +1,11 @@
-"""Deterministic task lifecycle and routing kernel.
-
-This module intentionally contains no model/provider integration. It provides
-an inspectable substrate that higher-level agent systems can adapt.
-"""
+"""Deterministic task lifecycle and routing kernel."""
 
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, Dict, Optional
 from uuid import uuid4
+
+from .provenance import ProvenanceEvent, event_now
 
 
 class TaskState(str, Enum):
@@ -31,16 +29,11 @@ Handler = Callable[[Task], object]
 
 
 class ControlPlane:
-    """Small deterministic control-plane kernel.
-
-    Routing is explicit: callers register a handler under a capability name
-    and dispatch a task to that capability. Lifecycle transitions are kept
-    inside the control plane so they can be tested independently of agents.
-    """
+    """Small deterministic control-plane kernel with structured provenance."""
 
     def __init__(self) -> None:
         self._handlers: Dict[str, Handler] = {}
-        self.events = []
+        self.events: list[ProvenanceEvent] = []
 
     def register(self, capability: str, handler: Handler) -> None:
         if not capability.strip():
@@ -54,24 +47,24 @@ class ControlPlane:
         if handler is None:
             raise KeyError(f"no handler registered for capability: {capability}")
 
-        self._record(task, "running", capability=capability)
         task.state = TaskState.RUNNING
+        self._record("task.started", task, capability=capability, state=task.state.value)
         try:
             task.result = handler(task)
             task.state = TaskState.COMPLETED
-            self._record(task, "completed", capability=capability)
-        except Exception as exc:  # boundary converts execution errors to state
+            self._record("task.completed", task, capability=capability, state=task.state.value)
+        except Exception as exc:
             task.error = f"{type(exc).__name__}: {exc}"
             task.state = TaskState.FAILED
-            self._record(task, "failed", capability=capability, error=task.error)
+            self._record("task.failed", task, capability=capability, state=task.state.value, detail=task.error)
         return task
 
     def cancel(self, task: Task) -> Task:
         if task.state not in (TaskState.CREATED, TaskState.RUNNING):
             raise ValueError(f"task {task.id} cannot be cancelled from {task.state}")
         task.state = TaskState.CANCELLED
-        self._record(task, "cancelled")
+        self._record("task.cancelled", task, state=task.state.value)
         return task
 
-    def _record(self, task: Task, event: str, **details: object) -> None:
-        self.events.append({"task_id": task.id, "event": event, **details})
+    def _record(self, event: str, task: Task, **details: str) -> None:
+        self.events.append(event_now(event, task.id, **details))
