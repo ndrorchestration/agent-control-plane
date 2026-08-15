@@ -9,6 +9,7 @@ This checklist defines the final mechanical closure gate for ACP before broader 
 | Repository identity | VERIFIED | `agent-control-plane` is canonical ACP repository |
 | Scope description | VERIFIED | README + kernel specification |
 | Versioning policy | VERIFIED | `docs/RELEASE_POLICY.md` |
+| Evidence progression | VERIFIED | `docs/RELEASE_AND_EVIDENCE_POLICY.md` |
 | Executable kernel | VERIFIED | source tree |
 | Routing | VERIFIED | core + tests |
 | Lifecycle | VERIFIED | core + invariant tests |
@@ -25,6 +26,10 @@ This checklist defines the final mechanical closure gate for ACP before broader 
 | Cross-repository integration | PENDING | integration artifact/test required |
 | Notion synchronization | PENDING | final registry reconciliation required |
 | Vercel synchronization | NOT APPLICABLE to ACP unless a deployment is introduced | no current ACP runtime claim |
+
+## Evidence interpretation
+
+A passing local test establishes only the behavior covered by that test. It does not establish distributed correctness, security effectiveness, autonomous behavior, or production reliability.
 
 ## Closure rule
 
