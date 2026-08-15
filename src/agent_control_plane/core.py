@@ -1,10 +1,11 @@
-"""Deterministic task lifecycle and routing kernel."""
+"""Deterministic task lifecycle, routing, policy, and provenance kernel."""
 
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, Dict, Optional
 from uuid import uuid4
 
+from .policy import Policy, evaluate_policy
 from .provenance import ProvenanceEvent, event_now
 
 
@@ -29,10 +30,11 @@ Handler = Callable[[Task], object]
 
 
 class ControlPlane:
-    """Small deterministic control-plane kernel with structured provenance."""
+    """Small deterministic control-plane kernel with policy and provenance."""
 
-    def __init__(self) -> None:
+    def __init__(self, policy: Optional[Policy] = None) -> None:
         self._handlers: Dict[str, Handler] = {}
+        self._policy = policy
         self.events: list[ProvenanceEvent] = []
 
     def register(self, capability: str, handler: Handler) -> None:
@@ -46,6 +48,13 @@ class ControlPlane:
         handler = self._handlers.get(capability)
         if handler is None:
             raise KeyError(f"no handler registered for capability: {capability}")
+
+        if self._policy is not None:
+            decision = evaluate_policy(self._policy, capability, task)
+            if not decision.allowed:
+                task.error = decision.reason or "policy denied"
+                self._record("task.denied", task, capability=capability, detail=task.error)
+                return task
 
         task.state = TaskState.RUNNING
         self._record("task.started", task, capability=capability, state=task.state.value)
