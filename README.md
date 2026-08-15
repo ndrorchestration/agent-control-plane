@@ -2,20 +2,51 @@
 
 **Agent Control Plane (ACP)** is the repository for experimental control-plane infrastructure for coordinating, evaluating, and observing AI-agent workflows.
 
-> **Epistemic status:** Experimental engineering. This README describes repository scope, not a claim that a complete autonomous control plane, governance system, or production-ready orchestration platform has been established.
+> **Epistemic status:** Experimental engineering. This repository now contains a minimal executable control-plane kernel; it is not a claim of a complete autonomous control plane, governance system, or production-ready orchestration platform.
 
 ## Scope
 
-The repository is intended to contain reusable control-plane components for:
+The repository provides reusable control-plane components for:
 
 - agent/task routing and orchestration;
 - execution-state and lifecycle management;
 - evaluation and verification hooks;
 - provenance and observability;
-- policy or constraint enforcement where implemented;
+- explicit policy/constraint decision hooks;
 - integration points for multi-agent workflows.
 
-The authoritative implementation status is the source tree, tests, and dated evaluation artifacts. Planned components are not described as implemented capabilities.
+The authoritative implementation status is the source tree, tests, CI results, and dated evaluation artifacts. Planned components are not described as implemented capabilities.
+
+## Current implementation
+
+The current kernel provides:
+
+- `Task` — explicit task identity, payload, lifecycle state, result, and error;
+- `ControlPlane` — capability registration, deterministic dispatch, lifecycle transitions, cancellation, and event recording;
+- policy decision hooks — explicit allow/deny decisions with reasons;
+- unit tests covering successful dispatch, failure conversion, unknown capabilities, cancellation, and policy decisions;
+- GitHub Actions CI for the Python test suite.
+
+This is intentionally small. Model/provider integrations, durable persistence, distributed execution, authentication/authorization, advanced scheduling, and production reliability controls remain future work unless independently implemented and verified.
+
+## Quickstart
+
+```python
+from agent_control_plane import ControlPlane, Task
+
+plane = ControlPlane()
+plane.register("echo", lambda task: task.payload)
+
+result = plane.dispatch("echo", Task(payload="hello"))
+assert result.result == "hello"
+```
+
+Run the tests with:
+
+```bash
+python -m pip install -e . pytest
+python -m pytest
+```
 
 ## Terminology
 
@@ -35,9 +66,9 @@ A design specification is not evidence of implementation. A passing unit test is
 
 ## Current status
 
-**Experimental / development track.**
+**Experimental / development track — minimal executable kernel implemented.**
 
-Before treating an orchestration or governance capability as production-ready, verify the exact implementation, test coverage, failure behavior, security controls, and current evaluation evidence.
+Before treating an orchestration or governance capability as production-ready, verify the exact implementation, test coverage, failure behavior, security controls, integration behavior, and current evaluation evidence.
 
 ## Relationship to the ecosystem
 
