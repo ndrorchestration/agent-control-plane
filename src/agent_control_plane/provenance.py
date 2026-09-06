@@ -1,6 +1,6 @@
-"""Minimal structured provenance events for control-plane execution."""
+"""Structured provenance events for control-plane execution."""
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 class ProvenanceEvent:
     event: str
     task_id: str
+    run_id: str
     capability: Optional[str] = None
     state: Optional[str] = None
     detail: Optional[str] = None
@@ -18,10 +19,13 @@ class ProvenanceEvent:
         return asdict(self)
 
 
-def event_now(event: str, task_id: str, **kwargs: Any) -> ProvenanceEvent:
+def event_now(event: str, task_id: str, run_id: str, **kwargs: Any) -> ProvenanceEvent:
+    if not run_id.strip():
+        raise ValueError("run_id must not be empty")
     return ProvenanceEvent(
         event=event,
         task_id=task_id,
+        run_id=run_id,
         timestamp=datetime.now(timezone.utc).isoformat(),
         **kwargs,
     )

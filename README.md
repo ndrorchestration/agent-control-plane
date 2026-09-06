@@ -1,79 +1,92 @@
 # Agent Control Plane
 
-**Agent Control Plane (ACP)** is the repository for experimental control-plane infrastructure for coordinating, evaluating, and observing AI-agent workflows.
+**Agent Control Plane (ACP)** is an experimental control-plane kernel for coordinating, constraining, and observing AI-agent/workflow execution.
 
-> **Epistemic status:** Experimental engineering. This repository now contains a minimal executable control-plane kernel; it is not a claim of a complete autonomous control plane, governance system, or production-ready orchestration platform.
-
-## Scope
-
-The repository provides reusable control-plane components for:
-
-- agent/task routing and orchestration;
-- execution-state and lifecycle management;
-- evaluation and verification hooks;
-- provenance and observability;
-- explicit policy/constraint decision hooks;
-- integration points for multi-agent workflows.
-
-The authoritative implementation status is the source tree, tests, CI results, and dated evaluation artifacts. Planned components are not described as implemented capabilities.
+> **Epistemic status:** Experimental engineering. The repository contains an executable deterministic kernel with policy hooks and run-scoped provenance. It is not a complete autonomous control plane, security boundary, or production-ready orchestration platform.
 
 ## Current implementation
 
-The current kernel provides:
+The kernel currently provides:
 
-- `Task` — explicit task identity, payload, lifecycle state, result, and error;
-- `ControlPlane` — capability registration, deterministic dispatch, lifecycle transitions, cancellation, and event recording;
-- policy decision hooks — explicit allow/deny decisions with reasons;
-- unit tests covering successful dispatch, failure conversion, unknown capabilities, cancellation, and policy decisions;
-- GitHub Actions CI for the Python test suite.
+- `Task` identity, payload, lifecycle state, result, and error;
+- capability registration with duplicate-registration rejection;
+- deterministic dispatch and lifecycle transitions;
+- cancellation semantics;
+- explicit policy allow/deny decisions;
+- fail-closed rejection of unknown capabilities;
+- run-scoped provenance events carrying both task ID and run ID;
+- a portable `agent-control-plane.provenance.v1` manifest for the current in-memory run;
+- tests covering successful dispatch, handler failure, cancellation, policy decisions, adversarial/invariant cases, duplicate registration, unknown-capability evidence, and provenance binding;
+- GitHub Actions CI for the Python suite.
 
-This is intentionally small. Model/provider integrations, durable persistence, distributed execution, authentication/authorization, advanced scheduling, and production reliability controls remain future work unless independently implemented and verified.
+The provenance manifest is **an in-memory/exportable execution record**, not durable storage, tamper-evident attestation, or an external audit log.
 
-## Quickstart
+## Example
 
 ```python
 from agent_control_plane import ControlPlane, Task
 
-plane = ControlPlane()
+plane = ControlPlane(run_id="example-run")
 plane.register("echo", lambda task: task.payload)
 
 result = plane.dispatch("echo", Task(payload="hello"))
 assert result.result == "hello"
+
+manifest = plane.provenance_manifest()
+assert manifest["run_id"] == "example-run"
 ```
 
-Run the tests with:
+Run verification with:
 
 ```bash
 python -m pip install -e . pytest
 python -m pytest
 ```
 
-## Terminology
+## Fail-closed boundaries
 
-- **ACP** — Agent Control Plane, the repository/project name used here.
-- **DGAF** — Dynamic Governance Agentic Formation; a related but separate governance/evaluation research track.
-- **PDMAL / PDMA-L** — Phi-Driven Multi-Agent Lattice; a separate lattice/control research track.
+The current kernel deliberately rejects or records several ambiguous states:
 
-Shared terminology or integrations do not establish equivalence between these projects or validation of one by another.
+- an empty capability cannot be registered;
+- an already registered capability cannot be silently replaced;
+- a terminal task cannot be redispatched;
+- an unknown capability produces a provenance rejection event and raises `KeyError`;
+- a handler exception becomes a recorded `FAILED` task state;
+- a policy denial is recorded rather than treated as successful execution.
 
-## Epistemic standard
+These properties are local software invariants. They do not establish distributed reliability or system security.
+
+## Not yet implemented / established
+
+Unless added and independently verified later, ACP does **not** currently provide:
+
+- model/provider integrations;
+- durable event persistence;
+- cryptographic/tamper-evident provenance;
+- distributed execution;
+- authentication or authorization infrastructure;
+- bounded retry/backoff orchestration;
+- execution deadlines/preemption for arbitrary handlers;
+- advanced scheduling;
+- multi-process consistency;
+- production reliability or security certification.
+
+## Evidence standard
 
 Claims in this repository should distinguish:
 
 `DEFINED → IMPLEMENTED → COMPUTED → VERIFIED → ATTESTED → HISTORICAL → HYPOTHESIS → METAPHOR → UNSUPPORTED → DEPRECATED`
 
-A design specification is not evidence of implementation. A passing unit test is not evidence of system-level reliability. A historical benchmark is not current validation without a reproducible run.
+A passing unit test establishes only the tested property under that test environment. An exported provenance manifest is not an attestation. Cross-repository use does not transfer validation.
+
+## Ecosystem relationship
+
+ACP may provide reusable primitives to other `ndrorchestration` projects. `DGAF-Framework`, PDMAL, Orbit-Driftwatch, Sentinel, and other repositories maintain separate evidence and governance boundaries. Integration should be demonstrated through explicit interfaces and tests.
 
 ## Current status
 
-**Experimental / development track — minimal executable kernel implemented.**
-
-Before treating an orchestration or governance capability as production-ready, verify the exact implementation, test coverage, failure behavior, security controls, integration behavior, and current evaluation evidence.
-
-## Relationship to the ecosystem
-
-Agent Control Plane may serve as infrastructure for other ndrorchestration projects, but those relationships should be represented through explicit interfaces and integration tests rather than assumed from project names or shared concepts.
+**Experimental / development track — executable kernel with run-scoped provenance and fail-closed dispatch invariants.**
 
 ## Provenance
 
-Developed by Ndr / Ender Hensel (`ndrorchestration`).
+Maintained by Ndr / Ender Hensel (`ndrorchestration`).
