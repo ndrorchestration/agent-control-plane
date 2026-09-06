@@ -32,7 +32,7 @@ def test_denied_task_remains_created_and_handler_is_not_called():
     assert plane.events[-1].event == "task.denied"
 
 
-def test_unknown_capability_does_not_change_task_state():
+def test_unknown_capability_does_not_change_task_state_and_records_rejection():
     plane = ControlPlane()
     task = Task(payload="x")
 
@@ -44,7 +44,15 @@ def test_unknown_capability_does_not_change_task_state():
         raise AssertionError("unknown capability should fail")
 
     assert task.state is TaskState.CREATED
-    assert plane.events == []
+    assert task.result is None
+    assert task.error is None
+    assert len(plane.events) == 1
+    event = plane.events[0]
+    assert event.event == "task.rejected"
+    assert event.task_id == task.id
+    assert event.capability == "missing"
+    assert event.detail == "unknown capability"
+    assert event.run_id == plane.run_id
 
 
 def test_cancellation_is_terminal():
