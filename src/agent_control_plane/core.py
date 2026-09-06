@@ -1,4 +1,4 @@
-"""Deterministic task lifecycle, routing, policy, and provenance kernel."""
+"""Deterministic task lifecycle, routing, policy, and run-scoped provenance kernel."""
 
 from dataclasses import dataclass, field
 from enum import Enum
@@ -32,14 +32,20 @@ Handler = Callable[[Task], object]
 class ControlPlane:
     """Small deterministic control-plane kernel with policy and provenance."""
 
-    def __init__(self, policy: Optional[Policy] = None) -> None:
+    def __init__(self, policy: Optional[Policy] = None, run_id: Optional[str] = None) -> None:
         self._handlers: Dict[str, Handler] = {}
         self._policy = policy
+        self.run_id = run_id or str(uuid4())
+        if not self.run_id.strip():
+            raise ValueError("run_id must not be empty")
         self.events: list[ProvenanceEvent] = []
 
     def register(self, capability: str, handler: Handler) -> None:
-        if not capability.strip():
+        capability = capability.strip()
+        if not capability:
             raise ValueError("capability must not be empty")
+        if capability in self._handlers:
+            raise ValueError(f"capability already registered: {capability}")
         self._handlers[capability] = handler
 
     def dispatch(self, capability: str, task: Task) -> Task:
@@ -47,6 +53,7 @@ class ControlPlane:
             raise ValueError(f"task {task.id} is not dispatchable from {task.state}")
         handler = self._handlers.get(capability)
         if handler is None:
+            self._record("task.rejected", task, capability=capability, detail="unknown capability")
             raise KeyError(f"no handler registered for capability: {capability}")
 
         if self._policy is not None:
@@ -75,5 +82,14 @@ class ControlPlane:
         self._record("task.cancelled", task, state=task.state.value)
         return task
 
+    def provenance_manifest(self) -> dict[str, object]:
+        """Return a portable run record without claiming durable persistence."""
+        return {
+            "schema": "agent-control-plane.provenance.v1",
+            "run_id": self.run_id,
+            "event_count": len(self.events),
+            "events": [event.to_dict() for event in self.events],
+        }
+
     def _record(self, event: str, task: Task, **details: str) -> None:
-        self.events.append(event_now(event, task.id, **details))
+        self.events.append(event_now(event, task.id, self.run_id, **details))
