@@ -1,4 +1,10 @@
-from agent_control_plane import ControlPlane, Task, TaskState
+from agent_control_plane import (
+    BudgetExceeded,
+    ControlPlane,
+    ExecutionBudget,
+    Task,
+    TaskState,
+)
 
 
 def test_dispatch_completes_and_records_events():
@@ -86,3 +92,103 @@ def test_provenance_manifest_binds_run_and_events():
     assert manifest["event_count"] == 2
     assert [event["task_id"] for event in manifest["events"]] == ["task-fixed", "task-fixed"]
     assert all(event["run_id"] == "run-manifest" for event in manifest["events"])
+
+
+def test_budget_allows_exact_limit_and_records_usage():
+    plane = ControlPlane(run_id="run-budget-ok")
+
+    def handler(task):
+        task.consume(steps=2, tool_calls=1, tokens=100, cost=0.25)
+        return "ok"
+
+    plane.register("work", handler)
+    task = Task(
+        payload=None,
+        budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_tokens=100,
+            max_cost=0.25,
+        ),
+    )
+
+    result = plane.dispatch("work", task)
+
+    assert result.state is TaskState.COMPLETED
+    assert result.result == "ok"
+    assert result.usage.steps == 2
+    assert result.usage.tool_calls == 1
+    assert result.usage.tokens == 100
+    assert result.usage.cost == 0.25
+    assert "steps=2" in plane.events[-1].detail
+
+
+def test_budget_overrun_is_atomic_and_fails_closed():
+    plane = ControlPlane(run_id="run-budget-fail")
+
+    def handler(task):
+        task.consume(steps=1)
+        task.consume(steps=2)
+        return "should-not-complete"
+
+    plane.register("work", handler)
+    task = Task(payload=None, budget=ExecutionBudget(max_steps=2))
+
+    result = plane.dispatch("work", task)
+
+    assert result.state is TaskState.BUDGET_EXHAUSTED
+    assert result.result is None
+    assert result.usage.steps == 1
+    assert "steps budget exceeded" in result.error
+    assert plane.events[-1].event == "task.budget_exhausted"
+
+
+def test_handler_cannot_suppress_budget_failure_and_complete():
+    plane = ControlPlane()
+
+    def handler(task):
+        try:
+            task.consume(tool_calls=2)
+        except BudgetExceeded:
+            pass
+        return "suppressed"
+
+    plane.register("work", handler)
+    task = Task(payload=None, budget=ExecutionBudget(max_tool_calls=1))
+
+    result = plane.dispatch("work", task)
+
+    assert result.state is TaskState.BUDGET_EXHAUSTED
+    assert result.result is None
+    assert result.usage.tool_calls == 0
+    assert plane.events[-1].event == "task.budget_exhausted"
+
+
+def test_unbudgeted_task_can_still_report_usage():
+    plane = ControlPlane()
+
+    def handler(task):
+        task.consume(steps=3, tool_calls=2, tokens=50, cost=0.1)
+        return task.usage.steps
+
+    plane.register("work", handler)
+    result = plane.dispatch("work", Task(payload=None))
+
+    assert result.state is TaskState.COMPLETED
+    assert result.result == 3
+    assert result.usage.steps == 3
+
+
+def test_invalid_budget_is_rejected_before_dispatch():
+    for kwargs in (
+        {"max_steps": -1},
+        {"max_tool_calls": -1},
+        {"max_tokens": -1},
+        {"max_cost": -0.01},
+    ):
+        try:
+            ExecutionBudget(**kwargs)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"invalid budget should be rejected: {kwargs}")
