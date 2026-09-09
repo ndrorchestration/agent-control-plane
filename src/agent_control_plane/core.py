@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Callable, Dict, Optional
 from uuid import uuid4
 
+from .budget import BudgetExceeded, BudgetUsage, ExecutionBudget
 from .policy import Policy, evaluate_policy
 from .provenance import ProvenanceEvent, event_now
 
@@ -15,6 +16,7 @@ class TaskState(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    BUDGET_EXHAUSTED = "budget_exhausted"
 
 
 @dataclass
@@ -24,6 +26,36 @@ class Task:
     state: TaskState = TaskState.CREATED
     result: object = None
     error: Optional[str] = None
+    budget: Optional[ExecutionBudget] = None
+    usage: BudgetUsage = field(default_factory=BudgetUsage)
+    _budget_failure: Optional[BudgetExceeded] = field(default=None, init=False, repr=False)
+
+    def consume(
+        self,
+        *,
+        steps: int = 0,
+        tool_calls: int = 0,
+        tokens: int = 0,
+        cost: float = 0.0,
+    ) -> None:
+        """Atomically charge cooperative resource usage to this task."""
+        if self._budget_failure is not None:
+            raise self._budget_failure
+        try:
+            self.usage.consume(
+                self.budget,
+                steps=steps,
+                tool_calls=tool_calls,
+                tokens=tokens,
+                cost=cost,
+            )
+        except BudgetExceeded as exc:
+            self._budget_failure = exc
+            raise
+
+    @property
+    def budget_exhausted(self) -> bool:
+        return self._budget_failure is not None
 
 
 Handler = Callable[[Task], object]
@@ -67,8 +99,21 @@ class ControlPlane:
         self._record("task.started", task, capability=capability, state=task.state.value)
         try:
             task.result = handler(task)
-            task.state = TaskState.COMPLETED
-            self._record("task.completed", task, capability=capability, state=task.state.value)
+            if task.budget_exhausted:
+                self._mark_budget_exhausted(task, capability)
+            else:
+                task.state = TaskState.COMPLETED
+                self._record(
+                    "task.completed",
+                    task,
+                    capability=capability,
+                    state=task.state.value,
+                    detail=task.usage.summary(),
+                )
+        except BudgetExceeded as exc:
+            if task._budget_failure is None:
+                task._budget_failure = exc
+            self._mark_budget_exhausted(task, capability)
         except Exception as exc:
             task.error = f"{type(exc).__name__}: {exc}"
             task.state = TaskState.FAILED
@@ -90,6 +135,21 @@ class ControlPlane:
             "event_count": len(self.events),
             "events": [event.to_dict() for event in self.events],
         }
+
+    def _mark_budget_exhausted(self, task: Task, capability: str) -> None:
+        failure = task._budget_failure
+        if failure is None:
+            raise RuntimeError("budget exhaustion requires a recorded budget failure")
+        task.result = None
+        task.error = str(failure)
+        task.state = TaskState.BUDGET_EXHAUSTED
+        self._record(
+            "task.budget_exhausted",
+            task,
+            capability=capability,
+            state=task.state.value,
+            detail=f"{task.error};{task.usage.summary()}",
+        )
 
     def _record(self, event: str, task: Task, **details: str) -> None:
         self.events.append(event_now(event, task.id, self.run_id, **details))
