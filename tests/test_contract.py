@@ -5,6 +5,7 @@ from agent_control_plane.contract import (
     ArtifactRef,
     ComponentIdentity,
     ContractValidationError,
+    ExecutionEvent,
     ExecutionIdentity,
     TraceContext,
 )
@@ -127,3 +128,108 @@ def test_artifact_ref_rejects_blank_required_fields(field):
 
     with pytest.raises(ContractValidationError):
         ArtifactRef(**values)
+
+
+def _event_kwargs():
+    return {
+        "event_type": "task.completed",
+        "identity": ExecutionIdentity(execution_id="exec-1", run_id="run-1"),
+        "trace": TraceContext(trace_id="trace-1", span_id="span-1"),
+        "component": ComponentIdentity(
+            component_id="kernel",
+            component_type="kernel",
+            runtime_id="python",
+            adapter_id="native-acp",
+        ),
+        "task_id": "task-1",
+        "status": "completed",
+        "utc_timestamp": "2026-09-14T23:00:00+00:00",
+        "monotonic_ns": 42,
+    }
+
+
+def test_execution_event_serializes_deterministically_with_canonical_utc():
+    input_artifacts = (
+        ArtifactRef(artifact_id="input-1", kind="input"),
+        ArtifactRef(artifact_id="input-2", kind="input"),
+    )
+    output_artifacts = (ArtifactRef(artifact_id="output-1", kind="output"),)
+    event = ExecutionEvent(
+        **_event_kwargs(),
+        capability="echo",
+        policy_decision_ref="policy-1",
+        input_artifacts=input_artifacts,
+        output_artifacts=output_artifacts,
+        detail="steps=1",
+    )
+
+    assert event.to_dict() == {
+        "event_type": "task.completed",
+        "identity": {
+            "execution_id": "exec-1",
+            "run_id": "run-1",
+            "schema_version": SCHEMA_VERSION,
+        },
+        "trace": {
+            "trace_id": "trace-1",
+            "span_id": "span-1",
+            "parent_span_id": None,
+        },
+        "component": {
+            "component_id": "kernel",
+            "component_type": "kernel",
+            "runtime_id": "python",
+            "adapter_id": "native-acp",
+            "version": None,
+            "source_ref": None,
+        },
+        "task_id": "task-1",
+        "status": "completed",
+        "utc_timestamp": "2026-09-14T23:00:00Z",
+        "monotonic_ns": 42,
+        "capability": "echo",
+        "policy_decision_ref": "policy-1",
+        "input_artifacts": [
+            {"artifact_id": "input-1", "kind": "input", "uri": None, "version": None, "sha256": None},
+            {"artifact_id": "input-2", "kind": "input", "uri": None, "version": None, "sha256": None},
+        ],
+        "output_artifacts": [
+            {"artifact_id": "output-1", "kind": "output", "uri": None, "version": None, "sha256": None}
+        ],
+        "detail": "steps=1",
+    }
+
+
+def test_execution_event_preserves_artifact_order():
+    event = ExecutionEvent(
+        **_event_kwargs(),
+        input_artifacts=(
+            ArtifactRef(artifact_id="first", kind="input"),
+            ArtifactRef(artifact_id="second", kind="input"),
+        ),
+    )
+
+    assert [item["artifact_id"] for item in event.to_dict()["input_artifacts"]] == ["first", "second"]
+
+
+def test_execution_event_rejects_negative_monotonic_value():
+    values = _event_kwargs()
+    values["monotonic_ns"] = -1
+
+    with pytest.raises(ContractValidationError):
+        ExecutionEvent(**values)
+
+
+@pytest.mark.parametrize(
+    "timestamp",
+    [
+        "2026-09-14T23:00:00",
+        "2026-09-15T00:00:00+01:00",
+    ],
+)
+def test_execution_event_rejects_naive_or_non_utc_timestamp(timestamp):
+    values = _event_kwargs()
+    values["utc_timestamp"] = timestamp
+
+    with pytest.raises(ContractValidationError):
+        ExecutionEvent(**values)
