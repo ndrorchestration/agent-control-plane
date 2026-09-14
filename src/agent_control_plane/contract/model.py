@@ -3,7 +3,7 @@
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 SCHEMA_VERSION = "agent-control-plane.execution.v1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -146,3 +146,45 @@ class ExecutionEvent:
             "output_artifacts": [artifact.to_dict() for artifact in self.output_artifacts],
             "detail": self.detail,
         }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "ExecutionEvent":
+        """Reconstruct a serialized event through the same fail-closed validators."""
+        if not isinstance(data, Mapping):
+            raise ContractValidationError("execution event payload must be a mapping")
+        try:
+            identity_data = data["identity"]
+            trace_data = data["trace"]
+            component_data = data["component"]
+            input_artifacts_data = data.get("input_artifacts", ())
+            output_artifacts_data = data.get("output_artifacts", ())
+            if not isinstance(identity_data, Mapping):
+                raise ContractValidationError("identity must be a mapping")
+            if not isinstance(trace_data, Mapping):
+                raise ContractValidationError("trace must be a mapping")
+            if not isinstance(component_data, Mapping):
+                raise ContractValidationError("component must be a mapping")
+            if not isinstance(input_artifacts_data, (list, tuple)):
+                raise ContractValidationError("input_artifacts must be a sequence")
+            if not isinstance(output_artifacts_data, (list, tuple)):
+                raise ContractValidationError("output_artifacts must be a sequence")
+
+            return cls(
+                event_type=data["event_type"],
+                identity=ExecutionIdentity(**dict(identity_data)),
+                trace=TraceContext(**dict(trace_data)),
+                component=ComponentIdentity(**dict(component_data)),
+                task_id=data["task_id"],
+                status=data["status"],
+                utc_timestamp=data["utc_timestamp"],
+                monotonic_ns=data["monotonic_ns"],
+                capability=data.get("capability"),
+                policy_decision_ref=data.get("policy_decision_ref"),
+                input_artifacts=tuple(ArtifactRef(**dict(item)) for item in input_artifacts_data),
+                output_artifacts=tuple(ArtifactRef(**dict(item)) for item in output_artifacts_data),
+                detail=data.get("detail"),
+            )
+        except ContractValidationError:
+            raise
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ContractValidationError("malformed execution event payload") from exc
