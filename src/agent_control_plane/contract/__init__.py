@@ -1,5 +1,6 @@
 """Public execution-contract API."""
 
+from .mapping import map_provenance_event
 from .model import (
     SCHEMA_VERSION,
     ArtifactRef,
@@ -18,4 +19,5 @@ __all__ = [
     "ExecutionEvent",
     "ExecutionIdentity",
     "TraceContext",
+    "map_provenance_event",
 ]
