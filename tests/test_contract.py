@@ -117,7 +117,7 @@ def test_artifact_ref_serializes_valid_sha256():
     }
 
 
-@pytest.mark.parametrize("sha256", ["A" * 64, "a" * 63, "g" * 64, "not-a-hash"])
+@pytest.mark.parametrize("sha256", ["A" * 64, "a" * 63, "g" * 64, "not-a-hash", 123])
 def test_artifact_ref_rejects_malformed_sha256(sha256):
     with pytest.raises(ContractValidationError):
         ArtifactRef(artifact_id="artifact-1", kind="input", sha256=sha256)
@@ -232,6 +232,24 @@ def test_execution_event_rejects_negative_monotonic_value():
 def test_execution_event_rejects_naive_or_non_utc_timestamp(timestamp):
     values = _event_kwargs()
     values["utc_timestamp"] = timestamp
+
+    with pytest.raises(ContractValidationError):
+        ExecutionEvent(**values)
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [
+        ("identity", "not-an-identity"),
+        ("trace", "not-a-trace"),
+        ("component", "not-a-component"),
+        ("input_artifacts", ("not-an-artifact",)),
+        ("output_artifacts", ("not-an-artifact",)),
+    ],
+)
+def test_execution_event_rejects_invalid_nested_contract_types(field, invalid_value):
+    values = _event_kwargs()
+    values[field] = invalid_value
 
     with pytest.raises(ContractValidationError):
         ExecutionEvent(**values)
