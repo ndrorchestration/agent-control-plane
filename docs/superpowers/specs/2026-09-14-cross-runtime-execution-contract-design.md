@@ -62,7 +62,9 @@ The change is additive. Existing `Task`, `ControlPlane`, cooperative budget beha
 
 ## Contract structure
 
-The first implementation should use a focused module or package under `src/agent_control_plane/contract/`. Exact internal file decomposition may be adjusted to fit repository conventions, but public concepts and semantics below are normative for this slice.
+The implementation should use a focused package under `src/agent_control_plane/contract/`, with public exports collected in `src/agent_control_plane/contract/__init__.py`. Internal decomposition should keep validation/model and provenance-mapping responsibilities separate.
+
+The package exports `ContractValidationError`, a subclass of `ValueError`, for contract construction and mapping failures. Callers may catch `ValueError` broadly without losing compatibility with ordinary Python validation conventions.
 
 ### `ExecutionIdentity`
 
@@ -75,7 +77,7 @@ Required fields:
 Validation:
 
 - all required identifiers must be non-empty after trimming;
-- unsupported schema versions fail closed;
+- unsupported schema versions fail closed with `ContractValidationError`;
 - identifiers are preserved exactly after validation; they are not silently regenerated.
 
 `execution_id` is intentionally distinct from existing `task_id` and `run_id`: a task is a kernel object, a run scopes ACP provenance, and an execution is the cross-runtime unit represented by this contract.
@@ -158,7 +160,8 @@ Validation:
 
 - required strings must be non-empty;
 - `monotonic_ns` must be an integer >= 0;
-- `utc_timestamp` must be timezone-aware ISO-8601 UTC and normalized to a `Z` or `+00:00` representation chosen consistently by implementation;
+- `utc_timestamp` must parse as timezone-aware ISO-8601 UTC;
+- serialization normalizes UTC timestamps to the canonical `YYYY-MM-DDTHH:MM:SS[.ffffff]Z` form, using `Z` rather than `+00:00`;
 - artifact arrays preserve caller order;
 - serialization emits stable field names and deterministic nested ordering.
 
@@ -177,9 +180,9 @@ Mapping rules:
 - existing `task_id` -> `task_id`;
 - existing `run_id` must equal `ExecutionIdentity.run_id`; mismatch fails closed;
 - existing `capability` -> `capability`;
-- existing `state` -> `status`; when state is absent the mapper uses an explicit non-success placeholder such as `unspecified`, never inferred success;
+- existing `state` -> `status`; when state is absent the mapper uses the exact literal `unspecified`, never inferred success;
 - existing `detail` -> `detail`;
-- existing UTC timestamp -> `utc_timestamp` after strict validation;
+- existing UTC timestamp -> validated and canonically serialized `utc_timestamp`;
 - `monotonic_ns` must be supplied by the mapping call or event-emission boundary; it is not reconstructed from wall-clock time.
 
 The mapper must not fabricate trace IDs, component IDs, source refs, artifacts, policy decisions, or successful status from missing historical data.
@@ -194,13 +197,13 @@ The current ACP policy hook remains a pre-execution allow/deny mechanism. Future
 
 Contract objects expose deterministic JSON-ready dictionaries. The implementation must not include process addresses, unordered set output, generated timestamps at serialization time, or other nondeterministic fields.
 
-A conformance fixture should serialize a fully populated event to an exact expected dictionary. A second round-trip test should reconstruct or validate the same contract data without semantic drift.
+A conformance fixture should serialize a fully populated event to an exact expected dictionary. A second round-trip validation test should construct an equivalent event from the serialized dictionary and confirm semantic equality without field loss or reinterpretation.
 
 This first suite establishes **schema/serialization conformance for ACP-native events only**. It is not a cross-runtime portability suite until a materially different adapter is implemented and executes the same fixtures.
 
 ## Error handling
 
-Construction or conversion must raise explicit validation errors for:
+Construction or conversion must raise `ContractValidationError` for:
 
 - blank required identity fields;
 - unsupported schema version;
@@ -231,13 +234,14 @@ Use TDD for each behavior. The minimum tests are:
 4. blank trace ID/span ID and self-parent rejection;
 5. component identity serialization without persona dependence;
 6. artifact hash validation;
-7. deterministic full event serialization;
+7. deterministic full event serialization with canonical `Z` timestamp;
 8. rejection of negative monotonic values;
 9. rejection of naive/non-UTC timestamps;
 10. provenance-to-contract mapping preserves event/task/run/capability/state/detail;
 11. provenance mapping rejects run mismatch;
-12. provenance mapping does not infer success when source state is absent;
-13. existing ACP test suite remains green without public-behavior changes.
+12. provenance mapping maps absent source state exactly to `unspecified`;
+13. serialized-dictionary round-trip preserves semantic equality;
+14. existing ACP test suite remains green without public-behavior changes.
 
 Tests must assert real behavior, not implementation-specific mocks.
 
