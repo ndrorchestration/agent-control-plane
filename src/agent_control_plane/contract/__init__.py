@@ -5,6 +5,7 @@ from .model import (
     ArtifactRef,
     ComponentIdentity,
     ContractValidationError,
+    ExecutionEvent,
     ExecutionIdentity,
     TraceContext,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "ArtifactRef",
     "ComponentIdentity",
     "ContractValidationError",
+    "ExecutionEvent",
     "ExecutionIdentity",
     "TraceContext",
 ]
