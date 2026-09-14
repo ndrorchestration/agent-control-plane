@@ -97,8 +97,9 @@ class ArtifactRef:
     def __post_init__(self) -> None:
         _required(self.artifact_id, "artifact_id")
         _required(self.kind, "kind")
-        if self.sha256 is not None and _SHA256_RE.fullmatch(self.sha256) is None:
-            raise ContractValidationError("sha256 must be 64 lowercase hexadecimal characters")
+        if self.sha256 is not None:
+            if not isinstance(self.sha256, str) or _SHA256_RE.fullmatch(self.sha256) is None:
+                raise ContractValidationError("sha256 must be 64 lowercase hexadecimal characters")
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -124,6 +125,20 @@ class ExecutionEvent:
         _required(self.event_type, "event_type")
         _required(self.task_id, "task_id")
         _required(self.status, "status")
+        if not isinstance(self.identity, ExecutionIdentity):
+            raise ContractValidationError("identity must be ExecutionIdentity")
+        if not isinstance(self.trace, TraceContext):
+            raise ContractValidationError("trace must be TraceContext")
+        if not isinstance(self.component, ComponentIdentity):
+            raise ContractValidationError("component must be ComponentIdentity")
+        if not isinstance(self.input_artifacts, tuple) or not all(
+            isinstance(artifact, ArtifactRef) for artifact in self.input_artifacts
+        ):
+            raise ContractValidationError("input_artifacts must be a tuple of ArtifactRef")
+        if not isinstance(self.output_artifacts, tuple) or not all(
+            isinstance(artifact, ArtifactRef) for artifact in self.output_artifacts
+        ):
+            raise ContractValidationError("output_artifacts must be a tuple of ArtifactRef")
         if isinstance(self.monotonic_ns, bool) or not isinstance(self.monotonic_ns, int):
             raise ContractValidationError("monotonic_ns must be an integer >= 0")
         if self.monotonic_ns < 0:
