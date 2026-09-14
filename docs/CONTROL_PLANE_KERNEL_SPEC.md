@@ -53,32 +53,79 @@ This is local deterministic routing. It is **not** distributed scheduling, load 
 
 Policy evaluation is represented as an explicit allow/deny decision with an optional reason. Policy is intentionally separated from execution so higher-level governance systems can supply policies without coupling them to the kernel.
 
+The current kernel policy hook is a **pre-execution** allow/deny mechanism. The cross-runtime execution contract described below can carry an optional `policy_decision_ref`, but that field only associates an identified decision with an execution event. It does not add in-execution or post-execution policy engines and does not itself establish authorization.
+
 ## Provenance
 
-Each execution transition emits a structured `ProvenanceEvent` containing:
+Each kernel execution transition emits a structured `ProvenanceEvent` containing:
 
 - event type;
 - task identifier;
+- run identifier;
 - capability when applicable;
 - resulting state when applicable;
 - optional failure or usage detail;
 - UTC timestamp.
 
-The event list is currently process-local and non-durable.
+`ControlPlane.provenance_manifest()` continues to export the existing `agent-control-plane.provenance.v1` representation. That manifest remains process-local and non-durable.
+
+## Cross-runtime execution contract
+
+ACP additionally defines a versioned framework-neutral execution/trace contract with schema identity:
+
+`agent-control-plane.execution.v1`
+
+The contract is additive to the existing kernel provenance representation. It currently provides immutable typed records for:
+
+- `ExecutionIdentity` — explicit execution ID, run ID, and schema version;
+- `TraceContext` — trace ID, span ID, and optional parent span ID;
+- `ComponentIdentity` — component, component type, runtime, adapter, and optional source/version identity;
+- `ArtifactRef` — artifact identity/type plus optional URI, version, and SHA-256 reference;
+- `ExecutionEvent` — event type, execution/trace/component context, task/status, UTC timestamp, monotonic ordering value, optional capability/policy reference/artifacts/detail.
+
+Required identity fields fail closed when blank. Unsupported schema versions, span self-parenting, malformed SHA-256 values, negative/non-integer monotonic values, and naive or non-UTC event timestamps are rejected with `ContractValidationError`.
+
+Event timestamps serialize canonically in UTC with a trailing `Z`. Contract serialization is deterministic and `ExecutionEvent.from_dict()` reconstructs serialized events through the same validation paths, so malformed nested data does not bypass validation.
+
+### Legacy provenance mapping
+
+`map_provenance_event(...)` converts an existing `ProvenanceEvent` into an `ExecutionEvent` only when the caller supplies execution, trace, component, and monotonic context that the legacy event does not contain.
+
+The mapper:
+
+- preserves the legacy event type, task ID, capability, state, detail, and UTC timestamp;
+- requires the legacy `run_id` to equal the supplied contract `run_id` and fails closed on mismatch;
+- maps an absent legacy state to the explicit non-success placeholder `unspecified`;
+- does not fabricate trace IDs, component IDs, artifacts, policy decisions, or successful status.
+
+This mapper does not change `agent-control-plane.provenance.v1` and does not imply that historical events contained trace/span data they did not record.
+
+### Current conformance boundary
+
+The present contract tests establish ACP-native schema construction, validation, deterministic serialization, round-trip reconstruction, and legacy-provenance mapping under the tested Python environments.
+
+They do **not** establish cross-runtime portability. No materially different external runtime adapter is implemented in this slice, and there is not yet a two-runtime conformance result using the same core schema without fork.
 
 ## Evidence boundary
 
-The kernel and tests demonstrate local deterministic behavior only. The budget tests establish the cooperative count/cost accounting and fail-closed exhaustion properties exercised by those tests. They do not establish:
+The kernel and tests demonstrate local deterministic behavior only. The budget tests establish the cooperative count/cost accounting and fail-closed exhaustion properties exercised by those tests. The execution-contract tests establish only the ACP-native contract properties exercised by those tests.
 
+They do not establish:
+
+- general cross-runtime portability;
 - production reliability;
 - distributed correctness;
 - security authorization;
+- DGAF authorization or governance effectiveness;
+- PDMAL scientific validity or efficacy;
 - persistence guarantees;
+- durable or tamper-evident provenance;
+- cryptographic attestation or custody independence;
 - hard execution-time enforcement;
 - provider-accurate token/cost metering;
 - retry/checkpoint/delegation correctness;
 - model quality;
 - multi-agent coordination quality;
-- governance effectiveness.
+- superiority to existing orchestration standards or frameworks.
 
-Those claims require separate implementation and empirical validation.
+Those claims require separate implementation and evidence.
