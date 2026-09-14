@@ -1,8 +1,9 @@
 """Framework-neutral execution contract primitives."""
 
 from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 SCHEMA_VERSION = "agent-control-plane.execution.v1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -16,6 +17,20 @@ def _required(value: str, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ContractValidationError(f"{field_name} must not be blank")
     return value
+
+
+def _canonical_utc_timestamp(value: str) -> str:
+    _required(value, "utc_timestamp")
+    candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError as exc:
+        raise ContractValidationError("utc_timestamp must be valid ISO-8601") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ContractValidationError("utc_timestamp must be timezone-aware UTC")
+    if parsed.utcoffset() != timedelta(0):
+        raise ContractValidationError("utc_timestamp must use UTC")
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 @dataclass(frozen=True)
@@ -87,3 +102,47 @@ class ArtifactRef:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class ExecutionEvent:
+    event_type: str
+    identity: ExecutionIdentity
+    trace: TraceContext
+    component: ComponentIdentity
+    task_id: str
+    status: str
+    utc_timestamp: str
+    monotonic_ns: int
+    capability: Optional[str] = None
+    policy_decision_ref: Optional[str] = None
+    input_artifacts: Tuple[ArtifactRef, ...] = ()
+    output_artifacts: Tuple[ArtifactRef, ...] = ()
+    detail: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        _required(self.event_type, "event_type")
+        _required(self.task_id, "task_id")
+        _required(self.status, "status")
+        if isinstance(self.monotonic_ns, bool) or not isinstance(self.monotonic_ns, int):
+            raise ContractValidationError("monotonic_ns must be an integer >= 0")
+        if self.monotonic_ns < 0:
+            raise ContractValidationError("monotonic_ns must be an integer >= 0")
+        object.__setattr__(self, "utc_timestamp", _canonical_utc_timestamp(self.utc_timestamp))
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "event_type": self.event_type,
+            "identity": self.identity.to_dict(),
+            "trace": self.trace.to_dict(),
+            "component": self.component.to_dict(),
+            "task_id": self.task_id,
+            "status": self.status,
+            "utc_timestamp": self.utc_timestamp,
+            "monotonic_ns": self.monotonic_ns,
+            "capability": self.capability,
+            "policy_decision_ref": self.policy_decision_ref,
+            "input_artifacts": [artifact.to_dict() for artifact in self.input_artifacts],
+            "output_artifacts": [artifact.to_dict() for artifact in self.output_artifacts],
+            "detail": self.detail,
+        }
