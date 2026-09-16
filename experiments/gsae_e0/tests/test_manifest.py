@@ -85,9 +85,8 @@ def test_valid_bundle_passes_validation():
 
 
 def test_blank_result_id_is_rejected():
-    broken = replace(fixture_result(), result_id="")
-    with pytest.raises((EvidenceValidationError, ValueError), match="result_id"):
-        validate_evidence_bundle(bundle((broken,)), known_fixture_ids={"AUTH-02"})
+    with pytest.raises(ValueError, match="result_id"):
+        replace(fixture_result(), result_id="")
 
 
 def test_duplicate_result_ids_are_rejected():
