@@ -1,6 +1,12 @@
+from pathlib import Path
+
 import pytest
 
+from experiments.gsae_e0.fixtures import fixture_manifest_sha256, load_fixture_manifest
 from experiments.gsae_e0.schema import FixtureManifest, FixtureValidationError
+
+
+FIXTURE_PATH = Path("experiments/gsae_e0/fixtures/stage_a_v1.json")
 
 
 def valid_fixture(fixture_id="AUTH-01"):
@@ -68,3 +74,45 @@ def test_malformed_required_path_groups_fail_closed():
     data["fixtures"][0]["input_spec"]["required_path_groups"] = [[]]
     with pytest.raises(FixtureValidationError, match="required_path_groups"):
         FixtureManifest.from_dict(data)
+
+
+def test_frozen_stage_a_fixture_ids_are_exact():
+    manifest = load_fixture_manifest(FIXTURE_PATH)
+    assert {fixture.fixture_id for fixture in manifest.fixtures} == {
+        "NATIVE-01",
+        "NATIVE-02",
+        "NATIVE-03",
+        "NATIVE-04",
+        "NATIVE-05",
+        "NATIVE-06",
+        "NATIVE-07",
+        "NATIVE-08",
+        "NATIVE-09",
+        "NATIVE-10",
+        "NEG-01",
+        "NEG-02",
+        "NEG-03",
+        "NEG-04",
+        "NEG-05",
+        "NEG-06",
+        "NEG-07",
+        "NEG-08",
+        "AUTH-01",
+        "AUTH-02",
+        "AUTH-03",
+        "AUTH-04",
+        "AUTH-05",
+        "AUTH-06",
+        "AUTH-07",
+        "AUTH-08",
+        "AUTH-09",
+        "AUTH-10",
+    }
+
+
+def test_fixture_hash_is_64_lower_hex_and_stable():
+    first = fixture_manifest_sha256(FIXTURE_PATH)
+    second = fixture_manifest_sha256(FIXTURE_PATH)
+    assert first == second
+    assert len(first) == 64
+    assert first == first.lower()
