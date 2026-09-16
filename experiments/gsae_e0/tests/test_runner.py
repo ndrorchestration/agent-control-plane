@@ -106,9 +106,12 @@ def _synthetic_manifest(
 
 
 def _run_kwargs(tmp_path: Path, **overrides):
+    fixture_path = overrides.get("fixture_path")
+    if fixture_path is None:
+        fixture_path = _synthetic_manifest(tmp_path)
     values = {
         "repo_root": Path.cwd(),
-        "fixture_path": _synthetic_manifest(tmp_path),
+        "fixture_path": fixture_path,
         "protocol_version": "GSAE-E0-R2-v0.1-SYNTHETIC",
         "authorization_record_id": "synthetic-apparatus-test-authorization",
         "run_id": "synthetic-stage-a-run",
