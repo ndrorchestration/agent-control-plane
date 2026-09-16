@@ -18,11 +18,28 @@ from agent_control_plane.contract import (
 )
 from agent_control_plane.provenance import ProvenanceEvent
 
-from .schema import FixtureDisposition
+from .classify import (
+    aggregate_disposition,
+    classify_authority_fixture,
+    execution_v1_surface_paths,
+)
+from .fixtures import fixture_manifest_sha256, load_fixture_manifest
+from .manifest import EvidenceBundle, build_evidence_bundle, result_id
+from .schema import (
+    ExceptionClass,
+    FixtureDisposition,
+    FixtureFamily,
+    FixtureResult,
+    FixtureValidationError,
+)
 
 
 class SourceBindingError(RuntimeError):
     """Raised when the working tree cannot prove the frozen ACP source binding."""
+
+
+class ExecutionGuardError(RuntimeError):
+    """Raised when Stage-A orchestration lacks a required execution guard or binding."""
 
 
 def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -330,3 +347,153 @@ def observe_native_fixture(fixture_id: str) -> tuple[FixtureDisposition, str]:
     if observation is None:
         raise ValueError(f"unknown native fixture: {fixture_id}")
     return observation()
+
+
+def _guard_text(value: str, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ExecutionGuardError(f"{field_name} must be a non-blank string")
+    return value.strip()
+
+
+def _native_result(
+    *,
+    fixture_id: str,
+    disposition: FixtureDisposition,
+    summary: str,
+    run_id: str,
+    source_under_test_sha: str,
+    schema_version: str,
+    fixture_manifest_sha256: str,
+) -> FixtureResult:
+    exception_class = None
+    if disposition is FixtureDisposition.NOT_ESTABLISHED:
+        exception_class = ExceptionClass.IMPLEMENTATION_DEFECT
+    return FixtureResult(
+        result_id=result_id(run_id, fixture_id, 1),
+        run_id=run_id,
+        attempt=1,
+        fixture_id=fixture_id,
+        disposition=disposition,
+        source_under_test_sha=source_under_test_sha,
+        schema_version=schema_version,
+        fixture_manifest_sha256=fixture_manifest_sha256,
+        exception_class=exception_class,
+        evidence_summary=summary,
+    )
+
+
+def run_stage_a(
+    *,
+    repo_root: Path,
+    fixture_path: Path,
+    protocol_version: str,
+    authorization_record_id: str,
+    run_id: str,
+    harness_commit_sha: str,
+    test_command: str,
+    test_summary: str,
+) -> EvidenceBundle:
+    """Run one explicitly identified Stage-A fixture manifest in memory only.
+
+    This function requires an explicit authorization-record identifier but does
+    not itself decide whether that external governance record is valid. The GSAE
+    control record remains the authority for execution authorization.
+    """
+    protocol = _guard_text(protocol_version, "protocol_version")
+    authorization = _guard_text(authorization_record_id, "authorization_record_id")
+    run = _guard_text(run_id, "run_id")
+    harness_sha = _guard_text(harness_commit_sha, "harness_commit_sha")
+    command = _guard_text(test_command, "test_command")
+    summary = _guard_text(test_summary, "test_summary")
+    if re.fullmatch(r"[0-9a-f]{40}", harness_sha) is None:
+        raise ExecutionGuardError(
+            "harness_commit_sha must be 40 lowercase hexadecimal characters"
+        )
+
+    try:
+        manifest = load_fixture_manifest(fixture_path)
+    except (OSError, ValueError, FixtureValidationError) as exc:
+        raise ExecutionGuardError(f"fixture manifest not established: {exc}") from exc
+
+    if manifest.experiment_id != "GSAE-E0":
+        raise ExecutionGuardError(
+            f"experiment_id must be GSAE-E0, got {manifest.experiment_id!r}"
+        )
+    if manifest.schema_version != SCHEMA_VERSION:
+        raise ExecutionGuardError(
+            f"schema_version must be {SCHEMA_VERSION}, got {manifest.schema_version!r}"
+        )
+
+    try:
+        verify_source_binding(repo_root, manifest.source_under_test_sha)
+    except SourceBindingError as exc:
+        raise ExecutionGuardError(f"source binding not established: {exc}") from exc
+
+    try:
+        fixture_hash = fixture_manifest_sha256(fixture_path)
+    except (OSError, ValueError, FixtureValidationError) as exc:
+        raise ExecutionGuardError(f"fixture manifest identity not established: {exc}") from exc
+
+    surface = execution_v1_surface_paths()
+    results: list[FixtureResult] = []
+
+    for fixture in manifest.fixtures:
+        if fixture.family in {FixtureFamily.NATIVE, FixtureFamily.NEGATIVE}:
+            try:
+                disposition, evidence_summary = observe_native_fixture(fixture.fixture_id)
+            except Exception as exc:  # apparatus must convert unexpected observation errors to evidence
+                disposition = FixtureDisposition.NOT_ESTABLISHED
+                evidence_summary = f"unexpected observation error: {type(exc).__name__}: {exc}"
+            results.append(
+                _native_result(
+                    fixture_id=fixture.fixture_id,
+                    disposition=disposition,
+                    summary=evidence_summary,
+                    run_id=run,
+                    source_under_test_sha=manifest.source_under_test_sha,
+                    schema_version=manifest.schema_version,
+                    fixture_manifest_sha256=fixture_hash,
+                )
+            )
+        elif fixture.family is FixtureFamily.AUTHORITY:
+            results.append(
+                classify_authority_fixture(
+                    fixture,
+                    surface,
+                    result_id=result_id(run, fixture.fixture_id, 1),
+                    run_id=run,
+                    attempt=1,
+                    source_under_test_sha=manifest.source_under_test_sha,
+                    schema_version=manifest.schema_version,
+                    fixture_manifest_sha256=fixture_hash,
+                )
+            )
+        else:
+            raise ExecutionGuardError(f"unsupported fixture family: {fixture.family.value}")
+
+    fixture_ids = [fixture.fixture_id for fixture in manifest.fixtures]
+    result_fixture_ids = [result.fixture_id for result in results]
+    if len(results) != len(manifest.fixtures) or set(result_fixture_ids) != set(fixture_ids):
+        raise ExecutionGuardError("exactly one result per frozen fixture was not established")
+
+    aggregate = aggregate_disposition(manifest.fixtures, results)
+    return build_evidence_bundle(
+        experiment_id=manifest.experiment_id,
+        protocol_version=protocol,
+        run_id=run,
+        authorization_record_id=authorization,
+        source_under_test_sha=manifest.source_under_test_sha,
+        harness_commit_sha=harness_sha,
+        schema_version=manifest.schema_version,
+        fixture_set_version=manifest.fixture_set_version,
+        fixture_manifest_sha256=fixture_hash,
+        results=results,
+        aggregate_disposition=aggregate,
+        test_command=command,
+        test_summary=summary,
+        evidence_ceiling=(
+            "GSAE-E0 Stage-A contract-feasibility evidence only; not portability, "
+            "authorization, governance efficacy, safety, security, or production readiness."
+        ),
+        known_fixture_ids=set(fixture_ids),
+    )
