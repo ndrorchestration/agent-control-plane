@@ -164,6 +164,8 @@ Sync messages now also have a canonical UTF-8 JSON representation with sorted ke
 
 `AuthoritySyncTransport` defines the adapter boundary: a transport exchanges canonical ACP bytes with a peer and returns canonical acknowledgement bytes. `AuthoritySyncEndpoint` retains decoding and reconciliation inside ACP, while `LoopbackAuthoritySyncTransport` provides an in-process conformance harness. Transport adapters must not redefine replay, authority-epoch, revocation, conflict, or acknowledgement semantics.
 
+An experimental `ReticulumAuthoritySyncTransport` / `ReticulumAuthoritySyncServer` candidate now maps that boundary onto Reticulum's documented `Link.request(...)` and `Destination.register_request_handler(...)` surfaces. Current verification is offline/API-shape conformance only; **live Reticulum compatibility is NOT ESTABLISHED**. See [`docs/RETICULUM_ADAPTER.md`](docs/RETICULUM_ADAPTER.md).
+
 ## Evidence standard
 
 Claims in this repository should distinguish:
