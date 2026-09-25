@@ -24,7 +24,10 @@ from agent_control_plane.authority_sync_watermark_relay_chain import (
     encode_ed25519_relay_chain,
     new_ed25519_relay_chain,
 )
-from agent_control_plane.reticulum_adapter import ReticulumRelayStageTransport
+from agent_control_plane.reticulum_adapter import (
+    ReticulumAdapterError,
+    ReticulumRelayStageTransport,
+)
 
 
 APP_NAME = "ndrorchestration"
@@ -178,6 +181,31 @@ def start_relay(
             "--announce-interval",
             "60",
         ]
+    )
+
+
+def origin_chain_payload(
+    *,
+    watermark_id: str,
+    sequence: int,
+    issued_at: str,
+) -> bytes:
+    watermark = AuthoritySyncWatermark(
+        watermark_id=watermark_id,
+        issuer_id="origin-peer",
+        target_sender_id="origin-peer",
+        min_sequence=sequence,
+        issued_at=issued_at,
+    )
+    envelope = sign_authority_sync_watermark_ed25519(
+        watermark,
+        key_id="origin-ed-key",
+        private_key_raw=ORIGIN_PRIVATE,
+    )
+    return encode_ed25519_relay_chain(
+        new_ed25519_relay_chain(
+            encode_ed25519_authority_sync_watermark(envelope)
+        )
     )
 
 
@@ -398,26 +426,15 @@ def main() -> None:
             transport = ReticulumRelayStageTransport(
                 {"relay-a": link},
                 peer_destination_hashes={"relay-a": relay_a_hash},
-                timeout_seconds=args.timeout,
+                timeout_seconds=min(args.timeout, 8.0),
                 max_response_size=65536,
             )
 
-            origin_watermark = AuthoritySyncWatermark(
+            payload = origin_chain_payload(
                 watermark_id="autonomous-origin-watermark-1",
-                issuer_id="origin-peer",
-                target_sender_id="origin-peer",
-                min_sequence=1,
+                sequence=1,
                 issued_at="2026-09-25T20:10:00Z",
             )
-            origin_envelope = sign_authority_sync_watermark_ed25519(
-                origin_watermark,
-                key_id="origin-ed-key",
-                private_key_raw=ORIGIN_PRIVATE,
-            )
-            chain = new_ed25519_relay_chain(
-                encode_ed25519_authority_sync_watermark(origin_envelope)
-            )
-            payload = encode_ed25519_relay_chain(chain)
 
             acknowledgement = decode_authority_sync_watermark_acknowledgement(
                 transport.exchange("relay-a", payload)
@@ -435,12 +452,178 @@ def main() -> None:
                     f"autonomous relay-chain replay not duplicate: {duplicate}"
                 )
 
+            recovery_payload = origin_chain_payload(
+                watermark_id="autonomous-origin-watermark-2",
+                sequence=2,
+                issued_at="2026-09-25T20:20:00Z",
+            )
+
+            # Remove the middle application relay while keeping the origin,
+            # first relay and final destination alive. The new watermark must
+            # not be accepted while the forwarding chain is incomplete.
+            stop_process(relay_b)
+            time.sleep(1.0)
+            outage_failed_closed = False
+            try:
+                transport.exchange("relay-a", recovery_payload)
+            except ReticulumAdapterError:
+                outage_failed_closed = True
+            if not outage_failed_closed:
+                raise RuntimeError(
+                    "relay-b outage did not fail closed at the origin"
+                )
+
             link.teardown()
+            stop_process(relay_a)
+            stop_process(relay_c)
+            time.sleep(1.0)
+
+            # Restart all relay stages with the exact same provisioned
+            # Reticulum identities. The final destination remains alive and
+            # retains the previously accepted watermark floor.
+            relay_c = start_relay(
+                script=relay_script,
+                config_dir=relay_configs["relay-c"],
+                identity_file=identity_files["relay-c"],
+                destination_hash_file=relay_c_hash_file,
+                ready_file=relay_c_ready,
+                relay_id="relay-c",
+                upstream_id="relay-b",
+                upstream_identity_hash=relay_identity["relay-b"].hash,
+                next_destination_hash=destination_hex,
+                next_kind="final",
+                next_receiver_id="reticulum-server",
+                relayed_at="2026-09-25T20:20:30Z",
+                timeout=args.timeout,
+            )
+            processes["relay-c"] = relay_c
+            recovered_relay_c_hex = wait_for_file(
+                relay_c_hash_file,
+                relay_c,
+                args.timeout,
+            )
+            wait_for_file(relay_c_ready, relay_c, args.timeout)
+
+            relay_b = start_relay(
+                script=relay_script,
+                config_dir=relay_configs["relay-b"],
+                identity_file=identity_files["relay-b"],
+                destination_hash_file=relay_b_hash_file,
+                ready_file=relay_b_ready,
+                relay_id="relay-b",
+                upstream_id="relay-a",
+                upstream_identity_hash=relay_identity["relay-a"].hash,
+                next_destination_hash=recovered_relay_c_hex,
+                next_kind="relay",
+                next_receiver_id="relay-c",
+                relayed_at="2026-09-25T20:20:20Z",
+                timeout=args.timeout,
+            )
+            processes["relay-b"] = relay_b
+            recovered_relay_b_hex = wait_for_file(
+                relay_b_hash_file,
+                relay_b,
+                args.timeout,
+            )
+            wait_for_file(relay_b_ready, relay_b, args.timeout)
+
+            relay_a = start_relay(
+                script=relay_script,
+                config_dir=relay_configs["relay-a"],
+                identity_file=identity_files["relay-a"],
+                destination_hash_file=relay_a_hash_file,
+                ready_file=relay_a_ready,
+                relay_id="relay-a",
+                upstream_id="origin-peer",
+                upstream_identity_hash=origin_identity.hash,
+                next_destination_hash=recovered_relay_b_hex,
+                next_kind="relay",
+                next_receiver_id="relay-b",
+                relayed_at="2026-09-25T20:20:10Z",
+                timeout=args.timeout,
+            )
+            processes["relay-a"] = relay_a
+            recovered_relay_a_hex = wait_for_file(
+                relay_a_hash_file,
+                relay_a,
+                args.timeout,
+            )
+            wait_for_file(relay_a_ready, relay_a, args.timeout)
+
+            if recovered_relay_a_hex != relay_a_hex:
+                raise RuntimeError("relay-a destination identity changed")
+            if recovered_relay_b_hex != relay_b_hex:
+                raise RuntimeError("relay-b destination identity changed")
+            if recovered_relay_c_hex != relay_c_hex:
+                raise RuntimeError("relay-c destination identity changed")
+
+            time.sleep(1.0)
+            recovered_relay_a_hash = bytes.fromhex(recovered_relay_a_hex)
+            wait_for_path(recovered_relay_a_hash, args.timeout)
+            recovered_relay_a_identity = wait_for_identity(
+                recovered_relay_a_hash,
+                args.timeout,
+            )
+            recovered_destination = RNS.Destination(
+                recovered_relay_a_identity,
+                RNS.Destination.OUT,
+                RNS.Destination.SINGLE,
+                APP_NAME,
+                *RELAY_ASPECTS,
+            )
+            recovered_link = establish_identified_link(
+                recovered_destination,
+                origin_identity,
+                args.timeout,
+            )
+            recovered_transport = ReticulumRelayStageTransport(
+                {"relay-a": recovered_link},
+                peer_destination_hashes={
+                    "relay-a": recovered_relay_a_hash
+                },
+                timeout_seconds=min(args.timeout, 8.0),
+                max_response_size=65536,
+            )
+
+            recovery_ack = decode_authority_sync_watermark_acknowledgement(
+                recovered_transport.exchange(
+                    "relay-a",
+                    recovery_payload,
+                )
+            )
+            if recovery_ack.disposition is not WatermarkDisposition.APPLIED:
+                raise RuntimeError(
+                    f"recovered relay chain not applied: {recovery_ack}"
+                )
+
+            recovery_duplicate = (
+                decode_authority_sync_watermark_acknowledgement(
+                    recovered_transport.exchange(
+                        "relay-a",
+                        recovery_payload,
+                    )
+                )
+            )
+            if (
+                recovery_duplicate.disposition
+                is not WatermarkDisposition.DUPLICATE
+            ):
+                raise RuntimeError(
+                    "recovered relay-chain replay not duplicate: "
+                    f"{recovery_duplicate}"
+                )
+            recovered_link.teardown()
 
             print("RETICULUM_AUTONOMOUS_RELAY_CHAIN=PASS")
             print("ROUTE=origin->relay-a->relay-b->relay-c->destination")
             print(f"ACK={acknowledgement.disposition.value}")
             print(f"REPLAY_ACK={duplicate.disposition.value}")
+            print("OUTAGE_FAIL_CLOSED=PASS")
+            print(f"RECOVERY_ACK={recovery_ack.disposition.value}")
+            print(
+                "RECOVERY_REPLAY_ACK="
+                f"{recovery_duplicate.disposition.value}"
+            )
             print(f"RELAY_A_DESTINATION={relay_a_hex}")
             print(f"RELAY_B_DESTINATION={relay_b_hex}")
             print(f"RELAY_C_DESTINATION={relay_c_hex}")
