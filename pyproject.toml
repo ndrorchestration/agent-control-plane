@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "Minimal deterministic control-plane kernel for agent orchestration"
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+crypto = ["cryptography>=46,<52"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests", "experiments/gsae_e0/tests"]
