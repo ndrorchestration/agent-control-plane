@@ -33,3 +33,10 @@ A deterministic direct-peer convergence harness now complements the authority pa
 The harness deliberately does **not** relay peer A's watermark through peer B while preserving A as the apparent issuer. Peer B may only publish the sequence it actually reconciled itself. This matches the current Reticulum identity-binding rule and prevents direct-peer evidence from being silently reclassified as multi-hop provenance.
 
 Therefore this experiment establishes only bounded honest-peer direct convergence under configured trust. Relay provenance, quorum rules, Byzantine peers, unknown latest state, multi-hop transport, and network timing remain separate problems.
+
+
+## Watermark origin-authentication prerequisite
+
+ACP now has a bounded HMAC-SHA256 authenticated-watermark envelope candidate. The signature input covers the entire canonical watermark plus key ID, algorithm, and authenticated-envelope schema. Tampering with the reported sender sequence, issuer ID, key ID, or other signed content fails verification under the expected secret.
+
+This does **not** turn HMAC into public-key origin proof. Verification requires possession of the same secret used to sign, and any holder of that secret can also forge envelopes. Therefore an eventual multi-hop relay should treat an origin-authenticated HMAC envelope as opaque unless the relay is explicitly intended to share origin authority. Key provisioning, rotation/revocation, asymmetric signatures, compromised peers, and relay provenance remain separate gates.
