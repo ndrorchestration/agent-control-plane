@@ -25,6 +25,8 @@ class AuthorityDecisionEvidence:
     revocation_checked: bool
     delegation_checked: bool
     conditions_checked: bool
+    state_checked: bool
+    state_reason: str | None
     schema: str = "agent-control-plane.authority-decision-evidence.v0-candidate"
 
     def to_dict(self) -> dict[str, object]:
@@ -64,6 +66,8 @@ class EvidenceAuthorityPolicy:
             revocation_checked=evaluation.revocation_checked,
             delegation_checked=evaluation.delegation_checked,
             conditions_checked=evaluation.conditions_checked,
+            state_checked=evaluation.state_checked,
+            state_reason=evaluation.state_reason,
         )
 
     def get(self, task_id: str) -> AuthorityDecisionEvidence | None:
