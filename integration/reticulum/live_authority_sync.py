@@ -19,7 +19,16 @@ from agent_control_plane.authority_sync import (
     decode_sync_acknowledgement,
     encode_sync_message,
 )
-from agent_control_plane.reticulum_adapter import ReticulumAuthoritySyncTransport
+from agent_control_plane.authority_sync_watermark import (
+    AuthoritySyncWatermark,
+    WatermarkDisposition,
+    decode_authority_sync_watermark_acknowledgement,
+    encode_authority_sync_watermark,
+)
+from agent_control_plane.reticulum_adapter import (
+    ReticulumAuthoritySyncTransport,
+    ReticulumAuthoritySyncWatermarkTransport,
+)
 from agent_control_plane.revocation import RevocationRecord
 
 
@@ -156,7 +165,13 @@ def connect_transport(
         timeout_seconds=timeout,
         max_response_size=65536,
     )
-    return destination_hex, link, transport
+    watermark_transport = ReticulumAuthoritySyncWatermarkTransport(
+        {"server": link},
+        peer_destination_hashes={"server": destination_hash},
+        timeout_seconds=timeout,
+        max_response_size=65536,
+    )
+    return destination_hex, link, transport, watermark_transport
 
 
 def exchange(transport, message):
@@ -211,7 +226,7 @@ def main() -> None:
         )
 
         try:
-            first_destination_hex, link, transport = connect_transport(
+            first_destination_hex, link, transport, watermark_transport = connect_transport(
                 hash_file=hash_file,
                 server=server,
                 client_identity=client_identity,
@@ -253,6 +268,33 @@ def main() -> None:
             if revocation_ack.disposition is not SyncDisposition.APPLIED:
                 raise RuntimeError(f"revocation not applied: {revocation_ack}")
 
+            watermark = AuthoritySyncWatermark(
+                watermark_id="live-watermark-1",
+                issuer_id="reticulum-client",
+                target_sender_id="reticulum-client",
+                min_sequence=2,
+                issued_at="2026-09-25T15:01:30Z",
+            )
+            watermark_ack = decode_authority_sync_watermark_acknowledgement(
+                watermark_transport.exchange(
+                    "server",
+                    encode_authority_sync_watermark(watermark),
+                )
+            )
+            if watermark_ack.disposition is not WatermarkDisposition.APPLIED:
+                raise RuntimeError(f"watermark not applied: {watermark_ack}")
+
+            watermark_duplicate_ack = decode_authority_sync_watermark_acknowledgement(
+                watermark_transport.exchange(
+                    "server",
+                    encode_authority_sync_watermark(watermark),
+                )
+            )
+            if watermark_duplicate_ack.disposition is not WatermarkDisposition.DUPLICATE:
+                raise RuntimeError(
+                    f"watermark duplicate not detected: {watermark_duplicate_ack}"
+                )
+
             link.teardown()
             stop_server(server)
             time.sleep(1.0)
@@ -264,7 +306,7 @@ def main() -> None:
                 state_db,
                 client_identity_hash,
             )
-            restart_destination_hex, restart_link, restart_transport = connect_transport(
+            restart_destination_hex, restart_link, restart_transport, _ = connect_transport(
                 hash_file=hash_file,
                 server=server,
                 client_identity=client_identity,
@@ -352,6 +394,8 @@ def main() -> None:
             print(f"SNAPSHOT_ACK={snapshot_ack.disposition.value}")
             print(f"SAME_LINK_DUPLICATE_ACK={same_link_duplicate_ack.disposition.value}")
             print(f"REVOCATION_ACK={revocation_ack.disposition.value}")
+            print(f"WATERMARK_ACK={watermark_ack.disposition.value}")
+            print(f"WATERMARK_DUPLICATE_ACK={watermark_duplicate_ack.disposition.value}")
             print(
                 "RESTART_SNAPSHOT_DUPLICATE_ACK="
                 f"{restart_snapshot_duplicate_ack.disposition.value}"
