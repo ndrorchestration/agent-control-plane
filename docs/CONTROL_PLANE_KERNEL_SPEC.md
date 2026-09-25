@@ -126,7 +126,11 @@ The candidate represents:
 
 The record validates required identities, canonical UTC expiry, typed decision outcomes, non-empty unique delegation scope, and explicit conditions for conditional decisions. It can test lease validity at a caller-supplied UTC timestamp and fail closed at expiry.
 
-This candidate is **not part of `agent-control-plane.execution.v1` and is not enforced by the kernel**. It exists so richer authority semantics can be engineered and reviewed without mutating the frozen Stage-A contract target. It does not authenticate identities, validate external policy authority, prove delegation legitimacy, provide revocation, or itself grant permission to execute.
+This candidate is **not part of `agent-control-plane.execution.v1`**. ACP additionally provides a narrow `AuthorityPolicy` adapter over the existing pre-execution policy hook.
+
+The adapter fails closed when authority is missing, malformed, capability-mismatched, expired, explicitly denied, or conditionally unresolved. Conditional authority requires an explicit caller-supplied evaluator; only a literal successful evaluation permits dispatch.
+
+The adapter does **not** authenticate identities, validate external policy authority or signatures, prove resource/operation scope legitimacy, prove delegation legitimacy, provide revocation, persist leases, or bind authority records into execution-v1 events. Its allow/deny result is therefore a bounded local software decision, not proof of broader authorization validity.
 
 ## Evidence boundary
 
