@@ -30,7 +30,8 @@ The kernel currently provides:
 - a fail-closed `AuthorityPolicy` adapter that can enforce envelope presence, capability binding, lease validity, explicit deny, caller-supplied conditional evaluation, revocation checks, and delegated-authority validation through the existing pre-execution policy hook. The envelope remains separate from `execution.v1`;
 - an append-only in-memory `agent-control-plane.revocation.v0-candidate` registry with deterministic manifest output and time-scoped revocation checks;
 - an additive `agent-control-plane.authority-decision-evidence.v0-candidate` sidecar that records run/task/capability plus authority, decision, policy, outcome, reason, observation time, and which state/revocation/delegation/condition checks were actually evaluated;
-- a candidate `agent-control-plane.authority-state.v0-candidate` in-memory cache with monotonic authority epochs, source identity, snapshot time, maximum-age requirements, stale-epoch detection, stale-age detection, and future-state rejection for disconnected-node experiments.
+- a candidate `agent-control-plane.authority-state.v0-candidate` in-memory cache with monotonic authority epochs, source identity, snapshot time, maximum-age requirements, stale-epoch detection, stale-age detection, and future-state rejection for disconnected-node experiments;
+- a transport-neutral `agent-control-plane.authority-sync.v0-candidate` contract for snapshot/revocation messages, per-sender replay sequencing, deterministic acknowledgements, duplicate detection, and explicit reconciliation rejection.
 
 The legacy provenance manifest and the execution contract are distinct representations. `agent-control-plane.provenance.v1` remains unchanged and process-local. Mapping a legacy event into `agent-control-plane.execution.v1` requires caller-supplied execution/trace/component/monotonic context; ACP does not fabricate missing historical trace or identity data.
 
@@ -156,6 +157,8 @@ The candidate is intentionally separate from frozen `agent-control-plane.executi
 For disconnected/stale-state experiments, `InMemoryAuthorityStateCache` tracks a monotonic epoch and issuance time per authority. An optional policy freshness checker can require a minimum epoch and maximum snapshot age. Missing state, epoch regression, same-epoch conflict, stale epoch, stale age, future-dated state, or checker failure are fail-closed conditions. This is a local staleness control, not distributed consensus or proof that a node has received the globally newest state.
 
 A deterministic synthetic partition harness under `experiments/authority_partition/` exercises divergent node caches, age-out during isolation, reconciliation to a newer epoch, and missing-state fail-closure. It is explicitly not a Reticulum/network simulation; it provides a local pre-integration test surface for those semantics.
+
+The authority-sync candidate is transport-neutral. Transport sequence numbers provide replay/order protection per sender; authority-state epochs independently express the semantic version of authority state. A higher transport sequence cannot override a lower authority epoch, and a valid authority epoch does not excuse a replayed transport message. Snapshot/revocation application produces explicit applied/duplicate/rejected acknowledgements rather than silent reconciliation.
 
 ## Evidence standard
 

@@ -158,6 +158,25 @@ An optional `AuthorityPolicy` freshness checker can use this evaluation to block
 
 This mechanism does **not** establish consensus, global ordering, Byzantine agreement, revocation propagation, network partition healing, or proof that the locally cached state is globally latest. It provides bounded local staleness detection suitable for later disconnected-runtime and Reticulum experiments.
 
+### Transport-neutral authority synchronization
+
+ACP defines an additive candidate synchronization schema:
+
+`agent-control-plane.authority-sync.v0-candidate`
+
+The candidate includes typed snapshot messages, revocation messages, and acknowledgements. Every message carries a message ID, sender ID, non-negative per-sender sequence, typed payload, and schema version.
+
+The receiver keeps two monotonic domains distinct:
+
+- **transport sequence**: replay/order protection scoped to a sender;
+- **authority epoch**: semantic version/freshness of authority state scoped to an authority.
+
+A newer transport sequence cannot force an authority-state epoch regression. Replayed or regressed transport sequences are rejected. Exact message re-delivery is idempotently acknowledged as duplicate, while reuse of a message ID with different content is rejected. Snapshot reconciliation delegates to the authority-state cache, and revocation reconciliation delegates to the append-only revocation registry, so their existing conflict rules remain authoritative.
+
+Synchronization acknowledgements explicitly report `applied`, `duplicate`, or `rejected` plus a reason code and relevant sequence/authority identity.
+
+This candidate is transport-neutral and does **not** establish reliable delivery, authentication, message integrity, sender identity, confidentiality, consensus, distributed revocation propagation, or Reticulum compatibility. Those are adapter/runtime concerns that must be separately implemented and verified.
+
 ## Evidence boundary
 
 The kernel and tests demonstrate local deterministic behavior only. The budget tests establish the cooperative count/cost accounting and fail-closed exhaustion properties exercised by those tests. The execution-contract tests establish only the ACP-native contract properties exercised by those tests.
