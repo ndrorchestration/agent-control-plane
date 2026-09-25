@@ -118,6 +118,7 @@ def main() -> None:
     parser.add_argument("--config-dir", required=True)
     parser.add_argument("--identity-file", required=True)
     parser.add_argument("--destination-hash-file", required=True)
+    parser.add_argument("--ready-file", required=True)
     parser.add_argument("--relay-id", required=True, choices=sorted(RELAY_PRIVATE))
     parser.add_argument("--upstream-id", required=True)
     parser.add_argument("--upstream-identity-hash", required=True)
@@ -207,6 +208,11 @@ def main() -> None:
     server.install(
         allow=RNS.Destination.ALLOW_LIST,
         allowed_list=[upstream_hash],
+    )
+    inbound.announce()
+    Path(args.ready_file).write_text(
+        args.relay_id,
+        encoding="utf-8",
     )
 
     print(
