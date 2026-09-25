@@ -6,9 +6,23 @@ import time
 
 import RNS
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 from agent_control_plane.authority_sync_persistence import DurableAuthoritySyncReconciler
 from agent_control_plane.authority_sync_watermark import AuthoritySyncWatermarkRegistry
 from agent_control_plane.authority_sync_watermark_auth import HmacAuthoritySyncWatermarkVerifier
+from agent_control_plane.authority_sync_watermark_ed25519 import (
+    Ed25519AuthoritySyncWatermarkVerifier,
+)
+from agent_control_plane.authority_sync_watermark_keys import (
+    WatermarkAuthenticationKeyRecord,
+    WatermarkAuthenticationKeyRegistry,
+)
+from agent_control_plane.authority_sync_watermark_relay_chain import (
+    Ed25519RelayChainEndpoint,
+    Ed25519RelayChainVerifier,
+)
 from agent_control_plane.authority_sync_watermark_persistence import DurableAuthoritySyncWatermarkRegistry
 from agent_control_plane.authority_sync_watermark_relay import (
     RelayedWatermarkAdmission,
@@ -18,6 +32,7 @@ from agent_control_plane.reticulum_adapter import (
     ReticulumAuthoritySyncServer,
     ReticulumAuthoritySyncWatermarkServer,
     ReticulumRelayedWatermarkServer,
+    ReticulumSignedRelayChainServer,
 )
 from agent_control_plane.sync_transport import AuthoritySyncEndpoint
 from agent_control_plane.watermark_transport import AuthoritySyncWatermarkEndpoint
@@ -26,6 +41,17 @@ from agent_control_plane.watermark_transport import AuthoritySyncWatermarkEndpoi
 APP_NAME = "ndrorchestration"
 ASPECTS = ("acp", "authority_sync_live")
 RELAY_ORIGIN_KEY = bytes.fromhex("11" * 32)
+CHAIN_ORIGIN_PRIVATE = bytes(range(32))
+CHAIN_RELAY_A_PRIVATE = b"a" * 32
+CHAIN_RELAY_B_PRIVATE = b"b" * 32
+CHAIN_RELAY_C_PRIVATE = b"c" * 32
+
+
+def ed25519_public_raw(private_raw: bytes) -> bytes:
+    return Ed25519PrivateKey.from_private_bytes(private_raw).public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
 
 
 def main() -> None:
@@ -101,6 +127,64 @@ def main() -> None:
         relay_identity_hashes={args.allowed_sender_id: allowed_identity_hash},
     )
     relay_server.install(
+        allow=RNS.Destination.ALLOW_LIST,
+        allowed_list=[allowed_identity_hash],
+    )
+
+    origin_keys = WatermarkAuthenticationKeyRegistry()
+    origin_keys.register(
+        WatermarkAuthenticationKeyRecord(
+            issuer_id="origin-peer",
+            key_id="origin-ed-key",
+            valid_from="2026-09-25T17:00:00Z",
+        )
+    )
+    relay_keys = WatermarkAuthenticationKeyRegistry()
+    for relay_id in ("relay-a", "relay-b", "relay-c"):
+        relay_keys.register(
+            WatermarkAuthenticationKeyRecord(
+                issuer_id=relay_id,
+                key_id="relay-ed-key",
+                valid_from="2026-09-25T17:00:00Z",
+            )
+        )
+
+    chain_server = ReticulumSignedRelayChainServer(
+        destination=destination,
+        endpoint=Ed25519RelayChainEndpoint(
+            receiver_id="reticulum-server",
+            verifier=Ed25519RelayChainVerifier(
+                origin_verifier=Ed25519AuthoritySyncWatermarkVerifier(
+                    public_keys={
+                        ("origin-peer", "origin-ed-key"): ed25519_public_raw(
+                            CHAIN_ORIGIN_PRIVATE
+                        )
+                    },
+                    key_registry=origin_keys,
+                ),
+                relay_public_keys={
+                    ("relay-a", "relay-ed-key"): ed25519_public_raw(
+                        CHAIN_RELAY_A_PRIVATE
+                    ),
+                    ("relay-b", "relay-ed-key"): ed25519_public_raw(
+                        CHAIN_RELAY_B_PRIVATE
+                    ),
+                    ("relay-c", "relay-ed-key"): ed25519_public_raw(
+                        CHAIN_RELAY_C_PRIVATE
+                    ),
+                },
+                relay_key_registry=relay_keys,
+                max_hops=8,
+            ),
+            registry=AuthoritySyncWatermarkRegistry(
+                {args.allowed_sender_id: {"origin-peer"}}
+            ),
+        ),
+        terminal_relay_identity_hashes={
+            "relay-c": allowed_identity_hash
+        },
+    )
+    chain_server.install(
         allow=RNS.Destination.ALLOW_LIST,
         allowed_list=[allowed_identity_hash],
     )
