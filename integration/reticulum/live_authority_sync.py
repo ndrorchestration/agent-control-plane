@@ -104,6 +104,7 @@ def start_server(
     server_config: Path,
     hash_file: Path,
     state_db: Path,
+    watermark_db: Path,
     client_identity_hash: bytes,
 ) -> subprocess.Popen:
     if hash_file.exists():
@@ -118,6 +119,8 @@ def start_server(
             str(hash_file),
             "--state-db",
             str(state_db),
+            "--watermark-db",
+            str(watermark_db),
             "--allowed-sender-id",
             "reticulum-client",
             "--allowed-identity-hash",
@@ -192,6 +195,7 @@ def main() -> None:
         client_config = root / "client"
         hash_file = root / "server-destination.txt"
         state_db = root / "authority-sync.sqlite3"
+        watermark_db = root / "authority-watermarks.sqlite3"
 
         write_config(
             server_config,
@@ -222,6 +226,7 @@ def main() -> None:
             server_config,
             hash_file,
             state_db,
+            watermark_db,
             client_identity_hash,
         )
 
@@ -327,6 +332,18 @@ def main() -> None:
                     f"{restart_revocation_duplicate_ack}"
                 )
 
+            restart_watermark_duplicate_ack = decode_authority_sync_watermark_acknowledgement(
+                restart_watermark_transport.exchange(
+                    "server",
+                    encode_authority_sync_watermark(watermark),
+                )
+            )
+            if restart_watermark_duplicate_ack.disposition is not WatermarkDisposition.DUPLICATE:
+                raise RuntimeError(
+                    "watermark duplicate not preserved across server process restart: "
+                    f"{restart_watermark_duplicate_ack}"
+                )
+
             regression = SnapshotSyncMessage(
                 message_id="live-regression-after-restart",
                 sender_id="reticulum-client",
@@ -403,6 +420,10 @@ def main() -> None:
             print(
                 "RESTART_REVOCATION_DUPLICATE_ACK="
                 f"{restart_revocation_duplicate_ack.disposition.value}"
+            )
+            print(
+                "RESTART_WATERMARK_DUPLICATE_ACK="
+                f"{restart_watermark_duplicate_ack.disposition.value}"
             )
             print(
                 f"RESTART_REGRESSION_ACK={regression_ack.disposition.value}:"
