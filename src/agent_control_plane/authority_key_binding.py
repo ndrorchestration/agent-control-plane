@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 import hashlib
-from typing import Dict, Optional
+from typing import Dict, Mapping, Optional
 
 from .authority import AuthorityValidationError
 
@@ -278,3 +278,66 @@ def binding_from_public_key(
         valid_from=valid_from,
         valid_until=valid_until,
     )
+
+
+
+class BoundEd25519WatermarkVerifier:
+    """Verify key/transport binding before delegating Ed25519 signature checks."""
+
+    def __init__(
+        self,
+        *,
+        public_keys: Mapping[tuple[str, str], bytes],
+        key_registry,
+        binding_registry: AuthorityKeyBindingRegistry,
+    ) -> None:
+        if not isinstance(public_keys, Mapping):
+            raise AuthorityValidationError("public_keys must be a mapping")
+        if not isinstance(binding_registry, AuthorityKeyBindingRegistry):
+            raise AuthorityValidationError(
+                "binding_registry must be AuthorityKeyBindingRegistry"
+            )
+        from .authority_sync_watermark_ed25519 import (
+            Ed25519AuthoritySyncWatermarkVerifier,
+        )
+        self._public_keys: dict[tuple[str, str], bytes] = {}
+        for raw_key, public_key_raw in public_keys.items():
+            if not isinstance(raw_key, tuple) or len(raw_key) != 2:
+                raise AuthorityValidationError(
+                    "public key mapping keys must be (issuer_id, key_id) tuples"
+                )
+            issuer_id = _required(raw_key[0], "issuer_id")
+            key_id = _required(raw_key[1], "key_id")
+            if not isinstance(public_key_raw, bytes) or len(public_key_raw) != 32:
+                raise AuthorityValidationError(
+                    "Ed25519 public keys must be exactly 32 bytes"
+                )
+            self._public_keys[(issuer_id, key_id)] = public_key_raw
+        self.binding_registry = binding_registry
+        self.verifier = Ed25519AuthoritySyncWatermarkVerifier(
+            public_keys=self._public_keys,
+            key_registry=key_registry,
+        )
+
+    def verify(
+        self,
+        envelope,
+        *,
+        observed_at: str,
+        transport_identity_raw: Optional[bytes] = None,
+    ):
+        issuer_id = envelope.watermark.issuer_id
+        key_id = envelope.key_id
+        public_key_raw = self._public_keys.get((issuer_id, key_id))
+        if public_key_raw is None:
+            raise AuthorityValidationError(
+                "unknown Ed25519 watermark public key"
+            )
+        self.binding_registry.verify(
+            subject_id=issuer_id,
+            key_id=key_id,
+            public_key_raw=public_key_raw,
+            transport_identity_raw=transport_identity_raw,
+            observed_at=observed_at,
+        )
+        return self.verifier.verify(envelope)
