@@ -25,15 +25,26 @@ from agent_control_plane.authority_sync_watermark import (
     decode_authority_sync_watermark_acknowledgement,
     encode_authority_sync_watermark,
 )
+from agent_control_plane.authority_sync_watermark_auth import (
+    authenticate_authority_sync_watermark,
+    encode_authenticated_authority_sync_watermark,
+)
+from agent_control_plane.authority_sync_watermark_relay import (
+    decode_relayed_watermark_acknowledgement,
+    encode_relayed_authenticated_watermark,
+    wrap_authenticated_watermark_for_relay,
+)
 from agent_control_plane.reticulum_adapter import (
     ReticulumAuthoritySyncTransport,
     ReticulumAuthoritySyncWatermarkTransport,
+    ReticulumRelayedWatermarkTransport,
 )
 from agent_control_plane.revocation import RevocationRecord
 
 
 APP_NAME = "ndrorchestration"
 ASPECTS = ("acp", "authority_sync_live")
+RELAY_ORIGIN_KEY = bytes.fromhex("11" * 32)
 
 
 def free_port() -> int:
@@ -174,7 +185,13 @@ def connect_transport(
         timeout_seconds=timeout,
         max_response_size=65536,
     )
-    return destination_hex, link, transport, watermark_transport
+    relay_transport = ReticulumRelayedWatermarkTransport(
+        {"server": link},
+        peer_destination_hashes={"server": destination_hash},
+        timeout_seconds=timeout,
+        max_response_size=65536,
+    )
+    return destination_hex, link, transport, watermark_transport, relay_transport
 
 
 def exchange(transport, message):
@@ -231,7 +248,7 @@ def main() -> None:
         )
 
         try:
-            first_destination_hex, link, transport, watermark_transport = connect_transport(
+            first_destination_hex, link, transport, watermark_transport, relay_transport = connect_transport(
                 hash_file=hash_file,
                 server=server,
                 client_identity=client_identity,
@@ -300,6 +317,44 @@ def main() -> None:
                     f"watermark duplicate not detected: {watermark_duplicate_ack}"
                 )
 
+
+            relay_origin = AuthoritySyncWatermark(
+                watermark_id="origin-peer:reticulum-client:2",
+                issuer_id="origin-peer",
+                target_sender_id="reticulum-client",
+                min_sequence=2,
+                issued_at="2026-09-25T15:01:45Z",
+            )
+            authenticated_origin = authenticate_authority_sync_watermark(
+                relay_origin,
+                key_id="key-1",
+                key=RELAY_ORIGIN_KEY,
+            )
+            relayed = wrap_authenticated_watermark_for_relay(
+                encode_authenticated_authority_sync_watermark(authenticated_origin),
+                relay_id="reticulum-client",
+                relayed_at="2026-09-25T15:01:50Z",
+            )
+            relay_ack = decode_relayed_watermark_acknowledgement(
+                relay_transport.exchange(
+                    "server",
+                    encode_relayed_authenticated_watermark(relayed),
+                )
+            )
+            if relay_ack.disposition is not WatermarkDisposition.APPLIED:
+                raise RuntimeError(f"relayed watermark not applied: {relay_ack}")
+
+            relay_duplicate_ack = decode_relayed_watermark_acknowledgement(
+                relay_transport.exchange(
+                    "server",
+                    encode_relayed_authenticated_watermark(relayed),
+                )
+            )
+            if relay_duplicate_ack.disposition is not WatermarkDisposition.DUPLICATE:
+                raise RuntimeError(
+                    f"relayed watermark duplicate not detected: {relay_duplicate_ack}"
+                )
+
             link.teardown()
             stop_server(server)
             time.sleep(1.0)
@@ -312,7 +367,7 @@ def main() -> None:
                 watermark_db,
                 client_identity_hash,
             )
-            restart_destination_hex, restart_link, restart_transport, restart_watermark_transport = connect_transport(
+            restart_destination_hex, restart_link, restart_transport, restart_watermark_transport, _ = connect_transport(
                 hash_file=hash_file,
                 server=server,
                 client_identity=client_identity,
@@ -414,6 +469,8 @@ def main() -> None:
             print(f"REVOCATION_ACK={revocation_ack.disposition.value}")
             print(f"WATERMARK_ACK={watermark_ack.disposition.value}")
             print(f"WATERMARK_DUPLICATE_ACK={watermark_duplicate_ack.disposition.value}")
+            print(f"RELAY_ACK={relay_ack.disposition.value}")
+            print(f"RELAY_DUPLICATE_ACK={relay_duplicate_ack.disposition.value}")
             print(
                 "RESTART_SNAPSHOT_DUPLICATE_ACK="
                 f"{restart_snapshot_duplicate_ack.disposition.value}"
