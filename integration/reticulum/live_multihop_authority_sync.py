@@ -31,14 +31,21 @@ def free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def write_config(path: Path, *, transport: bool, interface_block: str) -> None:
+def write_config(
+    path: Path,
+    *,
+    transport: bool,
+    instance_name: str,
+    interface_block: str,
+) -> None:
     path.mkdir(parents=True, exist_ok=True)
     (path / "config").write_text(
         "[reticulum]\n"
         f"enable_transport = {'Yes' if transport else 'No'}\n"
-        "share_instance = No\n\n"
+        "share_instance = Yes\n"
+        f"instance_name = {instance_name}\n\n"
         "[logging]\n"
-        "loglevel = 2\n\n"
+        "loglevel = 7\n\n"
         "[interfaces]\n"
         + interface_block,
         encoding="utf-8",
@@ -174,6 +181,7 @@ def main() -> None:
         write_config(
             destination_config,
             transport=False,
+            instance_name="acp-multihop-destination",
             interface_block=(
                 "[[Destination TCP Client]]\n"
                 "  type = TCPClientInterface\n"
@@ -185,6 +193,7 @@ def main() -> None:
         write_config(
             router_config,
             transport=True,
+            instance_name="acp-multihop-router",
             interface_block=(
                 "[[Router TCP Gateway]]\n"
                 "  type = TCPServerInterface\n"
@@ -198,6 +207,7 @@ def main() -> None:
         write_config(
             client_config,
             transport=False,
+            instance_name="acp-multihop-client",
             interface_block=(
                 "[[Client TCP Interface]]\n"
                 "  type = TCPClientInterface\n"
@@ -302,11 +312,15 @@ def main() -> None:
             print(f"DUPLICATE_ACK={duplicate.disposition.value}")
             print(f"CLIENT_IDENTITY_HASH={client_identity_hash.hex()}")
         except Exception:
+            # Stop first so buffered Reticulum logs are flushed, then expose
+            # both process outputs for topology diagnostics.
+            stop_process(router)
+            stop_process(destination)
             for name, process in (
                 ("ROUTER", router),
                 ("DESTINATION", destination),
             ):
-                if process.poll() is not None and process.stdout is not None:
+                if process.stdout is not None:
                     output = process.stdout.read()
                     if output:
                         print(f"{name}_OUTPUT_BEGIN")
