@@ -29,7 +29,8 @@ The kernel currently provides:
 - a separate candidate `agent-control-plane.authority.v0-candidate` typed authority envelope covering principal, capability, resource, operation, policy identity, decision outcome/reason, lease expiry, delegation scope, and explicit conditions;
 - a fail-closed `AuthorityPolicy` adapter that can enforce envelope presence, capability binding, lease validity, explicit deny, caller-supplied conditional evaluation, revocation checks, and delegated-authority validation through the existing pre-execution policy hook. The envelope remains separate from `execution.v1`;
 - an append-only in-memory `agent-control-plane.revocation.v0-candidate` registry with deterministic manifest output and time-scoped revocation checks;
-- an additive `agent-control-plane.authority-decision-evidence.v0-candidate` sidecar that records run/task/capability plus authority, decision, policy, outcome, reason, observation time, and which revocation/delegation/condition checks were actually evaluated.
+- an additive `agent-control-plane.authority-decision-evidence.v0-candidate` sidecar that records run/task/capability plus authority, decision, policy, outcome, reason, observation time, and which state/revocation/delegation/condition checks were actually evaluated;
+- a candidate `agent-control-plane.authority-state.v0-candidate` in-memory cache with monotonic authority epochs, source identity, snapshot time, maximum-age requirements, stale-epoch detection, stale-age detection, and future-state rejection for disconnected-node experiments.
 
 The legacy provenance manifest and the execution contract are distinct representations. `agent-control-plane.provenance.v1` remains unchanged and process-local. Mapping a legacy event into `agent-control-plane.execution.v1` requires caller-supplied execution/trace/component/monotonic context; ACP does not fabricate missing historical trace or identity data.
 
@@ -151,6 +152,8 @@ It does not authenticate principals, verify policy signatures, establish delegat
 The candidate is intentionally separate from frozen `agent-control-plane.execution.v1` so GSAE-E0 Stage-A can measure that contract without the measurement target being silently repaired first.
 
 `EvidenceAuthorityPolicy` can wrap `AuthorityPolicy` and retain one structured decision-evidence record per task. This creates an explicit local linkage between an ACP task/run and the authority decision used by the pre-execution policy path without modifying frozen kernel/provenance/contract files. The evidence sidecar is process-local, mutable in memory, non-cryptographic, and not an external audit log.
+
+For disconnected/stale-state experiments, `InMemoryAuthorityStateCache` tracks a monotonic epoch and issuance time per authority. An optional policy freshness checker can require a minimum epoch and maximum snapshot age. Missing state, epoch regression, same-epoch conflict, stale epoch, stale age, future-dated state, or checker failure are fail-closed conditions. This is a local staleness control, not distributed consensus or proof that a node has received the globally newest state.
 
 ## Evidence standard
 
