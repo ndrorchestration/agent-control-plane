@@ -9,12 +9,23 @@ from agent_control_plane.authority_sync import (
     decode_sync_acknowledgement,
     encode_sync_message,
 )
+from agent_control_plane.authority_sync_watermark import (
+    AuthoritySyncWatermark,
+    AuthoritySyncWatermarkRegistry,
+    WatermarkDisposition,
+    decode_authority_sync_watermark_acknowledgement,
+    encode_authority_sync_watermark,
+)
 from agent_control_plane.reticulum_adapter import (
     RETICULUM_SYNC_PATH,
+    RETICULUM_WATERMARK_PATH,
     ReticulumAdapterError,
     ReticulumAuthoritySyncServer,
     ReticulumAuthoritySyncTransport,
+    ReticulumAuthoritySyncWatermarkServer,
+    ReticulumAuthoritySyncWatermarkTransport,
 )
+from agent_control_plane.watermark_transport import AuthoritySyncWatermarkEndpoint
 from agent_control_plane.revocation import InMemoryRevocationRegistry
 from agent_control_plane.sync_transport import AuthoritySyncEndpoint
 
@@ -297,4 +308,105 @@ def test_client_rejects_invalid_configured_destination_hash():
         ReticulumAuthoritySyncTransport(
             {},
             peer_destination_hashes={"node-b": b""},
+        )
+
+
+
+def watermark_endpoint():
+    return AuthoritySyncWatermarkEndpoint(
+        receiver_id="node-b",
+        registry=AuthoritySyncWatermarkRegistry(
+            {"authority-source": {"peer-a"}}
+        ),
+    )
+
+
+def watermark():
+    return AuthoritySyncWatermark(
+        watermark_id="wm-1",
+        issuer_id="peer-a",
+        target_sender_id="authority-source",
+        min_sequence=3,
+        issued_at="2026-09-25T15:02:00Z",
+    )
+
+
+def test_reticulum_watermark_transport_uses_fixed_request_path():
+    target = watermark_endpoint()
+    ack_bytes = target.receive(encode_authority_sync_watermark(watermark()))
+    link = FakeLink(FakeReceipt(ack_bytes))
+    transport = ReticulumAuthoritySyncWatermarkTransport(
+        {"node-b": link},
+        sleep=lambda seconds: None,
+    )
+    response = transport.exchange(
+        "node-b",
+        encode_authority_sync_watermark(watermark()),
+    )
+    ack = decode_authority_sync_watermark_acknowledgement(response)
+    assert ack.disposition is WatermarkDisposition.APPLIED
+    assert link.calls[0]["path"] == RETICULUM_WATERMARK_PATH
+
+
+def test_reticulum_watermark_server_binds_issuer_to_remote_identity():
+    destination = FakeDestination()
+    server = ReticulumAuthoritySyncWatermarkServer(
+        destination=destination,
+        endpoint=watermark_endpoint(),
+        peer_identity_hashes={"peer-a": b"expected-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"expected-hash"])
+    handler = destination.registration["response_generator"]
+    response = handler(
+        RETICULUM_WATERMARK_PATH,
+        encode_authority_sync_watermark(watermark()),
+        None,
+        None,
+        FakeRemoteIdentity(b"expected-hash"),
+        None,
+    )
+    ack = decode_authority_sync_watermark_acknowledgement(response)
+    assert ack.disposition is WatermarkDisposition.APPLIED
+
+
+def test_reticulum_watermark_server_rejects_identity_mismatch():
+    destination = FakeDestination()
+    server = ReticulumAuthoritySyncWatermarkServer(
+        destination=destination,
+        endpoint=watermark_endpoint(),
+        peer_identity_hashes={"peer-a": b"expected-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"expected-hash"])
+    handler = destination.registration["response_generator"]
+    with pytest.raises(
+        ReticulumAdapterError,
+        match="does not match ACP watermark issuer_id",
+    ):
+        handler(
+            RETICULUM_WATERMARK_PATH,
+            encode_authority_sync_watermark(watermark()),
+            None,
+            None,
+            FakeRemoteIdentity(b"wrong-hash"),
+            None,
+        )
+
+
+def test_reticulum_watermark_server_rejects_unbound_issuer():
+    destination = FakeDestination()
+    server = ReticulumAuthoritySyncWatermarkServer(
+        destination=destination,
+        endpoint=watermark_endpoint(),
+        peer_identity_hashes={"someone-else": b"expected-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"expected-hash"])
+    handler = destination.registration["response_generator"]
+    with pytest.raises(ReticulumAdapterError, match="unbound ACP watermark issuer_id"):
+        handler(
+            RETICULUM_WATERMARK_PATH,
+            encode_authority_sync_watermark(watermark()),
+            None,
+            None,
+            FakeRemoteIdentity(b"expected-hash"),
+            None,
         )
