@@ -8,7 +8,12 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from agent_control_plane.authority import AuthorityValidationError
-from agent_control_plane.authority_sync_watermark import AuthoritySyncWatermark
+from agent_control_plane.authority_sync_watermark import (
+    AuthoritySyncWatermark,
+    AuthoritySyncWatermarkRegistry,
+    WatermarkDisposition,
+    decode_authority_sync_watermark_acknowledgement,
+)
 from agent_control_plane.authority_sync_watermark_ed25519 import (
     Ed25519AuthoritySyncWatermarkVerifier,
     encode_ed25519_authority_sync_watermark,
@@ -19,6 +24,7 @@ from agent_control_plane.authority_sync_watermark_keys import (
     WatermarkAuthenticationKeyRegistry,
 )
 from agent_control_plane.authority_sync_watermark_relay_chain import (
+    Ed25519RelayChainEndpoint,
     Ed25519RelayChainVerifier,
     RelayHopAttestation,
     append_ed25519_relay_hop,
@@ -270,4 +276,45 @@ def test_origin_payload_tampering_fails_origin_verification():
         chain_verifier().verify(
             tampered_chain,
             final_receiver_id="destination",
+        )
+
+
+
+def test_relay_chain_endpoint_applies_verified_origin_and_is_idempotent():
+    target = Ed25519RelayChainEndpoint(
+        receiver_id="destination",
+        verifier=chain_verifier(),
+        registry=AuthoritySyncWatermarkRegistry(
+            {"authority-source": {"origin"}}
+        ),
+    )
+    payload = encode_ed25519_relay_chain(three_hop_chain())
+
+    first = decode_authority_sync_watermark_acknowledgement(
+        target.receive(payload)
+    )
+    second = decode_authority_sync_watermark_acknowledgement(
+        target.receive(payload)
+    )
+
+    assert first.disposition is WatermarkDisposition.APPLIED
+    assert second.disposition is WatermarkDisposition.DUPLICATE
+    assert first.issuer_id == "origin"
+    assert first.receiver_id == "destination"
+
+
+def test_relay_chain_endpoint_rejects_chain_for_other_receiver():
+    target = Ed25519RelayChainEndpoint(
+        receiver_id="different-destination",
+        verifier=chain_verifier(),
+        registry=AuthoritySyncWatermarkRegistry(
+            {"authority-source": {"origin"}}
+        ),
+    )
+    with pytest.raises(
+        AuthorityValidationError,
+        match="next receiver mismatch",
+    ):
+        target.receive(
+            encode_ed25519_relay_chain(three_hop_chain())
         )
