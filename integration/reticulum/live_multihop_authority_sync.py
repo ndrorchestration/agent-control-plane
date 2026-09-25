@@ -190,6 +190,8 @@ def main() -> None:
                 "[[Router TCP Server]]\n"
                 "  type = TCPServerInterface\n"
                 "  enabled = yes\n"
+                "  mode = gateway\n"
+                "  recursive_prs = yes\n"
                 "  listen_ip = 127.0.0.1\n"
                 f"  listen_port = {client_to_router_port}\n\n"
                 "[[Router TCP Client]]\n"
