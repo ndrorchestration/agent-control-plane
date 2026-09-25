@@ -78,6 +78,18 @@ def wait_for_identity(destination_hash: bytes, timeout: float):
     raise RuntimeError("timed out waiting for announced Reticulum identity")
 
 
+def establish_identified_link(remote_destination, client_identity, timeout):
+    established = threading.Event()
+    link = RNS.Link(
+        remote_destination,
+        established_callback=lambda active_link: established.set(),
+    )
+    if not established.wait(timeout):
+        raise RuntimeError("timed out establishing Reticulum link")
+    link.identify(client_identity)
+    return link
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout", type=float, default=20.0)
@@ -144,11 +156,7 @@ def main() -> None:
                 APP_NAME,
                 *ASPECTS,
             )
-            established = threading.Event()
-            link = RNS.Link(remote_destination, established_callback=lambda active_link: established.set())
-            if not established.wait(args.timeout):
-                raise RuntimeError("timed out establishing Reticulum link")
-            link.identify(client_identity)
+            link = establish_identified_link(remote_destination, client_identity, args.timeout)
 
             transport = ReticulumAuthoritySyncTransport(
                 {"server": link},
@@ -174,6 +182,52 @@ def main() -> None:
             if snapshot_ack.disposition is not SyncDisposition.APPLIED:
                 raise RuntimeError(f"snapshot not applied: {snapshot_ack}")
 
+            duplicate_ack = decode_sync_acknowledgement(
+                transport.exchange("server", encode_sync_message(snapshot))
+            )
+            if duplicate_ack.disposition is not SyncDisposition.DUPLICATE:
+                raise RuntimeError(f"same-link duplicate not detected: {duplicate_ack}")
+
+            link.teardown()
+            time.sleep(0.5)
+
+            relink = establish_identified_link(remote_destination, client_identity, args.timeout)
+            transport = ReticulumAuthoritySyncTransport(
+                {"server": relink},
+                peer_destination_hashes={"server": destination_hash},
+                timeout_seconds=args.timeout,
+                max_response_size=65536,
+            )
+
+            relink_duplicate_ack = decode_sync_acknowledgement(
+                transport.exchange("server", encode_sync_message(snapshot))
+            )
+            if relink_duplicate_ack.disposition is not SyncDisposition.DUPLICATE:
+                raise RuntimeError(
+                    f"relink duplicate not detected: {relink_duplicate_ack}"
+                )
+
+            regression = SnapshotSyncMessage(
+                message_id="live-regression-1",
+                sender_id="reticulum-client",
+                sequence=1,
+                snapshot=AuthorityStateSnapshot(
+                    "auth-live-1",
+                    2,
+                    "2026-09-25T15:00:30Z",
+                    "reticulum-client",
+                ),
+            )
+            regression_ack = decode_sync_acknowledgement(
+                transport.exchange("server", encode_sync_message(regression))
+            )
+            if regression_ack.disposition is not SyncDisposition.REJECTED:
+                raise RuntimeError(f"sequence regression not rejected: {regression_ack}")
+            if regression_ack.reason_code != "replay_or_sequence_regression":
+                raise RuntimeError(
+                    f"unexpected regression reason: {regression_ack.reason_code}"
+                )
+
             revocation = RevocationSyncMessage(
                 message_id="live-revocation-1",
                 sender_id="reticulum-client",
@@ -190,10 +244,13 @@ def main() -> None:
             if revocation_ack.disposition is not SyncDisposition.APPLIED:
                 raise RuntimeError(f"revocation not applied: {revocation_ack}")
 
-            link.teardown()
+            relink.teardown()
             print("RETICULUM_LIVE_INTEGRATION=PASS")
             print(f"DESTINATION={destination_hex}")
             print(f"SNAPSHOT_ACK={snapshot_ack.disposition.value}")
+            print(f"DUPLICATE_ACK={duplicate_ack.disposition.value}")
+            print(f"RELINK_DUPLICATE_ACK={relink_duplicate_ack.disposition.value}")
+            print(f"REGRESSION_ACK={regression_ack.disposition.value}:{regression_ack.reason_code}")
             print(f"REVOCATION_ACK={revocation_ack.disposition.value}")
             print(f"CLIENT_IDENTITY_HASH={client_identity_hash.hex()}")
         except Exception:
