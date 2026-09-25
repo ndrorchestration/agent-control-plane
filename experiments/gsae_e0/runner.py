@@ -57,7 +57,7 @@ def verify_source_binding(repo_root: Path, expected_sha: str) -> None:
     if re.fullmatch(r"[0-9a-f]{40}", expected_sha) is None:
         raise SourceBindingError("expected_sha must be 40 lowercase hexadecimal characters")
 
-    source = _git(repo_root, "cat-file", "-e", f"{expected_sha}^{commit}")
+    source = _git(repo_root, "cat-file", "-e", f"{expected_sha}^{{commit}}")
     if source.returncode != 0:
         detail = source.stderr.strip() or source.stdout.strip() or "source commit not found"
         raise SourceBindingError(f"source-under-test commit not established: {detail}")
