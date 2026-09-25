@@ -7,7 +7,7 @@ import time
 import RNS
 
 from agent_control_plane.authority_sync_persistence import DurableAuthoritySyncReconciler
-from agent_control_plane.authority_sync_watermark import AuthoritySyncWatermarkRegistry
+from agent_control_plane.authority_sync_watermark_persistence import DurableAuthoritySyncWatermarkRegistry
 from agent_control_plane.reticulum_adapter import (
     ReticulumAuthoritySyncServer,
     ReticulumAuthoritySyncWatermarkServer,
@@ -27,6 +27,7 @@ def main() -> None:
     parser.add_argument("--allowed-sender-id", required=True)
     parser.add_argument("--allowed-identity-hash", required=True)
     parser.add_argument("--state-db", required=True)
+    parser.add_argument("--watermark-db", required=True)
     args = parser.parse_args()
 
     RNS.Reticulum(configdir=args.config_dir)
@@ -61,8 +62,9 @@ def main() -> None:
         destination=destination,
         endpoint=AuthoritySyncWatermarkEndpoint(
             receiver_id="reticulum-server",
-            registry=AuthoritySyncWatermarkRegistry(
-                {args.allowed_sender_id: {args.allowed_sender_id}}
+            registry=DurableAuthoritySyncWatermarkRegistry(
+                {args.allowed_sender_id: {args.allowed_sender_id}},
+                database_path=args.watermark_db,
             ),
         ),
         peer_identity_hashes={args.allowed_sender_id: allowed_identity_hash},
