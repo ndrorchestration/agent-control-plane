@@ -90,6 +90,81 @@ def establish_identified_link(remote_destination, client_identity, timeout):
     return link
 
 
+def start_server(
+    server_script: Path,
+    server_config: Path,
+    hash_file: Path,
+    state_db: Path,
+    client_identity_hash: bytes,
+) -> subprocess.Popen:
+    if hash_file.exists():
+        hash_file.unlink()
+    return subprocess.Popen(
+        [
+            sys.executable,
+            str(server_script),
+            "--config-dir",
+            str(server_config),
+            "--hash-file",
+            str(hash_file),
+            "--state-db",
+            str(state_db),
+            "--allowed-sender-id",
+            "reticulum-client",
+            "--allowed-identity-hash",
+            client_identity_hash.hex(),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+
+
+def stop_server(server: subprocess.Popen) -> None:
+    if server.poll() is not None:
+        return
+    server.terminate()
+    try:
+        server.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        server.kill()
+        server.wait(timeout=5)
+
+
+def connect_transport(
+    *,
+    hash_file: Path,
+    server: subprocess.Popen,
+    client_identity,
+    timeout: float,
+):
+    destination_hex = wait_for_file(hash_file, server, timeout)
+    destination_hash = bytes.fromhex(destination_hex)
+    wait_for_path(destination_hash, timeout)
+    identity = wait_for_identity(destination_hash, timeout)
+    remote_destination = RNS.Destination(
+        identity,
+        RNS.Destination.OUT,
+        RNS.Destination.SINGLE,
+        APP_NAME,
+        *ASPECTS,
+    )
+    link = establish_identified_link(remote_destination, client_identity, timeout)
+    transport = ReticulumAuthoritySyncTransport(
+        {"server": link},
+        peer_destination_hashes={"server": destination_hash},
+        timeout_seconds=timeout,
+        max_response_size=65536,
+    )
+    return destination_hex, link, transport
+
+
+def exchange(transport, message):
+    return decode_sync_acknowledgement(
+        transport.exchange("server", encode_sync_message(message))
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout", type=float, default=20.0)
@@ -101,6 +176,7 @@ def main() -> None:
         server_config = root / "server"
         client_config = root / "client"
         hash_file = root / "server-destination.txt"
+        state_db = root / "authority-sync.sqlite3"
 
         write_config(
             server_config,
@@ -126,43 +202,20 @@ def main() -> None:
         if not isinstance(client_identity_hash, bytes) or not client_identity_hash:
             raise RuntimeError("Reticulum client identity hash unavailable")
 
-        server = subprocess.Popen(
-            [
-                sys.executable,
-                str(server_script),
-                "--config-dir",
-                str(server_config),
-                "--hash-file",
-                str(hash_file),
-                "--allowed-sender-id",
-                "reticulum-client",
-                "--allowed-identity-hash",
-                client_identity_hash.hex(),
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+        server = start_server(
+            server_script,
+            server_config,
+            hash_file,
+            state_db,
+            client_identity_hash,
         )
+
         try:
-            destination_hex = wait_for_file(hash_file, server, args.timeout)
-            destination_hash = bytes.fromhex(destination_hex)
-            wait_for_path(destination_hash, args.timeout)
-            identity = wait_for_identity(destination_hash, args.timeout)
-
-            remote_destination = RNS.Destination(
-                identity,
-                RNS.Destination.OUT,
-                RNS.Destination.SINGLE,
-                APP_NAME,
-                *ASPECTS,
-            )
-            link = establish_identified_link(remote_destination, client_identity, args.timeout)
-
-            transport = ReticulumAuthoritySyncTransport(
-                {"server": link},
-                peer_destination_hashes={"server": destination_hash},
-                timeout_seconds=args.timeout,
-                max_response_size=65536,
+            first_destination_hex, link, transport = connect_transport(
+                hash_file=hash_file,
+                server=server,
+                client_identity=client_identity,
+                timeout=args.timeout,
             )
 
             snapshot = SnapshotSyncMessage(
@@ -176,56 +229,14 @@ def main() -> None:
                     "reticulum-client",
                 ),
             )
-            snapshot_ack = decode_sync_acknowledgement(
-                transport.exchange("server", encode_sync_message(snapshot))
-            )
+            snapshot_ack = exchange(transport, snapshot)
             if snapshot_ack.disposition is not SyncDisposition.APPLIED:
                 raise RuntimeError(f"snapshot not applied: {snapshot_ack}")
 
-            duplicate_ack = decode_sync_acknowledgement(
-                transport.exchange("server", encode_sync_message(snapshot))
-            )
-            if duplicate_ack.disposition is not SyncDisposition.DUPLICATE:
-                raise RuntimeError(f"same-link duplicate not detected: {duplicate_ack}")
-
-            link.teardown()
-            time.sleep(0.5)
-
-            relink = establish_identified_link(remote_destination, client_identity, args.timeout)
-            transport = ReticulumAuthoritySyncTransport(
-                {"server": relink},
-                peer_destination_hashes={"server": destination_hash},
-                timeout_seconds=args.timeout,
-                max_response_size=65536,
-            )
-
-            relink_duplicate_ack = decode_sync_acknowledgement(
-                transport.exchange("server", encode_sync_message(snapshot))
-            )
-            if relink_duplicate_ack.disposition is not SyncDisposition.DUPLICATE:
+            same_link_duplicate_ack = exchange(transport, snapshot)
+            if same_link_duplicate_ack.disposition is not SyncDisposition.DUPLICATE:
                 raise RuntimeError(
-                    f"relink duplicate not detected: {relink_duplicate_ack}"
-                )
-
-            regression = SnapshotSyncMessage(
-                message_id="live-regression-1",
-                sender_id="reticulum-client",
-                sequence=1,
-                snapshot=AuthorityStateSnapshot(
-                    "auth-live-1",
-                    2,
-                    "2026-09-25T15:00:30Z",
-                    "reticulum-client",
-                ),
-            )
-            regression_ack = decode_sync_acknowledgement(
-                transport.exchange("server", encode_sync_message(regression))
-            )
-            if regression_ack.disposition is not SyncDisposition.REJECTED:
-                raise RuntimeError(f"sequence regression not rejected: {regression_ack}")
-            if regression_ack.reason_code != "replay_or_sequence_regression":
-                raise RuntimeError(
-                    f"unexpected regression reason: {regression_ack.reason_code}"
+                    f"same-link duplicate not detected: {same_link_duplicate_ack}"
                 )
 
             revocation = RevocationSyncMessage(
@@ -238,20 +249,126 @@ def main() -> None:
                     "live_test_revocation",
                 ),
             )
-            revocation_ack = decode_sync_acknowledgement(
-                transport.exchange("server", encode_sync_message(revocation))
-            )
+            revocation_ack = exchange(transport, revocation)
             if revocation_ack.disposition is not SyncDisposition.APPLIED:
                 raise RuntimeError(f"revocation not applied: {revocation_ack}")
 
-            relink.teardown()
+            link.teardown()
+            stop_server(server)
+            time.sleep(1.0)
+
+            server = start_server(
+                server_script,
+                server_config,
+                hash_file,
+                state_db,
+                client_identity_hash,
+            )
+            restart_destination_hex, restart_link, restart_transport = connect_transport(
+                hash_file=hash_file,
+                server=server,
+                client_identity=client_identity,
+                timeout=args.timeout,
+            )
+
+            restart_snapshot_duplicate_ack = exchange(restart_transport, snapshot)
+            if restart_snapshot_duplicate_ack.disposition is not SyncDisposition.DUPLICATE:
+                raise RuntimeError(
+                    "snapshot duplicate not preserved across server process restart: "
+                    f"{restart_snapshot_duplicate_ack}"
+                )
+
+            restart_revocation_duplicate_ack = exchange(restart_transport, revocation)
+            if restart_revocation_duplicate_ack.disposition is not SyncDisposition.DUPLICATE:
+                raise RuntimeError(
+                    "revocation duplicate not preserved across server process restart: "
+                    f"{restart_revocation_duplicate_ack}"
+                )
+
+            regression = SnapshotSyncMessage(
+                message_id="live-regression-after-restart",
+                sender_id="reticulum-client",
+                sequence=1,
+                snapshot=AuthorityStateSnapshot(
+                    "auth-live-1",
+                    2,
+                    "2026-09-25T15:00:30Z",
+                    "reticulum-client",
+                ),
+            )
+            regression_ack = exchange(restart_transport, regression)
+            if regression_ack.disposition is not SyncDisposition.REJECTED:
+                raise RuntimeError(
+                    f"sequence regression not rejected after restart: {regression_ack}"
+                )
+            if regression_ack.reason_code != "replay_or_sequence_regression":
+                raise RuntimeError(
+                    f"unexpected regression reason: {regression_ack.reason_code}"
+                )
+
+            conflicting_revocation = RevocationSyncMessage(
+                message_id="live-revocation-conflict",
+                sender_id="reticulum-client",
+                sequence=3,
+                revocation=RevocationRecord(
+                    "auth-live-1",
+                    "2026-09-25T15:02:00Z",
+                    "different_reason",
+                ),
+            )
+            conflict_ack = exchange(restart_transport, conflicting_revocation)
+            if conflict_ack.disposition is not SyncDisposition.REJECTED:
+                raise RuntimeError(
+                    f"recovered revocation conflict not rejected: {conflict_ack}"
+                )
+            if "different record" not in conflict_ack.reason_code:
+                raise RuntimeError(
+                    f"unexpected recovered revocation reason: {conflict_ack.reason_code}"
+                )
+
+            newer_snapshot = SnapshotSyncMessage(
+                message_id="live-snapshot-2",
+                sender_id="reticulum-client",
+                sequence=3,
+                snapshot=AuthorityStateSnapshot(
+                    "auth-live-1",
+                    2,
+                    "2026-09-25T15:03:00Z",
+                    "reticulum-client",
+                ),
+            )
+            newer_snapshot_ack = exchange(restart_transport, newer_snapshot)
+            if newer_snapshot_ack.disposition is not SyncDisposition.APPLIED:
+                raise RuntimeError(
+                    f"new sequence not applied after restart: {newer_snapshot_ack}"
+                )
+
+            restart_link.teardown()
+
             print("RETICULUM_LIVE_INTEGRATION=PASS")
-            print(f"DESTINATION={destination_hex}")
+            print("PROCESS_RESTART_RECOVERY=PASS")
+            print(f"FIRST_DESTINATION={first_destination_hex}")
+            print(f"RESTART_DESTINATION={restart_destination_hex}")
             print(f"SNAPSHOT_ACK={snapshot_ack.disposition.value}")
-            print(f"DUPLICATE_ACK={duplicate_ack.disposition.value}")
-            print(f"RELINK_DUPLICATE_ACK={relink_duplicate_ack.disposition.value}")
-            print(f"REGRESSION_ACK={regression_ack.disposition.value}:{regression_ack.reason_code}")
+            print(f"SAME_LINK_DUPLICATE_ACK={same_link_duplicate_ack.disposition.value}")
             print(f"REVOCATION_ACK={revocation_ack.disposition.value}")
+            print(
+                "RESTART_SNAPSHOT_DUPLICATE_ACK="
+                f"{restart_snapshot_duplicate_ack.disposition.value}"
+            )
+            print(
+                "RESTART_REVOCATION_DUPLICATE_ACK="
+                f"{restart_revocation_duplicate_ack.disposition.value}"
+            )
+            print(
+                f"RESTART_REGRESSION_ACK={regression_ack.disposition.value}:"
+                f"{regression_ack.reason_code}"
+            )
+            print(
+                f"RESTART_REVOCATION_CONFLICT_ACK={conflict_ack.disposition.value}:"
+                f"{conflict_ack.reason_code}"
+            )
+            print(f"RESTART_NEW_SEQUENCE_ACK={newer_snapshot_ack.disposition.value}")
             print(f"CLIENT_IDENTITY_HASH={client_identity_hash.hex()}")
         except Exception:
             if server.stdout is not None:
@@ -262,12 +379,7 @@ def main() -> None:
                     print("SERVER_OUTPUT_END")
             raise
         finally:
-            server.terminate()
-            try:
-                server.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                server.kill()
-                server.wait(timeout=5)
+            stop_server(server)
 
 
 if __name__ == "__main__":
