@@ -24,6 +24,7 @@ from agent_control_plane.authority_sync_watermark_keys import (
     WatermarkAuthenticationKeyRegistry,
 )
 from agent_control_plane.authority_sync_watermark_relay_chain import (
+    Ed25519RelayChainAppender,
     Ed25519RelayChainEndpoint,
     Ed25519RelayChainVerifier,
     RelayHopAttestation,
@@ -317,4 +318,95 @@ def test_relay_chain_endpoint_rejects_chain_for_other_receiver():
     ):
         target.receive(
             encode_ed25519_relay_chain(three_hop_chain())
+        )
+
+
+
+def test_independent_appenders_verify_prefix_before_adding_own_hop():
+    origin = new_ed25519_relay_chain(origin_payload())
+
+    relay_a = Ed25519RelayChainAppender(
+        relay_id="relay-a",
+        key_id="relay-key",
+        private_key_raw=RELAY_A_PRIVATE,
+        next_receiver_id="relay-b",
+        origin_verifier=origin_verifier(),
+        prefix_verifier=chain_verifier(),
+    )
+    after_a = relay_a.append(
+        origin,
+        relayed_at="2026-09-25T17:51:00Z",
+    )
+    assert tuple(h.relay_id for h in after_a.hops) == ("relay-a",)
+
+    relay_b = Ed25519RelayChainAppender(
+        relay_id="relay-b",
+        key_id="relay-key",
+        private_key_raw=RELAY_B_PRIVATE,
+        next_receiver_id="relay-c",
+        origin_verifier=origin_verifier(),
+        prefix_verifier=chain_verifier(),
+    )
+    after_b = relay_b.append(
+        after_a,
+        relayed_at="2026-09-25T17:52:00Z",
+    )
+    assert tuple(h.relay_id for h in after_b.hops) == (
+        "relay-a",
+        "relay-b",
+    )
+
+    relay_c = Ed25519RelayChainAppender(
+        relay_id="relay-c",
+        key_id="relay-key",
+        private_key_raw=RELAY_C_PRIVATE,
+        next_receiver_id="destination",
+        origin_verifier=origin_verifier(),
+        prefix_verifier=chain_verifier(),
+    )
+    complete = relay_c.append(
+        after_b,
+        relayed_at="2026-09-25T17:53:00Z",
+    )
+
+    verified = chain_verifier().verify(
+        complete,
+        final_receiver_id="destination",
+    )
+    assert verified.relay_path == (
+        "relay-a",
+        "relay-b",
+        "relay-c",
+    )
+
+
+def test_appender_rejects_prefix_not_addressed_to_it():
+    origin = new_ed25519_relay_chain(origin_payload())
+    after_a = Ed25519RelayChainAppender(
+        relay_id="relay-a",
+        key_id="relay-key",
+        private_key_raw=RELAY_A_PRIVATE,
+        next_receiver_id="relay-b",
+        origin_verifier=origin_verifier(),
+        prefix_verifier=chain_verifier(),
+    ).append(
+        origin,
+        relayed_at="2026-09-25T17:51:00Z",
+    )
+
+    wrong_relay = Ed25519RelayChainAppender(
+        relay_id="relay-c",
+        key_id="relay-key",
+        private_key_raw=RELAY_C_PRIVATE,
+        next_receiver_id="destination",
+        origin_verifier=origin_verifier(),
+        prefix_verifier=chain_verifier(),
+    )
+    with pytest.raises(
+        AuthorityValidationError,
+        match="next receiver mismatch",
+    ):
+        wrong_relay.append(
+            after_a,
+            relayed_at="2026-09-25T17:52:00Z",
         )
