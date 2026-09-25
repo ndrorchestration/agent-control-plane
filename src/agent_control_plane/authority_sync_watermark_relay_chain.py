@@ -750,3 +750,39 @@ class Ed25519RelayAppenderEndpoint:
             relayed_at=self.relayed_at_provider(),
         )
         return encode_ed25519_relay_chain(updated)
+
+
+class Ed25519ForwardingRelayStageEndpoint(Ed25519RelayAppenderEndpoint):
+    """Append one verified hop, forward downstream, and return downstream bytes.
+
+    The downstream callable is intentionally transport-neutral. It receives the
+    newly encoded chain and must return bytes from the next stage or final
+    receiver. This lets the Reticulum adapter own carriage while ACP retains
+    prefix verification and hop-signing semantics.
+    """
+
+    def __init__(
+        self,
+        *,
+        appender: Ed25519RelayChainAppender,
+        relayed_at_provider,
+        downstream_exchange,
+    ) -> None:
+        super().__init__(
+            appender=appender,
+            relayed_at_provider=relayed_at_provider,
+        )
+        if not callable(downstream_exchange):
+            raise AuthorityValidationError(
+                "downstream_exchange must be callable"
+            )
+        self.downstream_exchange = downstream_exchange
+
+    def receive(self, payload: bytes) -> bytes:
+        updated_payload = super().receive(payload)
+        response = self.downstream_exchange(updated_payload)
+        if not isinstance(response, bytes):
+            raise AuthorityValidationError(
+                "downstream_exchange must return bytes"
+            )
+        return response
