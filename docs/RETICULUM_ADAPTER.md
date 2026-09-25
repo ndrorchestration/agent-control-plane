@@ -121,3 +121,20 @@ This deliberately separates two identities:
 The relay does not become the origin merely by transporting the record.
 
 This is still one-hop adapter evidence only. It does not establish a multi-hop relay chain, relay-path signatures, origin-key provisioning, asymmetric signatures, compromised-relay resistance, or global completeness.
+
+
+## Bounded Reticulum transport-node topology
+
+A separate multi-hop integration candidate uses three isolated local Reticulum instances:
+
+`ACP client -> transport-enabled Reticulum node -> ACP destination`
+
+The middle process enables Reticulum transport and has two TCP interfaces: one facing the client and one facing the destination. The client has no direct interface to the destination. The destination continues to bind the ACP sender ID to the client's identified Reticulum identity, so the intermediate Reticulum transport node does not become the ACP application sender.
+
+The test requires:
+- discovery/path availability for the destination through the transport node;
+- link establishment from the client to the final destination;
+- one canonical ACP authority snapshot to return `APPLIED`;
+- exact replay over the same routed path to return `DUPLICATE`.
+
+A green result would establish only bounded localhost Reticulum routing across one transport-enabled intermediate node under pinned `rns==1.5.4`. It would not establish arbitrary Internet/radio topology behavior, route resilience, partition healing, LoRa performance, long-duration liveness, or the signed ACP relay-chain protocol traversing that topology.
