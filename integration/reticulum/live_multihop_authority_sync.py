@@ -136,6 +136,8 @@ def start_destination(
             str(state_db),
             "--watermark-db",
             str(watermark_db),
+            "--announce-interval",
+            "5.0",
             "--allowed-sender-id",
             "multihop-client",
             "--allowed-identity-hash",
