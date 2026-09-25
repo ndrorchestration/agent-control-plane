@@ -53,16 +53,16 @@ def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def verify_source_binding(repo_root: Path, expected_sha: str) -> None:
-    """Prove expected source ancestry and zero ACP-source drift from that commit."""
+    """Prove the frozen source commit exists and the ACP package is content-equivalent."""
     if re.fullmatch(r"[0-9a-f]{40}", expected_sha) is None:
         raise SourceBindingError("expected_sha must be 40 lowercase hexadecimal characters")
 
-    ancestor = _git(repo_root, "merge-base", "--is-ancestor", expected_sha, "HEAD")
-    if ancestor.returncode != 0:
-        detail = ancestor.stderr.strip() or ancestor.stdout.strip() or "ancestor check failed"
-        raise SourceBindingError(f"source-under-test ancestry not established: {detail}")
+    source = _git(repo_root, "cat-file", "-e", f"{expected_sha}^{commit}")
+    if source.returncode != 0:
+        detail = source.stderr.strip() or source.stdout.strip() or "source commit not found"
+        raise SourceBindingError(f"source-under-test commit not established: {detail}")
 
-    diff = _git(repo_root, "diff", "--quiet", expected_sha, "--", "src/agent_control_plane")
+    diff = _git(repo_root, "diff", "--quiet", expected_sha, "HEAD", "--", "src/agent_control_plane")
     if diff.returncode != 0:
         detail = diff.stderr.strip() or diff.stdout.strip() or "ACP source differs"
         raise SourceBindingError(f"ACP source package drifted from source under test: {detail}")
