@@ -1,8 +1,8 @@
 # Experimental Reticulum Authority-Sync Adapter
 
-> **Status:** implementation candidate / offline conformance only.
+> **Status:** experimental adapter with bounded localhost live-integration evidence.
 >
-> **Reticulum compatibility is NOT yet established by a live network run.**
+> **Established only for the pinned CI configuration:** real `rns==1.5.4` localhost TCP link exchange, inbound/outbound identity binding, canonical snapshot/revocation exchange, replay protection across relink, and durable reconciliation recovery across a Reticulum server process restart.
 
 ACP's first Reticulum adapter candidate maps the transport-neutral authority-sync contract onto Reticulum's documented request/response surface.
 
@@ -19,6 +19,7 @@ Current upstream API references used for this candidate:
 | Canonical sync request bytes | `Link.request(..., data=payload)` |
 | Server receive boundary | `Destination.register_request_handler(...)` |
 | ACP schema/replay/epoch/revocation reconciliation | `AuthoritySyncEndpoint` / `AuthoritySyncReconciler` |
+| Durable applied-message recovery | `DurableAuthoritySyncReconciler` / SQLite append-only canonical log |
 | Canonical acknowledgement bytes | request-handler return value |
 | Peer/link lookup | caller-supplied `peer_links` mapping |
 
@@ -28,7 +29,7 @@ The fixed request path is:
 
 ## Deliberate boundaries
 
-The candidate does **not** initialise `RNS.Reticulum`, discover peers, create destinations, establish links, announce destinations, choose application trust policy, or manage Reticulum configuration.
+The reusable adapter itself does **not** initialise `RNS.Reticulum`, discover peers, create destinations, establish links, announce destinations, choose application trust policy, or manage Reticulum configuration. The dedicated integration harness performs those actions only to exercise the adapter in a bounded localhost test topology.
 
 Those responsibilities remain external because:
 
@@ -46,27 +47,34 @@ For this to work, the initiating Reticulum peer must identify over the establish
 
 ## Evidence ceiling
 
-Current tests establish only that the adapter:
+Current tests establish that the adapter:
 
 - calls the documented request method shape;
 - registers the documented request-handler shape;
 - carries canonical ACP request/acknowledgement bytes;
-- fails closed for unknown peers, unsent requests, local timeout, non-byte responses, double handler installation, wrong request paths, and malformed payload types.
+- fails closed for unknown peers, unsent requests, local timeout, non-byte responses, double handler installation, wrong request paths, and malformed payload types;
+- exchanges canonical ACP snapshot and revocation records over a real pinned `rns==1.5.4` localhost TCP link;
+- binds the inbound ACP sender ID to the identified Reticulum client identity hash;
+- binds the outbound ACP peer ID to the discovered server destination hash;
+- preserves duplicate/replay semantics across Reticulum link teardown and re-establishment;
+- persists canonically applied sync messages to SQLite and reconstructs snapshot, revocation, duplicate, and sender-sequence state after the Reticulum server process is terminated and restarted.
 
 They do not establish:
 
-- installation/runtime compatibility with a particular `rns` package release;
-- real link establishment or path discovery;
-- Reticulum delivery reliability;
-- remote identity authentication;
-- confidentiality beyond what a correctly configured Reticulum link would provide;
-- resilience over LoRa/radio/IP or disrupted networks;
-- end-to-end partition/revocation propagation;
-- Reticulum security certification.
+- compatibility with arbitrary Reticulum releases/configurations;
+- Reticulum delivery reliability outside the tested localhost TCP topology;
+- secure real-world provisioning or ownership of identity/destination bindings;
+- protection from private-key compromise;
+- resilience over LoRa/radio, multi-hop paths, Internet-scale routing, or long-duration disrupted networks;
+- bounded revocation propagation latency during partitions;
+- multi-process concurrent-writer correctness for the SQLite reconciliation log;
+- cryptographic integrity of the local persistence database;
+- global authority freshness or consensus;
+- Reticulum security certification or production readiness.
 
 ## Next verification gate
 
-A separate live-integration slice should install the current supported `rns` package, create two isolated local Reticulum instances/configurations, establish a link, register the ACP request handler, exchange one canonical snapshot and one revocation, and capture exact runtime/version/result evidence.
+The next high-value gate is deterministic partition/reconnect testing around the durable authority-sync state: delay newer authority/revocation messages while a node is isolated, enforce explicit freshness bounds locally, reconnect, reconcile the newer state, and verify that stale authority cannot regain execution eligibility during or after recovery. Multi-hop/radio testing remains a later and separate evidence class.
 
 ## Identity-binding evidence boundary
 
