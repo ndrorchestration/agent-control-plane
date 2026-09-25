@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 import json
 from typing import Mapping
@@ -21,6 +21,9 @@ from .authority_sync_watermark_auth import (
 
 AUTHORITY_SYNC_WATERMARK_RELAY_SCHEMA_VERSION = (
     "agent-control-plane.authority-sync-watermark-relay.v0-candidate"
+)
+AUTHORITY_SYNC_WATERMARK_RELAY_ACK_SCHEMA_VERSION = (
+    "agent-control-plane.authority-sync-watermark-relay-ack.v0-candidate"
 )
 
 
@@ -208,3 +211,127 @@ class RelayedWatermarkAdmission:
         )
         watermark = self.verifier.verify(authenticated_origin)
         return self.registry.apply(watermark)
+
+
+
+@dataclass(frozen=True)
+class RelayedWatermarkAcknowledgement:
+    relay_id: str
+    receiver_id: str
+    disposition: WatermarkDisposition
+    schema_version: str = AUTHORITY_SYNC_WATERMARK_RELAY_ACK_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "relay_id", _required(self.relay_id, "relay_id"))
+        object.__setattr__(
+            self,
+            "receiver_id",
+            _required(self.receiver_id, "receiver_id"),
+        )
+        if not isinstance(self.disposition, WatermarkDisposition):
+            raise AuthorityValidationError(
+                "disposition must be WatermarkDisposition"
+            )
+        if self.schema_version != AUTHORITY_SYNC_WATERMARK_RELAY_ACK_SCHEMA_VERSION:
+            raise AuthorityValidationError(
+                f"unsupported schema_version: {self.schema_version}"
+            )
+
+    def to_dict(self) -> dict[str, str]:
+        data = asdict(self)
+        data["disposition"] = self.disposition.value
+        return data
+
+
+def encode_relayed_watermark_acknowledgement(
+    acknowledgement: RelayedWatermarkAcknowledgement,
+) -> bytes:
+    if not isinstance(acknowledgement, RelayedWatermarkAcknowledgement):
+        raise AuthorityValidationError(
+            "acknowledgement must be RelayedWatermarkAcknowledgement"
+        )
+    return json.dumps(
+        acknowledgement.to_dict(),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+
+def decode_relayed_watermark_acknowledgement(
+    payload: bytes | str,
+) -> RelayedWatermarkAcknowledgement:
+    if isinstance(payload, bytes):
+        try:
+            text = payload.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise AuthorityValidationError(
+                "relay acknowledgement must be valid UTF-8"
+            ) from exc
+    elif isinstance(payload, str):
+        text = payload
+    else:
+        raise AuthorityValidationError(
+            "relay acknowledgement must be bytes or str"
+        )
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise AuthorityValidationError(
+            "relay acknowledgement must be valid JSON"
+        ) from exc
+    if not isinstance(data, Mapping):
+        raise AuthorityValidationError(
+            "relay acknowledgement must decode to an object"
+        )
+    expected = {"relay_id", "receiver_id", "disposition", "schema_version"}
+    if set(data) != expected:
+        raise AuthorityValidationError(
+            "relay acknowledgement keys mismatch"
+        )
+    try:
+        disposition = WatermarkDisposition(data["disposition"])
+    except ValueError as exc:
+        raise AuthorityValidationError(
+            "invalid relay acknowledgement disposition"
+        ) from exc
+    values = dict(data)
+    values["disposition"] = disposition
+    return RelayedWatermarkAcknowledgement(**values)
+
+
+class RelayedWatermarkEndpoint:
+    """Byte-facing endpoint for one transport-authenticated relay hop."""
+
+    def __init__(
+        self,
+        *,
+        receiver_id: str,
+        admission: RelayedWatermarkAdmission,
+    ) -> None:
+        self.receiver_id = _required(receiver_id, "receiver_id")
+        if not isinstance(admission, RelayedWatermarkAdmission):
+            raise AuthorityValidationError(
+                "admission must be RelayedWatermarkAdmission"
+            )
+        self.admission = admission
+
+    def receive(
+        self,
+        payload: bytes,
+        *,
+        authenticated_relay_id: str,
+    ) -> bytes:
+        if not isinstance(payload, bytes):
+            raise AuthorityValidationError("payload must be bytes")
+        envelope = decode_relayed_authenticated_watermark(payload)
+        disposition = self.admission.admit(
+            envelope,
+            authenticated_relay_id=authenticated_relay_id,
+        )
+        acknowledgement = RelayedWatermarkAcknowledgement(
+            relay_id=envelope.relay_id,
+            receiver_id=self.receiver_id,
+            disposition=disposition,
+        )
+        return encode_relayed_watermark_acknowledgement(acknowledgement)
