@@ -155,6 +155,8 @@ The candidate is intentionally separate from frozen `agent-control-plane.executi
 
 For disconnected/stale-state experiments, `InMemoryAuthorityStateCache` tracks a monotonic epoch and issuance time per authority. An optional policy freshness checker can require a minimum epoch and maximum snapshot age. Missing state, epoch regression, same-epoch conflict, stale epoch, stale age, future-dated state, or checker failure are fail-closed conditions. This is a local staleness control, not distributed consensus or proof that a node has received the globally newest state.
 
+A deterministic synthetic partition harness under `experiments/authority_partition/` exercises divergent node caches, age-out during isolation, reconciliation to a newer epoch, and missing-state fail-closure. It is explicitly not a Reticulum/network simulation; it provides a local pre-integration test surface for those semantics.
+
 ## Evidence standard
 
 Claims in this repository should distinguish:
