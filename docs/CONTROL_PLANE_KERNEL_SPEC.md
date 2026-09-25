@@ -106,6 +106,28 @@ The present contract tests establish ACP-native schema construction, validation,
 
 They do **not** establish cross-runtime portability. No materially different external runtime adapter is implemented in this slice, and there is not yet a two-runtime conformance result using the same core schema without fork.
 
+## Candidate authority envelope
+
+ACP also contains a separate candidate authority record with schema identity:
+
+`agent-control-plane.authority.v0-candidate`
+
+The candidate represents:
+
+- principal identity;
+- requested capability;
+- resource/target scope;
+- operation/action semantics;
+- policy identity plus version/hash;
+- decision identity, explicit outcome, and reason code;
+- authority lease expiry;
+- optional delegation identity/scope;
+- explicit authority conditions.
+
+The record validates required identities, canonical UTC expiry, typed decision outcomes, non-empty unique delegation scope, and explicit conditions for conditional decisions. It can test lease validity at a caller-supplied UTC timestamp and fail closed at expiry.
+
+This candidate is **not part of `agent-control-plane.execution.v1` and is not enforced by the kernel**. It exists so richer authority semantics can be engineered and reviewed without mutating the frozen Stage-A contract target. It does not authenticate identities, validate external policy authority, prove delegation legitimacy, provide revocation, or itself grant permission to execute.
+
 ## Evidence boundary
 
 The kernel and tests demonstrate local deterministic behavior only. The budget tests establish the cooperative count/cost accounting and fail-closed exhaustion properties exercised by those tests. The execution-contract tests establish only the ACP-native contract properties exercised by those tests.
