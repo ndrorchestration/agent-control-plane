@@ -169,3 +169,86 @@ def test_constructor_validation_fails_closed():
         ReticulumAuthoritySyncTransport({}, timeout_seconds=0)
     with pytest.raises(AuthorityValidationError, match="max_response_size"):
         ReticulumAuthoritySyncTransport({}, max_response_size=0)
+
+
+class FakeRemoteIdentity:
+    def __init__(self, identity_hash):
+        self.hash = identity_hash
+
+
+def test_server_binds_acp_sender_id_to_reticulum_identity_hash():
+    destination = FakeDestination()
+    target = endpoint()
+    server = ReticulumAuthoritySyncServer(
+        destination=destination,
+        endpoint=target,
+        peer_identity_hashes={"node-a": b"expected-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"expected-hash"])
+    handler = destination.registration["response_generator"]
+    response = handler(
+        RETICULUM_SYNC_PATH,
+        encode_sync_message(message()),
+        None,
+        None,
+        FakeRemoteIdentity(b"expected-hash"),
+        None,
+    )
+    ack = decode_sync_acknowledgement(response)
+    assert ack.disposition is SyncDisposition.APPLIED
+
+
+def test_server_rejects_unbound_sender_id_when_identity_binding_enabled():
+    destination = FakeDestination()
+    server = ReticulumAuthoritySyncServer(
+        destination=destination,
+        endpoint=endpoint(),
+        peer_identity_hashes={"someone-else": b"hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"hash"])
+    handler = destination.registration["response_generator"]
+    with pytest.raises(ReticulumAdapterError, match="unbound ACP sender_id"):
+        handler(
+            RETICULUM_SYNC_PATH,
+            encode_sync_message(message()),
+            None, None, FakeRemoteIdentity(b"hash"), None,
+        )
+
+
+def test_server_rejects_missing_remote_identity_when_binding_enabled():
+    destination = FakeDestination()
+    server = ReticulumAuthoritySyncServer(
+        destination=destination,
+        endpoint=endpoint(),
+        peer_identity_hashes={"node-a": b"expected-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"expected-hash"])
+    handler = destination.registration["response_generator"]
+    with pytest.raises(ReticulumAdapterError, match="remote identity required"):
+        handler(RETICULUM_SYNC_PATH, encode_sync_message(message()), None, None, None, None)
+
+
+def test_server_rejects_identity_hash_mismatch():
+    destination = FakeDestination()
+    server = ReticulumAuthoritySyncServer(
+        destination=destination,
+        endpoint=endpoint(),
+        peer_identity_hashes={"node-a": b"expected-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"expected-hash"])
+    handler = destination.registration["response_generator"]
+    with pytest.raises(ReticulumAdapterError, match="does not match ACP sender_id"):
+        handler(
+            RETICULUM_SYNC_PATH,
+            encode_sync_message(message()),
+            None, None, FakeRemoteIdentity(b"wrong-hash"), None,
+        )
+
+
+def test_server_rejects_invalid_configured_identity_hash():
+    with pytest.raises(AuthorityValidationError, match="identity hashes"):
+        ReticulumAuthoritySyncServer(
+            destination=FakeDestination(),
+            endpoint=endpoint(),
+            peer_identity_hashes={"node-a": b""},
+        )
