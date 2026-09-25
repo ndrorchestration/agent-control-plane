@@ -24,6 +24,7 @@ from agent_control_plane.authority_sync_watermark_keys import (
     WatermarkAuthenticationKeyRegistry,
 )
 from agent_control_plane.authority_sync_watermark_relay_chain import (
+    Ed25519RelayAppenderEndpoint,
     Ed25519RelayChainAppender,
     Ed25519RelayChainEndpoint,
     Ed25519RelayChainVerifier,
@@ -32,6 +33,12 @@ from agent_control_plane.authority_sync_watermark_relay_chain import (
     decode_ed25519_relay_chain,
     encode_ed25519_relay_chain,
     new_ed25519_relay_chain,
+)
+from agent_control_plane.reticulum_adapter import (
+    RETICULUM_WATERMARK_RELAY_STAGE_PATH,
+    ReticulumAdapterError,
+    ReticulumRelayStageServer,
+    ReticulumRelayStageTransport,
 )
 
 
@@ -410,3 +417,149 @@ def test_appender_rejects_prefix_not_addressed_to_it():
             after_a,
             relayed_at="2026-09-25T17:52:00Z",
         )
+
+
+
+class _StageFakeReceipt:
+    def __init__(self, response):
+        self.response = response
+
+    def concluded(self):
+        return True
+
+    def get_response(self):
+        return self.response
+
+
+class _StageFakeLink:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+        self.destination = None
+
+    def request(self, path, data=None, timeout=None, max_response_size=None):
+        self.calls.append(
+            {
+                "path": path,
+                "data": data,
+                "timeout": timeout,
+                "max_response_size": max_response_size,
+            }
+        )
+        return _StageFakeReceipt(self.response)
+
+
+class _StageFakeDestination:
+    def __init__(self):
+        self.registration = None
+
+    def register_request_handler(
+        self,
+        path,
+        response_generator=None,
+        allow=None,
+        allowed_list=None,
+        auto_compress=True,
+    ):
+        self.registration = {
+            "path": path,
+            "response_generator": response_generator,
+            "allow": allow,
+            "allowed_list": allowed_list,
+            "auto_compress": auto_compress,
+        }
+
+
+class _StageFakeIdentity:
+    def __init__(self, identity_hash):
+        self.hash = identity_hash
+
+
+def relay_a_stage_endpoint():
+    return Ed25519RelayAppenderEndpoint(
+        appender=Ed25519RelayChainAppender(
+            relay_id="relay-a",
+            key_id="relay-key",
+            private_key_raw=RELAY_A_PRIVATE,
+            next_receiver_id="relay-b",
+            origin_verifier=origin_verifier(),
+            prefix_verifier=chain_verifier(),
+        ),
+        relayed_at_provider=lambda: "2026-09-25T17:51:00Z",
+    )
+
+
+def test_byte_facing_relay_stage_appends_exactly_one_hop():
+    endpoint = relay_a_stage_endpoint()
+    payload = encode_ed25519_relay_chain(
+        new_ed25519_relay_chain(origin_payload())
+    )
+    updated = decode_ed25519_relay_chain(endpoint.receive(payload))
+    assert tuple(hop.relay_id for hop in updated.hops) == ("relay-a",)
+    assert updated.hops[0].next_receiver_id == "relay-b"
+
+
+def test_reticulum_relay_stage_binds_origin_identity_and_returns_updated_chain():
+    endpoint = relay_a_stage_endpoint()
+    destination = _StageFakeDestination()
+    server = ReticulumRelayStageServer(
+        destination=destination,
+        endpoint=endpoint,
+        upstream_identity_hashes={"origin": b"origin-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"origin-hash"])
+    payload = encode_ed25519_relay_chain(
+        new_ed25519_relay_chain(origin_payload())
+    )
+    returned = destination.registration["response_generator"](
+        RETICULUM_WATERMARK_RELAY_STAGE_PATH,
+        payload,
+        None,
+        None,
+        _StageFakeIdentity(b"origin-hash"),
+        None,
+    )
+    updated = decode_ed25519_relay_chain(returned)
+    assert tuple(hop.relay_id for hop in updated.hops) == ("relay-a",)
+
+
+def test_reticulum_relay_stage_rejects_wrong_upstream_identity():
+    endpoint = relay_a_stage_endpoint()
+    destination = _StageFakeDestination()
+    server = ReticulumRelayStageServer(
+        destination=destination,
+        endpoint=endpoint,
+        upstream_identity_hashes={"origin": b"origin-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"origin-hash"])
+    payload = encode_ed25519_relay_chain(
+        new_ed25519_relay_chain(origin_payload())
+    )
+    with pytest.raises(
+        ReticulumAdapterError,
+        match="does not match relay-stage upstream",
+    ):
+        destination.registration["response_generator"](
+            RETICULUM_WATERMARK_RELAY_STAGE_PATH,
+            payload,
+            None,
+            None,
+            _StageFakeIdentity(b"wrong-hash"),
+            None,
+        )
+
+
+def test_reticulum_relay_stage_transport_uses_fixed_path():
+    endpoint = relay_a_stage_endpoint()
+    payload = encode_ed25519_relay_chain(
+        new_ed25519_relay_chain(origin_payload())
+    )
+    response = endpoint.receive(payload)
+    link = _StageFakeLink(response)
+    transport = ReticulumRelayStageTransport(
+        {"relay-a": link},
+        sleep=lambda seconds: None,
+    )
+    returned = transport.exchange("relay-a", payload)
+    assert decode_ed25519_relay_chain(returned).hops[0].relay_id == "relay-a"
+    assert link.calls[0]["path"] == RETICULUM_WATERMARK_RELAY_STAGE_PATH

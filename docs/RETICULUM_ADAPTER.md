@@ -163,3 +163,12 @@ Each relay subprocess:
 Only the final chain payload is then sent across the verified routed Reticulum topology to the destination.
 
 This establishes separate process execution boundaries for relay append operations under deterministic test fixtures. It does **not** establish secure private-key isolation, separate hosts, independent trust domains, or one Reticulum application destination per relay process.
+
+
+## Live relay-stage endpoint candidate
+
+ACP now also has a byte-facing relay-stage endpoint and a fixed Reticulum relay-stage request path. A relay stage derives the logical upstream sender from the signed chain prefix: the origin issuer for the first hop, or the prior relay ID for later hops. The Reticulum server binds that derived upstream ID to the currently identified remote Reticulum identity before allowing the stage to verify and append its hop.
+
+This closes a narrower gap than the subprocess test: the append operation can now execute behind a Reticulum application endpoint rather than only through a local file handoff.
+
+The candidate still does not establish a full live chain of separate Reticulum relay destinations forwarding autonomously. That remains the next integration step.
