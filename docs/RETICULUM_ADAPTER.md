@@ -28,7 +28,7 @@ The fixed request path is:
 
 ## Deliberate boundaries
 
-The candidate does **not** initialise `RNS.Reticulum`, discover peers, create destinations, establish links, announce destinations, authenticate remote identities, choose `ALLOW_*` policy, or manage Reticulum configuration.
+The candidate does **not** initialise `RNS.Reticulum`, discover peers, create destinations, establish links, announce destinations, choose application trust policy, or manage Reticulum configuration.
 
 Those responsibilities remain external because:
 
@@ -36,7 +36,11 @@ Those responsibilities remain external because:
 2. Reticulum identity/link setup has security and operational implications that need an explicit integration contract.
 3. The current CI environment verifies adapter semantics with test doubles, not a real RNS runtime.
 
-The server binding accepts the Reticulum `allow` value as an explicit caller argument. Production-like use should not default silently to permissive `ALLOW_ALL`; peer-identity policy must be chosen and verified by the integration.
+The server binding accepts the Reticulum `allow` value as an explicit caller argument. Production-like use should not default silently to permissive `ALLOW_ALL`.
+
+When `peer_identity_hashes` is configured, the server additionally binds each claimed ACP sync `sender_id` to an expected Reticulum identity hash. The handler requires Reticulum to supply a `remote_identity`, extracts its identity hash, and rejects unknown sender IDs, missing identities, unavailable hashes, and hash mismatches before ACP reconciliation.
+
+For this to work, the initiating Reticulum peer must identify over the established link (for example with `Link.identify(identity)`). Reticulum documents this mechanism as revealing the initiator identity to the remote peer over the encrypted link and allowing it to be used for authentication. The live integration gate also uses `Destination.ALLOW_LIST` with the same expected identity hash.
 
 ## Evidence ceiling
 
@@ -61,3 +65,16 @@ They do not establish:
 ## Next verification gate
 
 A separate live-integration slice should install the current supported `rns` package, create two isolated local Reticulum instances/configurations, establish a link, register the ACP request handler, exchange one canonical snapshot and one revocation, and capture exact runtime/version/result evidence.
+
+## Identity-binding evidence boundary
+
+A successful local live test can establish that the pinned Reticulum runtime supplied an identified peer identity whose hash matched the ACP sender binding and that `ALLOW_LIST` permitted the request.
+
+It does not establish:
+
+- that an identity is owned by a real-world person or organization;
+- PKI, certificate-chain, account, device, or hardware identity;
+- revocation of Reticulum identities themselves;
+- secure provisioning of the sender-ID → identity-hash binding;
+- resistance to compromise of the corresponding private identity keys;
+- trust equivalence between a Reticulum identity and DGAF authorization.
