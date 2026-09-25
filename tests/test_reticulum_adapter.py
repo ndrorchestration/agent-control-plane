@@ -483,7 +483,7 @@ def test_reticulum_relay_transport_uses_fixed_request_path():
     )
     returned = transport.exchange("node-b", relayed_payload())
     ack = decode_relayed_watermark_acknowledgement(returned)
-    assert ack.disposition is WatermarkDisposition.DUPLICATE
+    assert ack.disposition is WatermarkDisposition.APPLIED
     assert link.calls[0]["path"] == RETICULUM_WATERMARK_RELAY_PATH
 
 
