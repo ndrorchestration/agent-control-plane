@@ -309,9 +309,10 @@ def main() -> None:
                 server_config,
                 hash_file,
                 state_db,
+                watermark_db,
                 client_identity_hash,
             )
-            restart_destination_hex, restart_link, restart_transport, _ = connect_transport(
+            restart_destination_hex, restart_link, restart_transport, restart_watermark_transport = connect_transport(
                 hash_file=hash_file,
                 server=server,
                 client_identity=client_identity,
