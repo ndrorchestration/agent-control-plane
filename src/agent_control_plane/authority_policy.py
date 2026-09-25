@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 AuthorityResolver = Callable[[str, "Task"], Optional[AuthorityEnvelope]]
 ObservationTimeResolver = Callable[[str, "Task"], str]
 ConditionEvaluator = Callable[[AuthorityEnvelope, str, "Task"], bool]
+DelegationEvaluator = Callable[[AuthorityEnvelope, str, "Task"], bool]
+RevocationChecker = Callable[[str, str], bool]
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,8 @@ class AuthorityPolicy:
     resolver: AuthorityResolver
     observed_at: ObservationTimeResolver
     condition_evaluator: Optional[ConditionEvaluator] = None
+    delegation_evaluator: Optional[DelegationEvaluator] = None
+    revocation_checker: Optional[RevocationChecker] = None
 
     def __call__(self, capability: str, task: "Task") -> Optional[str]:
         try:
@@ -48,6 +52,24 @@ class AuthorityPolicy:
             return "authority lease invalid or expired"
         except Exception:
             return "authority time resolution failed"
+
+        if self.revocation_checker is not None:
+            try:
+                revoked = self.revocation_checker(authority.authority_id, observed_at)
+            except Exception:
+                return "authority revocation check failed"
+            if revoked is not False:
+                return "authority revoked"
+
+        if authority.delegation is not None:
+            if self.delegation_evaluator is None:
+                return "authority delegation unresolved"
+            try:
+                delegation_valid = self.delegation_evaluator(authority, capability, task)
+            except Exception:
+                return "authority delegation evaluation failed"
+            if delegation_valid is not True:
+                return "authority delegation invalid"
 
         outcome = authority.decision.outcome
         if outcome is DecisionOutcome.DENY:
