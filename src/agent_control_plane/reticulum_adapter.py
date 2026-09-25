@@ -11,6 +11,7 @@ import time
 from typing import Any, Callable, Mapping, Optional
 
 from .authority import AuthorityValidationError
+from .authority_sync import decode_sync_message
 from .sync_transport import AuthoritySyncEndpoint
 
 
@@ -104,12 +105,18 @@ class ReticulumAuthoritySyncServer:
         destination: Any,
         endpoint: AuthoritySyncEndpoint,
         request_path: str = RETICULUM_SYNC_PATH,
+        peer_identity_hashes: Optional[Mapping[str, bytes]] = None,
     ) -> None:
         if not isinstance(endpoint, AuthoritySyncEndpoint):
             raise AuthorityValidationError("endpoint must be AuthoritySyncEndpoint")
         self.destination = destination
         self.endpoint = endpoint
         self.request_path = _required(request_path, "request_path")
+        self.peer_identity_hashes = dict(peer_identity_hashes or {})
+        for sender_id, identity_hash in self.peer_identity_hashes.items():
+            _required(sender_id, "sender_id")
+            if not isinstance(identity_hash, bytes) or not identity_hash:
+                raise AuthorityValidationError("peer identity hashes must be non-empty bytes")
         self._installed = False
 
     def install(
@@ -142,9 +149,23 @@ class ReticulumAuthoritySyncServer:
         remote_identity: Any,
         requested_at: Any,
     ) -> bytes:
-        del request_id, link_id, remote_identity, requested_at
+        del request_id, link_id, requested_at
         if path != self.request_path:
             raise ReticulumAdapterError("unexpected Reticulum request path")
         if not isinstance(data, bytes):
             raise ReticulumAdapterError("Reticulum request payload must be bytes")
+        if self.peer_identity_hashes:
+            message = decode_sync_message(data)
+            expected_hash = self.peer_identity_hashes.get(message.sender_id)
+            if expected_hash is None:
+                raise ReticulumAdapterError("unbound ACP sender_id")
+            if remote_identity is None:
+                raise ReticulumAdapterError("Reticulum remote identity required")
+            actual_hash = getattr(remote_identity, "hash", None)
+            if callable(actual_hash):
+                actual_hash = actual_hash()
+            if not isinstance(actual_hash, bytes) or not actual_hash:
+                raise ReticulumAdapterError("Reticulum remote identity hash unavailable")
+            if actual_hash != expected_hash:
+                raise ReticulumAdapterError("Reticulum identity does not match ACP sender_id")
         return self.endpoint.receive(data)
