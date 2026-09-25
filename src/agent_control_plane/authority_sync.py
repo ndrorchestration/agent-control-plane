@@ -2,7 +2,9 @@
 
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Dict, Tuple, Union
+import hashlib
+import json
+from typing import Any, Dict, Mapping, Tuple, Union
 
 from .authority import AuthorityValidationError
 from .authority_state import AuthorityStateSnapshot, InMemoryAuthorityStateCache
@@ -98,6 +100,112 @@ class RevocationSyncMessage:
 SyncMessage = Union[SnapshotSyncMessage, RevocationSyncMessage]
 
 
+def _expect_keys(data: Mapping[str, Any], expected: set[str], context: str) -> None:
+    actual = set(data.keys())
+    if actual != expected:
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        raise AuthorityValidationError(
+            f"{context} keys mismatch: missing={missing}, extra={extra}"
+        )
+
+
+def encode_sync_message(message: SyncMessage) -> bytes:
+    """Serialize one supported sync message to canonical UTF-8 JSON bytes."""
+    if not isinstance(message, (SnapshotSyncMessage, RevocationSyncMessage)):
+        raise AuthorityValidationError("message must be a supported sync message")
+    return json.dumps(
+        message.to_dict(),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+
+def sync_message_sha256(message: SyncMessage) -> str:
+    """Return the canonical content identity of one sync message."""
+    return hashlib.sha256(encode_sync_message(message)).hexdigest()
+
+
+def decode_sync_message(payload: bytes | str) -> SyncMessage:
+    """Strictly reconstruct a sync message from canonical-compatible JSON."""
+    if isinstance(payload, bytes):
+        try:
+            text = payload.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise AuthorityValidationError("sync payload must be valid UTF-8") from exc
+    elif isinstance(payload, str):
+        text = payload
+    else:
+        raise AuthorityValidationError("sync payload must be bytes or str")
+
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise AuthorityValidationError("sync payload must be valid JSON") from exc
+    if not isinstance(data, Mapping):
+        raise AuthorityValidationError("sync payload must decode to an object")
+
+    kind = data.get("kind")
+    if kind == SyncMessageKind.SNAPSHOT.value:
+        _expect_keys(
+            data,
+            {"message_id", "sender_id", "sequence", "kind", "snapshot", "schema_version"},
+            "snapshot sync message",
+        )
+        snapshot_data = data["snapshot"]
+        if not isinstance(snapshot_data, Mapping):
+            raise AuthorityValidationError("snapshot must be an object")
+        _expect_keys(
+            snapshot_data,
+            {"authority_id", "epoch", "issued_at", "source_id"},
+            "authority state snapshot",
+        )
+        try:
+            snapshot = AuthorityStateSnapshot(**dict(snapshot_data))
+            return SnapshotSyncMessage(
+                message_id=data["message_id"],
+                sender_id=data["sender_id"],
+                sequence=data["sequence"],
+                snapshot=snapshot,
+                schema_version=data["schema_version"],
+            )
+        except (TypeError, KeyError, ValueError, AuthorityValidationError) as exc:
+            if isinstance(exc, AuthorityValidationError):
+                raise
+            raise AuthorityValidationError("malformed snapshot sync message") from exc
+
+    if kind == SyncMessageKind.REVOCATION.value:
+        _expect_keys(
+            data,
+            {"message_id", "sender_id", "sequence", "kind", "revocation", "schema_version"},
+            "revocation sync message",
+        )
+        revocation_data = data["revocation"]
+        if not isinstance(revocation_data, Mapping):
+            raise AuthorityValidationError("revocation must be an object")
+        _expect_keys(
+            revocation_data,
+            {"authority_id", "revoked_at", "reason_code"},
+            "revocation record",
+        )
+        try:
+            revocation = RevocationRecord(**dict(revocation_data))
+            return RevocationSyncMessage(
+                message_id=data["message_id"],
+                sender_id=data["sender_id"],
+                sequence=data["sequence"],
+                revocation=revocation,
+                schema_version=data["schema_version"],
+            )
+        except (TypeError, KeyError, ValueError, AuthorityValidationError) as exc:
+            if isinstance(exc, AuthorityValidationError):
+                raise
+            raise AuthorityValidationError("malformed revocation sync message") from exc
+
+    raise AuthorityValidationError(f"unsupported sync message kind: {kind!r}")
+
+
 @dataclass(frozen=True)
 class SyncAcknowledgement:
     message_id: str
@@ -136,7 +244,7 @@ class AuthoritySyncReconciler:
         self._sender_sequences: Dict[str, int] = {}
 
     def _fingerprint(self, message: SyncMessage) -> Tuple[str, int, str]:
-        return (message.sender_id, message.sequence, repr(message.to_dict()))
+        return (message.sender_id, message.sequence, sync_message_sha256(message))
 
     def apply(self, message: SyncMessage) -> SyncAcknowledgement:
         if not isinstance(message, (SnapshotSyncMessage, RevocationSyncMessage)):
