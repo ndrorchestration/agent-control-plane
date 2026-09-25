@@ -144,6 +144,20 @@ The record binds task ID, run ID, capability, allow/deny result, denial reason, 
 
 This sidecar is **not** durable provenance, cryptographic attestation, execution-v1 integration, or independent proof that the referenced authority was legitimate. It records what the local authority policy evaluated and decided.
 
+### Authority state freshness
+
+ACP additionally provides an additive in-memory authority-state cache with schema:
+
+`agent-control-plane.authority-state.v0-candidate`
+
+Each snapshot binds an authority ID to a non-negative monotonic epoch, canonical UTC issuance time, and source ID. Cache updates fail closed on epoch regression and conflicting records at the same epoch.
+
+A freshness requirement supplies both a minimum accepted epoch and a maximum snapshot age. Evaluation returns one of: `current`, `missing`, `stale_epoch`, `stale_age`, or `future_state`.
+
+An optional `AuthorityPolicy` freshness checker can use this evaluation to block dispatch. Missing/stale/future state and checker errors fail closed. The authority decision evidence sidecar records whether a freshness check was performed and its stale-state reason when present.
+
+This mechanism does **not** establish consensus, global ordering, Byzantine agreement, revocation propagation, network partition healing, or proof that the locally cached state is globally latest. It provides bounded local staleness detection suitable for later disconnected-runtime and Reticulum experiments.
+
 ## Evidence boundary
 
 The kernel and tests demonstrate local deterministic behavior only. The budget tests establish the cooperative count/cost accounting and fail-closed exhaustion properties exercised by those tests. The execution-contract tests establish only the ACP-native contract properties exercised by those tests.
