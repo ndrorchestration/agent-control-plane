@@ -7,6 +7,9 @@ from agent_control_plane.authority_sync import (
     RevocationSyncMessage,
     SnapshotSyncMessage,
     SyncDisposition,
+    decode_sync_message,
+    encode_sync_message,
+    sync_message_sha256,
 )
 from agent_control_plane.revocation import InMemoryRevocationRegistry, RevocationRecord
 
@@ -129,3 +132,79 @@ def test_invalid_sequence_and_schema_fail_during_message_construction():
             snapshot=AuthorityStateSnapshot("auth-1", 1, "2026-09-25T14:00:00Z", "node-a"),
             schema_version="wrong",
         )
+
+
+def test_snapshot_wire_round_trip_is_exact_and_canonical():
+    message = snapshot_message()
+    encoded = encode_sync_message(message)
+    decoded = decode_sync_message(encoded)
+    assert decoded == message
+    assert encode_sync_message(decoded) == encoded
+    assert b" " not in encoded
+
+
+def test_revocation_wire_round_trip_is_exact_and_canonical():
+    message = revocation_message()
+    encoded = encode_sync_message(message)
+    decoded = decode_sync_message(encoded.decode("utf-8"))
+    assert decoded == message
+    assert encode_sync_message(decoded) == encoded
+
+
+def test_sync_message_hash_is_stable_across_round_trip():
+    message = snapshot_message(message_id="hash-1", sequence=7, epoch=4)
+    digest = sync_message_sha256(message)
+    decoded = decode_sync_message(encode_sync_message(message))
+    assert sync_message_sha256(decoded) == digest
+    assert len(digest) == 64
+
+
+def test_wire_decoder_rejects_invalid_utf8_and_invalid_json():
+    with pytest.raises(AuthorityValidationError, match="UTF-8"):
+        decode_sync_message(b"\xff")
+    with pytest.raises(AuthorityValidationError, match="valid JSON"):
+        decode_sync_message("{not-json}")
+
+
+def test_wire_decoder_rejects_non_object_and_unknown_kind():
+    with pytest.raises(AuthorityValidationError, match="object"):
+        decode_sync_message("[]")
+    with pytest.raises(AuthorityValidationError, match="unsupported sync message kind"):
+        decode_sync_message('{"kind":"unknown"}')
+
+
+def test_wire_decoder_rejects_extra_top_level_and_nested_fields():
+    import json
+    top = snapshot_message().to_dict()
+    top["extra"] = "not-allowed"
+    with pytest.raises(AuthorityValidationError, match="keys mismatch"):
+        decode_sync_message(json.dumps(top))
+
+    nested = snapshot_message().to_dict()
+    nested["snapshot"]["extra"] = "not-allowed"
+    with pytest.raises(AuthorityValidationError, match="keys mismatch"):
+        decode_sync_message(json.dumps(nested))
+
+
+def test_wire_decoder_rejects_malformed_nested_type():
+    import json
+    data = snapshot_message().to_dict()
+    data["snapshot"] = "not-an-object"
+    with pytest.raises(AuthorityValidationError, match="snapshot must be an object"):
+        decode_sync_message(json.dumps(data))
+
+
+def test_wire_decoder_rejects_wrong_schema_version():
+    import json
+    data = snapshot_message().to_dict()
+    data["schema_version"] = "agent-control-plane.authority-sync.v999"
+    with pytest.raises(AuthorityValidationError, match="schema_version"):
+        decode_sync_message(json.dumps(data))
+
+
+def test_duplicate_identity_uses_canonical_message_content():
+    sync = reconciler()
+    original = snapshot_message(message_id="canonical-1", sequence=1)
+    decoded = decode_sync_message(encode_sync_message(original))
+    assert sync.apply(original).disposition is SyncDisposition.APPLIED
+    assert sync.apply(decoded).disposition is SyncDisposition.DUPLICATE

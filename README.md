@@ -160,6 +160,8 @@ A deterministic synthetic partition harness under `experiments/authority_partiti
 
 The authority-sync candidate is transport-neutral. Transport sequence numbers provide replay/order protection per sender; authority-state epochs independently express the semantic version of authority state. A higher transport sequence cannot override a lower authority epoch, and a valid authority epoch does not excuse a replayed transport message. Snapshot/revocation application produces explicit applied/duplicate/rejected acknowledgements rather than silent reconciliation.
 
+Sync messages now also have a canonical UTF-8 JSON representation with sorted keys, compact separators, strict reconstruction, and SHA-256 content identity. Unknown message kinds, malformed UTF-8/JSON, wrong schemas, extra fields, malformed nested records, and unsupported nested values fail closed. The SHA-256 is a deterministic content identifier only; it is not a cryptographic signature, sender authentication, or tamper-evident transport by itself.
+
 ## Evidence standard
 
 Claims in this repository should distinguish:
