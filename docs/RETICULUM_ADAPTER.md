@@ -40,6 +40,8 @@ The server binding accepts the Reticulum `allow` value as an explicit caller arg
 
 When `peer_identity_hashes` is configured, the server additionally binds each claimed ACP sync `sender_id` to an expected Reticulum identity hash. The handler requires Reticulum to supply a `remote_identity`, extracts its identity hash, and rejects unknown sender IDs, missing identities, unavailable hashes, and hash mismatches before ACP reconciliation.
 
+On the initiating side, `peer_destination_hashes` can bind each ACP outbound `peer_id` to the expected Reticulum destination hash. Before issuing a request, the adapter reads the established Link's destination hash and rejects a missing, unavailable, or mismatched destination. This prevents an ACP peer label from silently being remapped to a different Reticulum destination object.
+
 For this to work, the initiating Reticulum peer must identify over the established link (for example with `Link.identify(identity)`). Reticulum documents this mechanism as revealing the initiator identity to the remote peer over the encrypted link and allowing it to be used for authentication. The live integration gate also uses `Destination.ALLOW_LIST` with the same expected identity hash.
 
 ## Evidence ceiling
