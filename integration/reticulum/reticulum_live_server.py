@@ -7,8 +7,13 @@ import time
 import RNS
 
 from agent_control_plane.authority_sync_persistence import DurableAuthoritySyncReconciler
-from agent_control_plane.reticulum_adapter import ReticulumAuthoritySyncServer
+from agent_control_plane.authority_sync_watermark import AuthoritySyncWatermarkRegistry
+from agent_control_plane.reticulum_adapter import (
+    ReticulumAuthoritySyncServer,
+    ReticulumAuthoritySyncWatermarkServer,
+)
 from agent_control_plane.sync_transport import AuthoritySyncEndpoint
+from agent_control_plane.watermark_transport import AuthoritySyncWatermarkEndpoint
 
 
 APP_NAME = "ndrorchestration"
@@ -48,6 +53,21 @@ def main() -> None:
         peer_identity_hashes={args.allowed_sender_id: allowed_identity_hash},
     )
     server.install(
+        allow=RNS.Destination.ALLOW_LIST,
+        allowed_list=[allowed_identity_hash],
+    )
+
+    watermark_server = ReticulumAuthoritySyncWatermarkServer(
+        destination=destination,
+        endpoint=AuthoritySyncWatermarkEndpoint(
+            receiver_id="reticulum-server",
+            registry=AuthoritySyncWatermarkRegistry(
+                {args.allowed_sender_id: {args.allowed_sender_id}}
+            ),
+        ),
+        peer_identity_hashes={args.allowed_sender_id: allowed_identity_hash},
+    )
+    watermark_server.install(
         allow=RNS.Destination.ALLOW_LIST,
         allowed_list=[allowed_identity_hash],
     )

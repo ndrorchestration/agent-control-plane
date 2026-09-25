@@ -88,3 +88,18 @@ It does not establish:
 - secure provisioning of the sender-ID → identity-hash binding;
 - resistance to compromise of the corresponding private identity keys;
 - trust equivalence between a Reticulum identity and DGAF authorization.
+
+
+## Authority-sync watermark carriage
+
+ACP's synchronization watermark protocol is carried on a separate fixed Reticulum request path:
+
+`/ndrorchestration/acp/authority-sync-watermark/v0`
+
+The Reticulum adapter does not decide whether a watermark issuer is trusted or what floor should govern execution. Those decisions remain inside `AuthoritySyncWatermarkRegistry` and `AuthoritySyncProgressGuard`.
+
+When watermark peer binding is configured, `ReticulumAuthoritySyncWatermarkServer` decodes only enough of the canonical ACP watermark to bind its claimed `issuer_id` to the Reticulum `remote_identity` hash before handing the payload to the ACP watermark endpoint. The client-side watermark transport inherits the same outbound ACP peer-ID → Reticulum destination-hash check used by ordinary authority sync.
+
+The live localhost gate exercises one identified Reticulum client sending a watermark for its authority-sync stream, verifies `APPLIED`, then resends the exact watermark and requires `DUPLICATE`.
+
+This is carriage/identity-binding evidence only. It is not multi-peer dissemination, quorum agreement, global completeness, durable watermark persistence, secure trust provisioning, or cryptographic watermark authentication.
