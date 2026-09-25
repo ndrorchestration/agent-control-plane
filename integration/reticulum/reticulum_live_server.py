@@ -7,10 +7,17 @@ import time
 import RNS
 
 from agent_control_plane.authority_sync_persistence import DurableAuthoritySyncReconciler
+from agent_control_plane.authority_sync_watermark import AuthoritySyncWatermarkRegistry
+from agent_control_plane.authority_sync_watermark_auth import HmacAuthoritySyncWatermarkVerifier
 from agent_control_plane.authority_sync_watermark_persistence import DurableAuthoritySyncWatermarkRegistry
+from agent_control_plane.authority_sync_watermark_relay import (
+    RelayedWatermarkAdmission,
+    RelayedWatermarkEndpoint,
+)
 from agent_control_plane.reticulum_adapter import (
     ReticulumAuthoritySyncServer,
     ReticulumAuthoritySyncWatermarkServer,
+    ReticulumRelayedWatermarkServer,
 )
 from agent_control_plane.sync_transport import AuthoritySyncEndpoint
 from agent_control_plane.watermark_transport import AuthoritySyncWatermarkEndpoint
@@ -18,6 +25,7 @@ from agent_control_plane.watermark_transport import AuthoritySyncWatermarkEndpoi
 
 APP_NAME = "ndrorchestration"
 ASPECTS = ("acp", "authority_sync_live")
+RELAY_ORIGIN_KEY = bytes.fromhex("11" * 32)
 
 
 def main() -> None:
@@ -70,6 +78,26 @@ def main() -> None:
         peer_identity_hashes={args.allowed_sender_id: allowed_identity_hash},
     )
     watermark_server.install(
+        allow=RNS.Destination.ALLOW_LIST,
+        allowed_list=[allowed_identity_hash],
+    )
+
+    relay_server = ReticulumRelayedWatermarkServer(
+        destination=destination,
+        endpoint=RelayedWatermarkEndpoint(
+            receiver_id="reticulum-server",
+            admission=RelayedWatermarkAdmission(
+                verifier=HmacAuthoritySyncWatermarkVerifier(
+                    {("origin-peer", "key-1"): RELAY_ORIGIN_KEY}
+                ),
+                registry=AuthoritySyncWatermarkRegistry(
+                    {args.allowed_sender_id: {"origin-peer"}}
+                ),
+            ),
+        ),
+        relay_identity_hashes={args.allowed_sender_id: allowed_identity_hash},
+    )
+    relay_server.install(
         allow=RNS.Destination.ALLOW_LIST,
         allowed_list=[allowed_identity_hash],
     )
