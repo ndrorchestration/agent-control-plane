@@ -9,6 +9,8 @@ on:
       - "src/agent_control_plane/watermark_transport.py"
       - "src/agent_control_plane/authority_sync_guard.py"
       - "src/agent_control_plane/authority_sync_watermark.py"
+      - "src/agent_control_plane/authority_sync_watermark_relay.py"
+      - "src/agent_control_plane/authority_sync_watermark_auth.py"
       - "src/agent_control_plane/authority_sync_watermark_persistence.py"
       - "src/agent_control_plane/sync_transport.py"
       - "integration/reticulum/**"
