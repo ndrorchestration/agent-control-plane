@@ -10,6 +10,12 @@ from agent_control_plane.authority import (
 )
 from agent_control_plane.authority_evidence import EvidenceAuthorityPolicy
 from agent_control_plane.authority_policy import AuthorityPolicy
+from agent_control_plane.authority_state import (
+    AuthorityStateRequirement,
+    AuthorityStateSnapshot,
+    AuthorityStateStatus,
+    InMemoryAuthorityStateCache,
+)
 from agent_control_plane.revocation import InMemoryRevocationRegistry, RevocationRecord
 
 
@@ -107,3 +113,27 @@ def test_wrapper_rejects_blank_run_id_and_wrong_policy_type():
         ), run_id=" ")
     with pytest.raises(TypeError, match="AuthorityPolicy"):
         EvidenceAuthorityPolicy(lambda capability, task: None, run_id="run-1")
+
+
+def test_state_freshness_check_is_reflected_in_decision_evidence():
+    cache = InMemoryAuthorityStateCache()
+    cache.update(AuthorityStateSnapshot("auth-1", 1, "2026-09-25T14:00:00Z", "node-a"))
+
+    def freshness(authority, observed_at):
+        result = cache.evaluate(authority.authority_id, observed_at, AuthorityStateRequirement(2, 300))
+        return None if result.status is AuthorityStateStatus.CURRENT else result.status.value
+
+    policy = EvidenceAuthorityPolicy(
+        AuthorityPolicy(
+            resolver=lambda capability, task: envelope(),
+            observed_at=lambda capability, task: "2026-09-25T14:05:00Z",
+            state_freshness_checker=freshness,
+        ),
+        run_id="run-evidence",
+    )
+    _, task = dispatch(policy)
+    assert task.error == "authority state stale:stale_epoch"
+    record = policy.get("task-1")
+    assert record is not None
+    assert record.state_checked is True
+    assert record.state_reason == "stale_epoch"
