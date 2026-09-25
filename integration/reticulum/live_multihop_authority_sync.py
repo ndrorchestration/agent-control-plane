@@ -69,8 +69,11 @@ def wait_for_file(path: Path, process: subprocess.Popen, timeout: float) -> str:
 
 def wait_for_path(destination_hash: bytes, timeout: float) -> None:
     deadline = time.monotonic() + timeout
+    # Issue one path request, then poll local path state. Repeatedly issuing
+    # path requests in the poll loop trips Reticulum burst controls and turns
+    # rate limiting into part of the routing experiment.
+    RNS.Transport.request_path(destination_hash)
     while time.monotonic() < deadline:
-        RNS.Transport.request_path(destination_hash)
         if RNS.Transport.has_path(destination_hash):
             return
         time.sleep(0.2)
