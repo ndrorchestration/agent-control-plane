@@ -24,3 +24,12 @@ The accompanying tests exercise this sequence:
 5. replay/regression cannot reduce or bypass the recovered floor.
 
 The minimum sequence remains caller-supplied. This is not proof that the node has the globally newest state and does not solve consensus or unknown-message detection.
+
+
+## Direct multi-peer watermark convergence
+
+A deterministic direct-peer convergence harness now complements the authority partition simulation. Each peer publishes only the sender sequence present in its own canonical reconciler state. During a partition, connected peers may learn different required floors. On reconnect, direct exchanges with the most advanced peer raise the receiving peers' required floors monotonically.
+
+The harness deliberately does **not** relay peer A's watermark through peer B while preserving A as the apparent issuer. Peer B may only publish the sequence it actually reconciled itself. This matches the current Reticulum identity-binding rule and prevents direct-peer evidence from being silently reclassified as multi-hop provenance.
+
+Therefore this experiment establishes only bounded honest-peer direct convergence under configured trust. Relay provenance, quorum rules, Byzantine peers, unknown latest state, multi-hop transport, and network timing remain separate problems.
