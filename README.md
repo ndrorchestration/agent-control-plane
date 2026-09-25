@@ -27,7 +27,8 @@ The kernel currently provides:
 - tests covering successful dispatch, handler failure, cancellation, policy decisions, adversarial/invariant cases, duplicate registration, unknown-capability evidence, provenance binding, exact-limit budget use, atomic overrun handling, suppressed-exception fail-closure, execution-contract validation/serialization, round-trip reconstruction, and provenance mapping;
 - GitHub Actions CI for the Python suite;
 - a separate candidate `agent-control-plane.authority.v0-candidate` typed authority envelope covering principal, capability, resource, operation, policy identity, decision outcome/reason, lease expiry, delegation scope, and explicit conditions;
-- a fail-closed `AuthorityPolicy` adapter that can enforce envelope presence, capability binding, lease validity, explicit deny, and caller-supplied conditional evaluation through the existing pre-execution policy hook. The envelope remains separate from `execution.v1`.
+- a fail-closed `AuthorityPolicy` adapter that can enforce envelope presence, capability binding, lease validity, explicit deny, caller-supplied conditional evaluation, revocation checks, and delegated-authority validation through the existing pre-execution policy hook. The envelope remains separate from `execution.v1`;
+- an append-only in-memory `agent-control-plane.revocation.v0-candidate` registry with deterministic manifest output and time-scoped revocation checks.
 
 The legacy provenance manifest and the execution contract are distinct representations. `agent-control-plane.provenance.v1` remains unchanged and process-local. Mapping a legacy event into `agent-control-plane.execution.v1` requires caller-supplied execution/trace/component/monotonic context; ACP does not fabricate missing historical trace or identity data.
 
@@ -144,7 +145,7 @@ Unless added and independently verified later, ACP does **not** currently provid
 
 The candidate authority envelope is an **engineering primitive**, not an authorization system. It provides typed, fail-closed records and explicit lease-expiry checks using caller-supplied UTC time.
 
-It does not authenticate principals, verify policy signatures, establish delegation legitimacy, revoke authority, persist leases, or bind an authority envelope to an execution event. `AuthorityPolicy` can now deny or permit the existing dispatch path for a narrow locally checkable subset, but resource/operation legitimacy, identity authenticity, delegation validity, revocation, and cryptographic policy authority remain separate gates.
+It does not authenticate principals, verify policy signatures, establish delegation legitimacy, revoke authority, persist leases, or bind an authority envelope to an execution event. `AuthorityPolicy` can now deny or permit the existing dispatch path for a narrow locally checkable subset, including optional revocation and delegation checks. Revocation state is currently process-local/in-memory, and delegation legitimacy remains caller-supplied rather than cryptographically established. Resource/operation legitimacy, identity authenticity, durable revocation, and cryptographic policy authority remain separate gates.
 
 The candidate is intentionally separate from frozen `agent-control-plane.execution.v1` so GSAE-E0 Stage-A can measure that contract without the measurement target being silently repaired first.
 

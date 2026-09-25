@@ -9,9 +9,10 @@ from agent_control_plane.authority import (
     ResourceScope,
 )
 from agent_control_plane.authority_policy import AuthorityPolicy
+from agent_control_plane.revocation import InMemoryRevocationRegistry, RevocationRecord
 
 
-def envelope(*, capability="read", outcome=DecisionOutcome.ALLOW, expires_at="2026-09-25T15:00:00Z", conditions=()):
+def envelope(*, capability="read", outcome=DecisionOutcome.ALLOW, expires_at="2026-09-25T15:00:00Z", conditions=(), delegation=None):
     return AuthorityEnvelope(
         authority_id="auth-1",
         principal=PrincipalIdentity("principal-1", "agent"),
@@ -22,6 +23,7 @@ def envelope(*, capability="read", outcome=DecisionOutcome.ALLOW, expires_at="20
         decision=DecisionRecord("decision-1", outcome, "test_reason"),
         expires_at=expires_at,
         conditions=conditions,
+        delegation=delegation,
     )
 
 
@@ -115,3 +117,74 @@ def test_resolver_and_time_errors_fail_closed():
 def test_non_utc_observation_time_fails_closed():
     _, task = dispatch_with(policy_for(envelope(), observed_at="2026-09-25T10:00:00-04:00"))
     assert task.error == "authority lease invalid or expired"
+
+
+def test_revoked_authority_fails_closed_at_and_after_revocation_time():
+    registry = InMemoryRevocationRegistry()
+    registry.revoke(RevocationRecord("auth-1", "2026-09-25T14:00:00Z", "operator_revoked"))
+    policy = AuthorityPolicy(
+        resolver=lambda capability, task: envelope(),
+        observed_at=lambda capability, task: "2026-09-25T14:00:00Z",
+        revocation_checker=registry.is_revoked_at,
+    )
+    plane, task = dispatch_with(policy)
+    assert task.state is TaskState.CREATED
+    assert task.error == "authority revoked"
+    assert plane.events[-1].event == "task.denied"
+
+
+def test_authority_before_revocation_time_is_not_retroactively_denied():
+    registry = InMemoryRevocationRegistry()
+    registry.revoke(RevocationRecord("auth-1", "2026-09-25T14:00:00Z", "operator_revoked"))
+    policy = AuthorityPolicy(
+        resolver=lambda capability, task: envelope(),
+        observed_at=lambda capability, task: "2026-09-25T13:59:59Z",
+        revocation_checker=registry.is_revoked_at,
+    )
+    _, task = dispatch_with(policy)
+    assert task.state is TaskState.COMPLETED
+
+
+def test_revocation_checker_error_fails_closed():
+    policy = AuthorityPolicy(
+        resolver=lambda capability, task: envelope(),
+        observed_at=lambda capability, task: "2026-09-25T14:00:00Z",
+        revocation_checker=lambda authority_id, observed_at: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    _, task = dispatch_with(policy)
+    assert task.error == "authority revocation check failed"
+
+
+def test_delegated_authority_requires_explicit_delegation_evaluator():
+    from agent_control_plane.authority import Delegation
+    item = envelope(delegation=Delegation("owner-1", ("read",)))
+    _, unresolved = dispatch_with(policy_for(item))
+    assert unresolved.error == "authority delegation unresolved"
+
+    allow_policy = AuthorityPolicy(
+        resolver=lambda capability, task: item,
+        observed_at=lambda capability, task: "2026-09-25T14:00:00Z",
+        delegation_evaluator=lambda authority, capability, task: True,
+    )
+    _, allowed = dispatch_with(allow_policy)
+    assert allowed.state is TaskState.COMPLETED
+
+    deny_policy = AuthorityPolicy(
+        resolver=lambda capability, task: item,
+        observed_at=lambda capability, task: "2026-09-25T14:00:00Z",
+        delegation_evaluator=lambda authority, capability, task: False,
+    )
+    _, denied = dispatch_with(deny_policy)
+    assert denied.error == "authority delegation invalid"
+
+
+def test_delegation_evaluator_error_fails_closed():
+    from agent_control_plane.authority import Delegation
+    item = envelope(delegation=Delegation("owner-1", ("read",)))
+    policy = AuthorityPolicy(
+        resolver=lambda capability, task: item,
+        observed_at=lambda capability, task: "2026-09-25T14:00:00Z",
+        delegation_evaluator=lambda authority, capability, task: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    _, task = dispatch_with(policy)
+    assert task.error == "authority delegation evaluation failed"
