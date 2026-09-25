@@ -129,7 +129,7 @@ A separate multi-hop integration candidate uses three isolated local Reticulum i
 
 `ACP client -> transport-enabled Reticulum node -> ACP destination`
 
-The middle process enables Reticulum transport and has two TCP interfaces: one facing the client and one facing the destination. The client has no direct interface to the destination. The destination continues to bind the ACP sender ID to the client's identified Reticulum identity, so the intermediate Reticulum transport node does not become the ACP application sender.
+The middle process enables Reticulum transport and exposes one gateway-mode TCP server. Both edge instances connect to that transport node as TCP clients, matching Reticulum's documented same-host gateway pattern. The client has no direct interface to the destination. The destination continues to bind the ACP sender ID to the client's identified Reticulum identity, so the intermediate Reticulum transport node does not become the ACP application sender.
 
 The test requires:
 - discovery/path availability for the destination through the transport node;
