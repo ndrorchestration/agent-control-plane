@@ -134,6 +134,16 @@ The adapter can additionally consult an optional revocation checker and delegati
 
 The adapter still does **not** authenticate identities, validate external policy authority or signatures, prove resource/operation scope legitimacy, cryptographically prove delegation legitimacy, provide durable/distributed revocation, persist leases, or bind authority records into execution-v1 events. Its allow/deny result is therefore a bounded local software decision, not proof of broader authorization validity.
 
+### Authority decision evidence sidecar
+
+`EvidenceAuthorityPolicy` wraps `AuthorityPolicy` without modifying the frozen kernel policy/provenance paths. Each policy evaluation can produce a process-local record with schema:
+
+`agent-control-plane.authority-decision-evidence.v0-candidate`
+
+The record binds task ID, run ID, capability, allow/deny result, denial reason, known authority/decision/policy identities, decision outcome/reason, observation time, and booleans showing whether revocation, delegation, and conditional checks were actually evaluated. The wrapper also exports a deterministic task-ID-sorted in-memory manifest.
+
+This sidecar is **not** durable provenance, cryptographic attestation, execution-v1 integration, or independent proof that the referenced authority was legitimate. It records what the local authority policy evaluated and decided.
+
 ## Evidence boundary
 
 The kernel and tests demonstrate local deterministic behavior only. The budget tests establish the cooperative count/cost accounting and fail-closed exhaustion properties exercised by those tests. The execution-contract tests establish only the ACP-native contract properties exercised by those tests.
