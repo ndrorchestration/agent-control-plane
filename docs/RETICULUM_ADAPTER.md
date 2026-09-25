@@ -172,3 +172,24 @@ ACP now also has a byte-facing relay-stage endpoint and a fixed Reticulum relay-
 This closes a narrower gap than the subprocess test: the append operation can now execute behind a Reticulum application endpoint rather than only through a local file handoff.
 
 The candidate still does not establish a full live chain of separate Reticulum relay destinations forwarding autonomously. That remains the next integration step.
+
+
+## Autonomous application relay-chain candidate
+
+A stricter integration candidate now separates application forwarding from the test harness:
+
+`origin -> relay-a -> relay-b -> relay-c -> destination`
+
+Each relay is a distinct OS process and Reticulum destination. The origin sends the initial signed chain only to relay A. Each relay stage:
+
+1. authenticates the current Reticulum upstream identity against the logical upstream derived from the signed chain prefix;
+2. verifies that the chain prefix is cryptographically valid and addressed to that relay;
+3. appends exactly one Ed25519-signed hop;
+4. forwards the updated bytes over its own identified Reticulum link to the next stage;
+5. returns the downstream final acknowledgement unchanged.
+
+Relay C forwards the complete chain to the final ACP destination, where the origin signature, all relay-hop signatures, hash linkage, final-receiver binding, relay-key lifecycle, and terminal Reticulum identity are verified before applying the watermark.
+
+The dedicated `reticulum-autonomous-relay-chain` workflow is the acceptance gate for this composition. Until that exact-head workflow is terminal green and merged, autonomous multi-stage forwarding remains NOT ESTABLISHED.
+
+Even after a green localhost run, this remains bounded evidence. Separate physical hosts, independent administrative trust domains, key custody, route failover, partition healing, radio/LoRa, Byzantine behavior, and production security remain outside the claim.
