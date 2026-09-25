@@ -5,6 +5,7 @@ on:
     paths:
       - "src/agent_control_plane/reticulum_adapter.py"
       - "src/agent_control_plane/authority_sync.py"
+      - "src/agent_control_plane/authority_sync_persistence.py"
       - "src/agent_control_plane/sync_transport.py"
       - "integration/reticulum/**"
       - ".github/workflows/reticulum-live-integration.yml"
