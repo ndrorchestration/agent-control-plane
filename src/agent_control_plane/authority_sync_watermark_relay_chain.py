@@ -643,3 +643,74 @@ class Ed25519RelayChainEndpoint:
                 disposition=disposition,
             )
         )
+
+
+
+class Ed25519RelayChainAppender:
+    """Verify an incoming chain prefix addressed to this relay, then append one hop."""
+
+    def __init__(
+        self,
+        *,
+        relay_id: str,
+        key_id: str,
+        private_key_raw: bytes,
+        next_receiver_id: str,
+        origin_verifier: Ed25519AuthoritySyncWatermarkVerifier,
+        prefix_verifier: Ed25519RelayChainVerifier,
+    ) -> None:
+        self.relay_id = _required(relay_id, "relay_id")
+        self.key_id = _required(key_id, "key_id")
+        self.next_receiver_id = _required(
+            next_receiver_id,
+            "next_receiver_id",
+        )
+        if not isinstance(private_key_raw, bytes) or len(private_key_raw) != 32:
+            raise AuthorityValidationError(
+                "Ed25519 private_key_raw must be exactly 32 bytes"
+            )
+        if not isinstance(
+            origin_verifier,
+            Ed25519AuthoritySyncWatermarkVerifier,
+        ):
+            raise AuthorityValidationError(
+                "origin_verifier must be Ed25519AuthoritySyncWatermarkVerifier"
+            )
+        if not isinstance(prefix_verifier, Ed25519RelayChainVerifier):
+            raise AuthorityValidationError(
+                "prefix_verifier must be Ed25519RelayChainVerifier"
+            )
+        self.private_key_raw = private_key_raw
+        self.origin_verifier = origin_verifier
+        self.prefix_verifier = prefix_verifier
+
+    def append(
+        self,
+        chain: Ed25519WatermarkRelayChain,
+        *,
+        relayed_at: str,
+    ) -> Ed25519WatermarkRelayChain:
+        if not isinstance(chain, Ed25519WatermarkRelayChain):
+            raise AuthorityValidationError(
+                "chain must be Ed25519WatermarkRelayChain"
+            )
+
+        if chain.hops:
+            self.prefix_verifier.verify(
+                chain,
+                final_receiver_id=self.relay_id,
+            )
+        else:
+            origin_envelope = decode_ed25519_authority_sync_watermark(
+                chain.origin_payload()
+            )
+            self.origin_verifier.verify(origin_envelope)
+
+        return append_ed25519_relay_hop(
+            chain,
+            relay_id=self.relay_id,
+            key_id=self.key_id,
+            private_key_raw=self.private_key_raw,
+            relayed_at=relayed_at,
+            next_receiver_id=self.next_receiver_id,
+        )

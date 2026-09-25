@@ -28,7 +28,6 @@ from agent_control_plane.authority_sync_watermark_ed25519 import (
     sign_authority_sync_watermark_ed25519,
 )
 from agent_control_plane.authority_sync_watermark_relay_chain import (
-    append_ed25519_relay_hop,
     encode_ed25519_relay_chain,
     new_ed25519_relay_chain,
 )
@@ -41,9 +40,6 @@ from agent_control_plane.reticulum_adapter import (
 APP_NAME = "ndrorchestration"
 ASPECTS = ("acp", "authority_sync_live")
 CHAIN_ORIGIN_PRIVATE = bytes(range(32))
-CHAIN_RELAY_A_PRIVATE = b"a" * 32
-CHAIN_RELAY_B_PRIVATE = b"b" * 32
-CHAIN_RELAY_C_PRIVATE = b"c" * 32
 
 
 def free_port() -> int:
@@ -186,6 +182,37 @@ def start_transport_node(
         stderr=subprocess.STDOUT,
         text=True,
     )
+
+
+def run_relay_appender(
+    *,
+    script: Path,
+    relay_id: str,
+    next_receiver_id: str,
+    relayed_at: str,
+    input_path: Path,
+    output_path: Path,
+) -> str:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--relay-id",
+            relay_id,
+            "--next-receiver-id",
+            next_receiver_id,
+            "--relayed-at",
+            relayed_at,
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
 
 
 def main() -> None:
@@ -350,31 +377,40 @@ def main() -> None:
             chain = new_ed25519_relay_chain(
                 encode_ed25519_authority_sync_watermark(origin_envelope)
             )
-            chain = append_ed25519_relay_hop(
-                chain,
+            relay_process_script = Path(__file__).with_name(
+                "relay_chain_appender_process.py"
+            )
+            relay_a_input = root / "relay-a-input.json"
+            relay_a_output = root / "relay-a-output.json"
+            relay_b_output = root / "relay-b-output.json"
+            relay_c_output = root / "relay-c-output.json"
+            relay_a_input.write_bytes(encode_ed25519_relay_chain(chain))
+
+            relay_a_log = run_relay_appender(
+                script=relay_process_script,
                 relay_id="relay-a",
-                key_id="relay-ed-key",
-                private_key_raw=CHAIN_RELAY_A_PRIVATE,
-                relayed_at="2026-09-25T19:05:10Z",
                 next_receiver_id="relay-b",
+                relayed_at="2026-09-25T19:05:10Z",
+                input_path=relay_a_input,
+                output_path=relay_a_output,
             )
-            chain = append_ed25519_relay_hop(
-                chain,
+            relay_b_log = run_relay_appender(
+                script=relay_process_script,
                 relay_id="relay-b",
-                key_id="relay-ed-key",
-                private_key_raw=CHAIN_RELAY_B_PRIVATE,
-                relayed_at="2026-09-25T19:05:20Z",
                 next_receiver_id="relay-c",
+                relayed_at="2026-09-25T19:05:20Z",
+                input_path=relay_a_output,
+                output_path=relay_b_output,
             )
-            chain = append_ed25519_relay_hop(
-                chain,
+            relay_c_log = run_relay_appender(
+                script=relay_process_script,
                 relay_id="relay-c",
-                key_id="relay-ed-key",
-                private_key_raw=CHAIN_RELAY_C_PRIVATE,
-                relayed_at="2026-09-25T19:05:30Z",
                 next_receiver_id="reticulum-server",
+                relayed_at="2026-09-25T19:05:30Z",
+                input_path=relay_b_output,
+                output_path=relay_c_output,
             )
-            chain_payload = encode_ed25519_relay_chain(chain)
+            chain_payload = relay_c_output.read_bytes()
 
             chain_ack = decode_authority_sync_watermark_acknowledgement(
                 relay_chain_transport.exchange(
@@ -407,6 +443,9 @@ def main() -> None:
             print(f"SNAPSHOT_ACK={acknowledgement.disposition.value}")
             print(f"DUPLICATE_ACK={duplicate.disposition.value}")
             print(f"SIGNED_RELAY_CHAIN_ACK={chain_ack.disposition.value}")
+            print(f"RELAY_A_PROCESS={relay_a_log}")
+            print(f"RELAY_B_PROCESS={relay_b_log}")
+            print(f"RELAY_C_PROCESS={relay_c_log}")
             print(
                 "SIGNED_RELAY_CHAIN_DUPLICATE_ACK="
                 f"{chain_duplicate_ack.disposition.value}"

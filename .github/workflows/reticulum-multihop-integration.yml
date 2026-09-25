@@ -12,6 +12,7 @@ on:
       - "integration/reticulum/reticulum_live_server.py"
       - "integration/reticulum/reticulum_transport_node.py"
       - "integration/reticulum/live_multihop_authority_sync.py"
+      - "integration/reticulum/relay_chain_appender_process.py"
       - ".github/workflows/reticulum-multihop-integration.yml"
   workflow_dispatch:
 
