@@ -40,9 +40,11 @@ These commands test the apparatus and already-established ACP behavior. They do 
 
 ## Source binding
 
-Before an evidence-producing Stage-A run can proceed, the runner requires the exact source-under-test commit to exist in repository history and requires the current `src/agent_control_plane/` package to be content-equivalent to that source commit.
+Before an evidence-producing Stage-A run can proceed, the runner requires the exact source-under-test commit to exist in repository history and requires the **frozen Stage-A source surfaces** to be content-equivalent to that source commit.
 
-This deliberately binds the experiment to source content rather than branch topology. Squash/rebase operations may change ancestry while preserving the exact source package; source binding therefore fails closed on a missing source commit or any ACP package diff, not merely on a non-ancestor relationship.
+The frozen path set is: `core.py`, `budget.py`, `policy.py`, `provenance.py`, and the `contract/` package. Those paths cover the kernel, budget, policy, provenance, mapping, and execution-contract behaviors exercised by the frozen Stage-A fixtures.
+
+This deliberately binds the experiment to measured source content rather than branch topology or the entire package directory. Squash/rebase operations may change ancestry while preserving the exact measured source; unrelated future modules may be added without invalidating the frozen target. Any change to the frozen path set still fails closed and requires explicit rebind/retest.
 
 The CI workflow fetches full repository history so this binding can be proven rather than assumed.
 

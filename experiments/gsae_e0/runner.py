@@ -42,6 +42,15 @@ class ExecutionGuardError(RuntimeError):
     """Raised when Stage-A orchestration lacks a required execution guard or binding."""
 
 
+_FROZEN_SOURCE_PATHS = (
+    "src/agent_control_plane/core.py",
+    "src/agent_control_plane/budget.py",
+    "src/agent_control_plane/policy.py",
+    "src/agent_control_plane/provenance.py",
+    "src/agent_control_plane/contract",
+)
+
+
 def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
@@ -62,10 +71,10 @@ def verify_source_binding(repo_root: Path, expected_sha: str) -> None:
         detail = source.stderr.strip() or source.stdout.strip() or "source commit not found"
         raise SourceBindingError(f"source-under-test commit not established: {detail}")
 
-    diff = _git(repo_root, "diff", "--quiet", expected_sha, "HEAD", "--", "src/agent_control_plane")
+    diff = _git(repo_root, "diff", "--quiet", expected_sha, "HEAD", "--", *_FROZEN_SOURCE_PATHS)
     if diff.returncode != 0:
-        detail = diff.stderr.strip() or diff.stdout.strip() or "ACP source differs"
-        raise SourceBindingError(f"ACP source package drifted from source under test: {detail}")
+        detail = diff.stderr.strip() or diff.stdout.strip() or "frozen Stage-A source differs"
+        raise SourceBindingError(f"frozen Stage-A source drifted from source under test: {detail}")
 
 
 def _event_kwargs() -> dict[str, object]:
