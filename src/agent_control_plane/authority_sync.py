@@ -223,6 +223,53 @@ class SyncAcknowledgement:
         return data
 
 
+def encode_sync_acknowledgement(ack: SyncAcknowledgement) -> bytes:
+    if not isinstance(ack, SyncAcknowledgement):
+        raise AuthorityValidationError("ack must be SyncAcknowledgement")
+    return json.dumps(
+        ack.to_dict(),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+
+def decode_sync_acknowledgement(payload: bytes | str) -> SyncAcknowledgement:
+    if isinstance(payload, bytes):
+        try:
+            text = payload.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise AuthorityValidationError("ack payload must be valid UTF-8") from exc
+    elif isinstance(payload, str):
+        text = payload
+    else:
+        raise AuthorityValidationError("ack payload must be bytes or str")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise AuthorityValidationError("ack payload must be valid JSON") from exc
+    if not isinstance(data, Mapping):
+        raise AuthorityValidationError("ack payload must decode to an object")
+    _expect_keys(
+        data,
+        {"message_id", "sender_id", "receiver_id", "disposition", "reason_code", "applied_sequence", "authority_id", "schema_version"},
+        "sync acknowledgement",
+    )
+    try:
+        return SyncAcknowledgement(
+            message_id=data["message_id"],
+            sender_id=data["sender_id"],
+            receiver_id=data["receiver_id"],
+            disposition=SyncDisposition(data["disposition"]),
+            reason_code=data["reason_code"],
+            applied_sequence=data["applied_sequence"],
+            authority_id=data["authority_id"],
+            schema_version=data["schema_version"],
+        )
+    except (ValueError, TypeError, KeyError) as exc:
+        raise AuthorityValidationError("malformed sync acknowledgement") from exc
+
+
 class AuthoritySyncReconciler:
     """Apply transport-neutral authority messages with replay/conflict fail-closure."""
 
