@@ -23,9 +23,9 @@ from agent_control_plane.authority_sync_watermark_relay_chain import (
     Ed25519RelayChainVerifier,
 )
 from agent_control_plane.reticulum_adapter import (
+    ReticulumReconnectingRelayStageTransport,
+    ReticulumReconnectingSignedRelayChainTransport,
     ReticulumRelayStageServer,
-    ReticulumRelayStageTransport,
-    ReticulumSignedRelayChainTransport,
 )
 
 
@@ -153,37 +153,49 @@ def main() -> None:
     inbound.announce()
 
     downstream_hash = bytes.fromhex(args.next_destination_hash)
-    wait_for_path(downstream_hash, args.timeout)
-    downstream_identity = wait_for_identity(downstream_hash, args.timeout)
     downstream_aspects = (
         RELAY_ASPECTS if args.next_kind == "relay" else FINAL_ASPECTS
     )
-    downstream_destination = RNS.Destination(
-        downstream_identity,
-        RNS.Destination.OUT,
-        RNS.Destination.SINGLE,
-        APP_NAME,
-        *downstream_aspects,
-    )
-    link = establish_identified_link(
-        downstream_destination,
-        identity,
-        args.timeout,
-    )
+    reconnect_timeout = min(args.timeout, 5.0)
 
+    def connect_downstream():
+        wait_for_path(downstream_hash, reconnect_timeout)
+        downstream_identity = wait_for_identity(
+            downstream_hash,
+            reconnect_timeout,
+        )
+        downstream_destination = RNS.Destination(
+            downstream_identity,
+            RNS.Destination.OUT,
+            RNS.Destination.SINGLE,
+            APP_NAME,
+            *downstream_aspects,
+        )
+        return establish_identified_link(
+            downstream_destination,
+            identity,
+            reconnect_timeout,
+        )
+
+    link = connect_downstream()
+
+    reconnect_kwargs = dict(
+        link_factory=lambda peer_id: connect_downstream(),
+        peer_destination_hashes={"next": downstream_hash},
+        attempts=2,
+        retry_backoff_seconds=0.25,
+        timeout_seconds=reconnect_timeout,
+        max_response_size=65536,
+    )
     if args.next_kind == "relay":
-        transport = ReticulumRelayStageTransport(
+        transport = ReticulumReconnectingRelayStageTransport(
             {"next": link},
-            peer_destination_hashes={"next": downstream_hash},
-            timeout_seconds=args.timeout,
-            max_response_size=65536,
+            **reconnect_kwargs,
         )
     else:
-        transport = ReticulumSignedRelayChainTransport(
+        transport = ReticulumReconnectingSignedRelayChainTransport(
             {"next": link},
-            peer_destination_hashes={"next": downstream_hash},
-            timeout_seconds=args.timeout,
-            max_response_size=65536,
+            **reconnect_kwargs,
         )
 
     appender = Ed25519RelayChainAppender(
