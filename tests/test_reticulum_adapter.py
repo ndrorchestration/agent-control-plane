@@ -39,6 +39,7 @@ from agent_control_plane.reticulum_adapter import (
     ReticulumAuthoritySyncWatermarkTransport,
     ReticulumRelayedWatermarkServer,
     ReticulumRelayedWatermarkTransport,
+    ReticulumReconnectingRelayStageTransport,
 )
 from agent_control_plane.watermark_transport import AuthoritySyncWatermarkEndpoint
 from agent_control_plane.revocation import InMemoryRevocationRegistry
@@ -548,4 +549,78 @@ def test_reticulum_relay_server_rejects_relay_identity_mismatch():
             None,
             FakeRemoteIdentity(b"wrong-hash"),
             None,
+        )
+
+
+
+class FailingLink:
+    def __init__(self):
+        self.calls = []
+        self.teardown_called = False
+        self.destination = None
+
+    def request(self, path, data=None, timeout=None, max_response_size=None):
+        self.calls.append(path)
+        raise RuntimeError("downstream unavailable")
+
+    def teardown(self):
+        self.teardown_called = True
+
+
+def test_reconnecting_transport_recreates_failed_link_and_preserves_fixed_path():
+    failed = FailingLink()
+    healthy = FakeLink(FakeReceipt(b"relay-ok"))
+    factory_calls = []
+
+    def factory(peer_id):
+        factory_calls.append(peer_id)
+        return healthy
+
+    transport = ReticulumReconnectingRelayStageTransport(
+        {"relay-b": failed},
+        link_factory=factory,
+        attempts=2,
+        retry_backoff_seconds=0,
+        sleep=lambda seconds: None,
+    )
+
+    assert transport.exchange("relay-b", b"payload") == b"relay-ok"
+    assert failed.teardown_called is True
+    assert factory_calls == ["relay-b"]
+    assert healthy.calls[0]["path"] == (
+        "/ndrorchestration/acp/authority-sync-watermark-relay-stage/v0"
+    )
+
+
+def test_reconnecting_transport_exhaustion_fails_closed():
+    failed = FailingLink()
+    recreated = FailingLink()
+
+    transport = ReticulumReconnectingRelayStageTransport(
+        {"relay-b": failed},
+        link_factory=lambda peer_id: recreated,
+        attempts=2,
+        retry_backoff_seconds=0,
+        sleep=lambda seconds: None,
+    )
+
+    with pytest.raises(
+        ReticulumAdapterError,
+        match="failed after reconnect attempts",
+    ):
+        transport.exchange("relay-b", b"payload")
+
+    assert failed.teardown_called is True
+    assert recreated.teardown_called is True
+
+
+def test_reconnecting_transport_rejects_invalid_attempt_count():
+    with pytest.raises(
+        AuthorityValidationError,
+        match="attempts must be an integer >= 1",
+    ):
+        ReticulumReconnectingRelayStageTransport(
+            {},
+            link_factory=lambda peer_id: object(),
+            attempts=0,
         )
