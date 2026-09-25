@@ -17,6 +17,10 @@ from .authority_sync_watermark_relay import (
     RelayedWatermarkEndpoint,
     decode_relayed_authenticated_watermark,
 )
+from .authority_sync_watermark_relay_chain import (
+    Ed25519RelayChainEndpoint,
+    decode_ed25519_relay_chain,
+)
 from .sync_transport import AuthoritySyncEndpoint
 from .watermark_transport import AuthoritySyncWatermarkEndpoint
 
@@ -24,6 +28,7 @@ from .watermark_transport import AuthoritySyncWatermarkEndpoint
 RETICULUM_SYNC_PATH = "/ndrorchestration/acp/authority-sync/v0"
 RETICULUM_WATERMARK_PATH = "/ndrorchestration/acp/authority-sync-watermark/v0"
 RETICULUM_WATERMARK_RELAY_PATH = "/ndrorchestration/acp/authority-sync-watermark-relay/v0"
+RETICULUM_WATERMARK_RELAY_CHAIN_PATH = "/ndrorchestration/acp/authority-sync-watermark-relay-chain/v0"
 
 
 class ReticulumAdapterError(RuntimeError):
@@ -427,3 +432,128 @@ class ReticulumRelayedWatermarkServer:
             data,
             authenticated_relay_id=envelope.relay_id,
         )
+
+
+
+class ReticulumSignedRelayChainTransport(ReticulumAuthoritySyncTransport):
+    """Carry complete signed ACP relay-chain bytes over Reticulum."""
+
+    def __init__(
+        self,
+        peer_links: Mapping[str, Any],
+        peer_destination_hashes: Optional[Mapping[str, bytes]] = None,
+        **kwargs: Any,
+    ) -> None:
+        if "request_path" in kwargs:
+            raise AuthorityValidationError(
+                "relay-chain transport request_path is fixed"
+            )
+        super().__init__(
+            peer_links=peer_links,
+            peer_destination_hashes=peer_destination_hashes,
+            request_path=RETICULUM_WATERMARK_RELAY_CHAIN_PATH,
+            **kwargs,
+        )
+
+
+class ReticulumSignedRelayChainServer:
+    """Bind signed relay-chain admission to a Reticulum request handler."""
+
+    def __init__(
+        self,
+        *,
+        destination: Any,
+        endpoint: Ed25519RelayChainEndpoint,
+        terminal_relay_identity_hashes: Optional[Mapping[str, bytes]] = None,
+    ) -> None:
+        if not isinstance(endpoint, Ed25519RelayChainEndpoint):
+            raise AuthorityValidationError(
+                "endpoint must be Ed25519RelayChainEndpoint"
+            )
+        self.destination = destination
+        self.endpoint = endpoint
+        self.request_path = RETICULUM_WATERMARK_RELAY_CHAIN_PATH
+        self.terminal_relay_identity_hashes = dict(
+            terminal_relay_identity_hashes or {}
+        )
+        for relay_id, identity_hash in self.terminal_relay_identity_hashes.items():
+            _required(relay_id, "relay_id")
+            if not isinstance(identity_hash, bytes) or not identity_hash:
+                raise AuthorityValidationError(
+                    "terminal relay identity hashes must be non-empty bytes"
+                )
+        self._installed = False
+
+    def install(
+        self,
+        *,
+        allow: Any,
+        allowed_list: Optional[list[Any]] = None,
+        auto_compress: bool | int = True,
+    ) -> None:
+        if self._installed:
+            raise ReticulumAdapterError(
+                "Reticulum relay-chain request handler already installed"
+            )
+        try:
+            self.destination.register_request_handler(
+                self.request_path,
+                response_generator=self._handle_request,
+                allow=allow,
+                allowed_list=allowed_list,
+                auto_compress=auto_compress,
+            )
+        except Exception as exc:
+            raise ReticulumAdapterError(
+                "Reticulum relay-chain handler registration failed"
+            ) from exc
+        self._installed = True
+
+    def _handle_request(
+        self,
+        path: str,
+        data: Any,
+        request_id: Any,
+        link_id: Any,
+        remote_identity: Any,
+        requested_at: Any,
+    ) -> bytes:
+        del request_id, link_id, requested_at
+        if path != self.request_path:
+            raise ReticulumAdapterError(
+                "unexpected Reticulum relay-chain request path"
+            )
+        if not isinstance(data, bytes):
+            raise ReticulumAdapterError(
+                "Reticulum relay-chain payload must be bytes"
+            )
+
+        chain = decode_ed25519_relay_chain(data)
+        if not chain.hops:
+            raise ReticulumAdapterError(
+                "Reticulum relay-chain requires at least one hop"
+            )
+        terminal_relay_id = chain.hops[-1].relay_id
+        expected_hash = self.terminal_relay_identity_hashes.get(
+            terminal_relay_id
+        )
+        if expected_hash is None:
+            raise ReticulumAdapterError(
+                "unbound ACP terminal relay_id"
+            )
+        if remote_identity is None:
+            raise ReticulumAdapterError(
+                "Reticulum remote identity required for relay chain"
+            )
+        actual_hash = getattr(remote_identity, "hash", None)
+        if callable(actual_hash):
+            actual_hash = actual_hash()
+        if not isinstance(actual_hash, bytes) or not actual_hash:
+            raise ReticulumAdapterError(
+                "Reticulum remote identity hash unavailable"
+            )
+        if actual_hash != expected_hash:
+            raise ReticulumAdapterError(
+                "Reticulum identity does not match terminal ACP relay_id"
+            )
+        return self.endpoint.receive(data)
