@@ -6,7 +6,7 @@ import base64
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 import json
-from typing import Mapping
+from typing import Mapping, Protocol, runtime_checkable
 
 from .authority import AuthorityValidationError
 from .authority_sync_watermark import (
@@ -16,6 +16,10 @@ from .authority_sync_watermark import (
 from .authority_sync_watermark_auth import (
     HmacAuthoritySyncWatermarkVerifier,
     decode_authenticated_authority_sync_watermark,
+)
+from .authority_sync_watermark_ed25519 import (
+    Ed25519AuthoritySyncWatermarkVerifier,
+    decode_ed25519_authority_sync_watermark,
 )
 
 
@@ -161,6 +165,17 @@ def decode_relayed_authenticated_watermark(
     return RelayedAuthenticatedWatermark(**dict(data))
 
 
+@runtime_checkable
+class RelayedWatermarkAdmissionProtocol(Protocol):
+    def admit(
+        self,
+        envelope: RelayedAuthenticatedWatermark,
+        *,
+        authenticated_relay_id: str,
+    ) -> WatermarkDisposition:
+        ...
+
+
 class RelayedWatermarkAdmission:
     """Final receiver for one relay hop.
 
@@ -207,6 +222,52 @@ class RelayedWatermarkAdmission:
             )
 
         authenticated_origin = decode_authenticated_authority_sync_watermark(
+            envelope.origin_payload()
+        )
+        watermark = self.verifier.verify(authenticated_origin)
+        return self.registry.apply(watermark)
+
+
+class Ed25519RelayedWatermarkAdmission:
+    """Final receiver for one relay hop with Ed25519-authenticated origin."""
+
+    def __init__(
+        self,
+        *,
+        verifier: Ed25519AuthoritySyncWatermarkVerifier,
+        registry: AuthoritySyncWatermarkRegistry,
+    ) -> None:
+        if not isinstance(verifier, Ed25519AuthoritySyncWatermarkVerifier):
+            raise AuthorityValidationError(
+                "verifier must be Ed25519AuthoritySyncWatermarkVerifier"
+            )
+        if not isinstance(registry, AuthoritySyncWatermarkRegistry):
+            raise AuthorityValidationError(
+                "registry must be AuthoritySyncWatermarkRegistry"
+            )
+        self.verifier = verifier
+        self.registry = registry
+
+    def admit(
+        self,
+        envelope: RelayedAuthenticatedWatermark,
+        *,
+        authenticated_relay_id: str,
+    ) -> WatermarkDisposition:
+        if not isinstance(envelope, RelayedAuthenticatedWatermark):
+            raise AuthorityValidationError(
+                "envelope must be RelayedAuthenticatedWatermark"
+            )
+        observed = _required(
+            authenticated_relay_id,
+            "authenticated_relay_id",
+        )
+        if observed != envelope.relay_id:
+            raise AuthorityValidationError(
+                "authenticated relay identity mismatch"
+            )
+
+        authenticated_origin = decode_ed25519_authority_sync_watermark(
             envelope.origin_payload()
         )
         watermark = self.verifier.verify(authenticated_origin)
@@ -307,12 +368,12 @@ class RelayedWatermarkEndpoint:
         self,
         *,
         receiver_id: str,
-        admission: RelayedWatermarkAdmission,
+        admission: RelayedWatermarkAdmissionProtocol,
     ) -> None:
         self.receiver_id = _required(receiver_id, "receiver_id")
-        if not isinstance(admission, RelayedWatermarkAdmission):
+        if not isinstance(admission, RelayedWatermarkAdmissionProtocol):
             raise AuthorityValidationError(
-                "admission must be RelayedWatermarkAdmission"
+                "admission must implement RelayedWatermarkAdmissionProtocol"
             )
         self.admission = admission
 
