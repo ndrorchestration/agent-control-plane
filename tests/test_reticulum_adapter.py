@@ -16,14 +16,29 @@ from agent_control_plane.authority_sync_watermark import (
     decode_authority_sync_watermark_acknowledgement,
     encode_authority_sync_watermark,
 )
+from agent_control_plane.authority_sync_watermark_auth import (
+    HmacAuthoritySyncWatermarkVerifier,
+    authenticate_authority_sync_watermark,
+    encode_authenticated_authority_sync_watermark,
+)
+from agent_control_plane.authority_sync_watermark_relay import (
+    RelayedWatermarkAdmission,
+    RelayedWatermarkEndpoint,
+    decode_relayed_watermark_acknowledgement,
+    encode_relayed_authenticated_watermark,
+    wrap_authenticated_watermark_for_relay,
+)
 from agent_control_plane.reticulum_adapter import (
     RETICULUM_SYNC_PATH,
     RETICULUM_WATERMARK_PATH,
+    RETICULUM_WATERMARK_RELAY_PATH,
     ReticulumAdapterError,
     ReticulumAuthoritySyncServer,
     ReticulumAuthoritySyncTransport,
     ReticulumAuthoritySyncWatermarkServer,
     ReticulumAuthoritySyncWatermarkTransport,
+    ReticulumRelayedWatermarkServer,
+    ReticulumRelayedWatermarkTransport,
 )
 from agent_control_plane.watermark_transport import AuthoritySyncWatermarkEndpoint
 from agent_control_plane.revocation import InMemoryRevocationRegistry
@@ -408,5 +423,129 @@ def test_reticulum_watermark_server_rejects_unbound_issuer():
             None,
             None,
             FakeRemoteIdentity(b"expected-hash"),
+            None,
+        )
+
+
+
+RELAY_ORIGIN_KEY = b"k" * 32
+
+
+def relayed_endpoint():
+    admission = RelayedWatermarkAdmission(
+        verifier=HmacAuthoritySyncWatermarkVerifier(
+            {("peer-a", "key-1"): RELAY_ORIGIN_KEY}
+        ),
+        registry=AuthoritySyncWatermarkRegistry(
+            {"authority-source": {"peer-a"}}
+        ),
+    )
+    return RelayedWatermarkEndpoint(
+        receiver_id="node-b",
+        admission=admission,
+    )
+
+
+def relayed_payload():
+    origin = AuthoritySyncWatermark(
+        watermark_id="peer-a:authority-source:3",
+        issuer_id="peer-a",
+        target_sender_id="authority-source",
+        min_sequence=3,
+        issued_at="2026-09-25T17:20:00Z",
+    )
+    authenticated = authenticate_authority_sync_watermark(
+        origin,
+        key_id="key-1",
+        key=RELAY_ORIGIN_KEY,
+    )
+    origin_payload = encode_authenticated_authority_sync_watermark(
+        authenticated
+    )
+    relayed = wrap_authenticated_watermark_for_relay(
+        origin_payload,
+        relay_id="peer-b",
+        relayed_at="2026-09-25T17:21:00Z",
+    )
+    return encode_relayed_authenticated_watermark(relayed)
+
+
+def test_reticulum_relay_transport_uses_fixed_request_path():
+    target = relayed_endpoint()
+    response = target.receive(
+        relayed_payload(),
+        authenticated_relay_id="peer-b",
+    )
+    link = FakeLink(FakeReceipt(response))
+    transport = ReticulumRelayedWatermarkTransport(
+        {"node-b": link},
+        sleep=lambda seconds: None,
+    )
+    returned = transport.exchange("node-b", relayed_payload())
+    ack = decode_relayed_watermark_acknowledgement(returned)
+    assert ack.disposition is WatermarkDisposition.APPLIED
+    assert link.calls[0]["path"] == RETICULUM_WATERMARK_RELAY_PATH
+
+
+def test_reticulum_relay_server_binds_relay_id_to_remote_identity():
+    destination = FakeDestination()
+    server = ReticulumRelayedWatermarkServer(
+        destination=destination,
+        endpoint=relayed_endpoint(),
+        relay_identity_hashes={"peer-b": b"relay-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"relay-hash"])
+    handler = destination.registration["response_generator"]
+    response = handler(
+        RETICULUM_WATERMARK_RELAY_PATH,
+        relayed_payload(),
+        None,
+        None,
+        FakeRemoteIdentity(b"relay-hash"),
+        None,
+    )
+    ack = decode_relayed_watermark_acknowledgement(response)
+    assert ack.disposition is WatermarkDisposition.APPLIED
+
+
+def test_reticulum_relay_server_rejects_unbound_relay():
+    destination = FakeDestination()
+    server = ReticulumRelayedWatermarkServer(
+        destination=destination,
+        endpoint=relayed_endpoint(),
+        relay_identity_hashes={"peer-x": b"relay-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"relay-hash"])
+    handler = destination.registration["response_generator"]
+    with pytest.raises(ReticulumAdapterError, match="unbound ACP relay_id"):
+        handler(
+            RETICULUM_WATERMARK_RELAY_PATH,
+            relayed_payload(),
+            None,
+            None,
+            FakeRemoteIdentity(b"relay-hash"),
+            None,
+        )
+
+
+def test_reticulum_relay_server_rejects_relay_identity_mismatch():
+    destination = FakeDestination()
+    server = ReticulumRelayedWatermarkServer(
+        destination=destination,
+        endpoint=relayed_endpoint(),
+        relay_identity_hashes={"peer-b": b"relay-hash"},
+    )
+    server.install(allow="ALLOW_LIST", allowed_list=[b"relay-hash"])
+    handler = destination.registration["response_generator"]
+    with pytest.raises(
+        ReticulumAdapterError,
+        match="does not match ACP relay_id",
+    ):
+        handler(
+            RETICULUM_WATERMARK_RELAY_PATH,
+            relayed_payload(),
+            None,
+            None,
+            FakeRemoteIdentity(b"wrong-hash"),
             None,
         )
