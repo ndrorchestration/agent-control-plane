@@ -160,8 +160,7 @@ def main() -> None:
     parser.add_argument("--timeout", type=float, default=30.0)
     args = parser.parse_args()
 
-    client_to_router_port = free_port()
-    router_to_destination_port = free_port()
+    router_port = free_port()
 
     with tempfile.TemporaryDirectory(prefix="acp-reticulum-multihop-") as tmp:
         root = Path(tmp)
@@ -176,29 +175,24 @@ def main() -> None:
             destination_config,
             transport=False,
             interface_block=(
-                "[[Destination TCP Server]]\n"
-                "  type = TCPServerInterface\n"
+                "[[Destination TCP Client]]\n"
+                "  type = TCPClientInterface\n"
                 "  enabled = yes\n"
-                "  listen_ip = 127.0.0.1\n"
-                f"  listen_port = {router_to_destination_port}\n"
+                "  target_host = 127.0.0.1\n"
+                f"  target_port = {router_port}\n"
             ),
         )
         write_config(
             router_config,
             transport=True,
             interface_block=(
-                "[[Router TCP Server]]\n"
+                "[[Router TCP Gateway]]\n"
                 "  type = TCPServerInterface\n"
                 "  enabled = yes\n"
                 "  mode = gateway\n"
                 "  recursive_prs = yes\n"
                 "  listen_ip = 127.0.0.1\n"
-                f"  listen_port = {client_to_router_port}\n\n"
-                "[[Router TCP Client]]\n"
-                "  type = TCPClientInterface\n"
-                "  enabled = yes\n"
-                "  target_host = 127.0.0.1\n"
-                f"  target_port = {router_to_destination_port}\n"
+                f"  listen_port = {router_port}\n"
             ),
         )
         write_config(
@@ -209,7 +203,7 @@ def main() -> None:
                 "  type = TCPClientInterface\n"
                 "  enabled = yes\n"
                 "  target_host = 127.0.0.1\n"
-                f"  target_port = {client_to_router_port}\n"
+                f"  target_port = {router_port}\n"
             ),
         )
 
@@ -221,6 +215,14 @@ def main() -> None:
         server_script = Path(__file__).with_name("reticulum_live_server.py")
         transport_script = Path(__file__).with_name("reticulum_transport_node.py")
 
+        router = start_transport_node(
+            transport_script=transport_script,
+            config_dir=router_config,
+        )
+        # Use the documented same-host gateway shape: one transport-enabled
+        # TCP server, with both edge instances connecting as TCP clients.
+        time.sleep(1.0)
+
         destination = start_destination(
             server_script=server_script,
             config_dir=destination_config,
@@ -229,17 +231,6 @@ def main() -> None:
             watermark_db=watermark_db,
             client_identity_hash=client_identity_hash,
         )
-        # Give the destination listener a bounded head start before the
-        # transport node's client interface begins connecting.
-        time.sleep(1.0)
-
-        router = start_transport_node(
-            transport_script=transport_script,
-            config_dir=router_config,
-        )
-        # Let the transport node establish both sides before the leaf client
-        # creates its Reticulum instance. This avoids turning initial TCP
-        # connection retry timing into part of the routing claim.
         time.sleep(1.5)
 
         RNS.Reticulum(configdir=str(client_config))
