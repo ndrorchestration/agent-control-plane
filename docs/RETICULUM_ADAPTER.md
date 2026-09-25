@@ -102,4 +102,4 @@ When watermark peer binding is configured, `ReticulumAuthoritySyncWatermarkServe
 
 The live localhost gate exercises one identified Reticulum client sending a watermark for its authority-sync stream, verifies `APPLIED`, then resends the exact watermark and requires `DUPLICATE`.
 
-This is carriage/identity-binding evidence only. It is not multi-peer dissemination, quorum agreement, global completeness, durable watermark persistence, secure trust provisioning, or cryptographic watermark authentication.
+The live integration now also uses `DurableAuthoritySyncWatermarkRegistry` and reuses the same watermark database after terminating and restarting the Reticulum server process. The exact pre-restart watermark must then return `DUPLICATE`, demonstrating that the accepted watermark floor and identity survive the process restart in the tested configuration.\n\nThis remains bounded local evidence only. It is not multi-peer dissemination, quorum agreement, global completeness, secure trust provisioning, cryptographic watermark authentication, or proof that the SQLite database cannot be maliciously rewritten.
