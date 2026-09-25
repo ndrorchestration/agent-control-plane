@@ -9,6 +9,12 @@ from agent_control_plane.authority import (
     ResourceScope,
 )
 from agent_control_plane.authority_policy import AuthorityPolicy
+from agent_control_plane.authority_state import (
+    AuthorityStateRequirement,
+    AuthorityStateSnapshot,
+    AuthorityStateStatus,
+    InMemoryAuthorityStateCache,
+)
 from agent_control_plane.revocation import InMemoryRevocationRegistry, RevocationRecord
 
 
@@ -188,3 +194,71 @@ def test_delegation_evaluator_error_fails_closed():
     )
     _, task = dispatch_with(policy)
     assert task.error == "authority delegation evaluation failed"
+
+
+def state_checker(cache, requirement):
+    def check(authority, observed_at):
+        result = cache.evaluate(authority.authority_id, observed_at, requirement)
+        if result.status is AuthorityStateStatus.CURRENT:
+            return None
+        return result.status.value
+    return check
+
+
+def test_missing_authority_state_fails_closed():
+    cache = InMemoryAuthorityStateCache()
+    policy = AuthorityPolicy(
+        resolver=lambda capability, task: envelope(),
+        observed_at=lambda capability, task: "2026-09-25T14:05:00Z",
+        state_freshness_checker=state_checker(cache, AuthorityStateRequirement(1, 300)),
+    )
+    plane, task = dispatch_with(policy)
+    assert task.state is TaskState.CREATED
+    assert task.error == "authority state stale:missing"
+    assert plane.events[-1].event == "task.denied"
+
+
+def test_stale_epoch_fails_closed_even_when_recent():
+    cache = InMemoryAuthorityStateCache()
+    cache.update(AuthorityStateSnapshot("auth-1", 1, "2026-09-25T14:04:59Z", "node-a"))
+    policy = AuthorityPolicy(
+        resolver=lambda capability, task: envelope(),
+        observed_at=lambda capability, task: "2026-09-25T14:05:00Z",
+        state_freshness_checker=state_checker(cache, AuthorityStateRequirement(2, 300)),
+    )
+    _, task = dispatch_with(policy)
+    assert task.error == "authority state stale:stale_epoch"
+
+
+def test_stale_age_fails_closed_even_when_epoch_is_current():
+    cache = InMemoryAuthorityStateCache()
+    cache.update(AuthorityStateSnapshot("auth-1", 2, "2026-09-25T14:00:00Z", "node-a"))
+    policy = AuthorityPolicy(
+        resolver=lambda capability, task: envelope(),
+        observed_at=lambda capability, task: "2026-09-25T14:05:01Z",
+        state_freshness_checker=state_checker(cache, AuthorityStateRequirement(2, 300)),
+    )
+    _, task = dispatch_with(policy)
+    assert task.error == "authority state stale:stale_age"
+
+
+def test_current_authority_state_allows_dispatch():
+    cache = InMemoryAuthorityStateCache()
+    cache.update(AuthorityStateSnapshot("auth-1", 2, "2026-09-25T14:00:00Z", "node-a"))
+    policy = AuthorityPolicy(
+        resolver=lambda capability, task: envelope(),
+        observed_at=lambda capability, task: "2026-09-25T14:05:00Z",
+        state_freshness_checker=state_checker(cache, AuthorityStateRequirement(2, 300)),
+    )
+    _, task = dispatch_with(policy)
+    assert task.state is TaskState.COMPLETED
+
+
+def test_authority_state_checker_error_fails_closed():
+    policy = AuthorityPolicy(
+        resolver=lambda capability, task: envelope(),
+        observed_at=lambda capability, task: "2026-09-25T14:05:00Z",
+        state_freshness_checker=lambda authority, observed_at: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    _, task = dispatch_with(policy)
+    assert task.error == "authority state check failed"
