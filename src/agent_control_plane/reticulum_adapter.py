@@ -131,6 +131,113 @@ class ReticulumAuthoritySyncTransport:
         return response
 
 
+class ReticulumReconnectingTransport:
+    """Retry a bounded exchange by recreating a failed Reticulum peer link."""
+
+    def __init__(
+        self,
+        peer_links: Mapping[str, Any],
+        *,
+        link_factory: Callable[[str], Any],
+        peer_destination_hashes: Optional[Mapping[str, bytes]] = None,
+        request_path: str,
+        attempts: int = 2,
+        retry_backoff_seconds: float = 0.1,
+        timeout_seconds: float = 15.0,
+        max_response_size: int = 65536,
+        poll_interval_seconds: float = 0.01,
+        monotonic: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        if not callable(link_factory):
+            raise AuthorityValidationError("link_factory must be callable")
+        if isinstance(attempts, bool) or not isinstance(attempts, int) or attempts < 1:
+            raise AuthorityValidationError("attempts must be an integer >= 1")
+        if retry_backoff_seconds < 0:
+            raise AuthorityValidationError(
+                "retry_backoff_seconds must be >= 0"
+            )
+        self._links = dict(peer_links)
+        self.link_factory = link_factory
+        self.peer_destination_hashes = dict(peer_destination_hashes or {})
+        self.request_path = _required(request_path, "request_path")
+        self.attempts = attempts
+        self.retry_backoff_seconds = retry_backoff_seconds
+        self.timeout_seconds = timeout_seconds
+        self.max_response_size = max_response_size
+        self.poll_interval_seconds = poll_interval_seconds
+        self.monotonic = monotonic
+        self.sleep = sleep
+
+    def _new_link(self, peer_id: str) -> Any:
+        try:
+            link = self.link_factory(peer_id)
+        except Exception as exc:
+            raise ReticulumAdapterError(
+                "Reticulum link recreation failed"
+            ) from exc
+        if link is None:
+            raise ReticulumAdapterError(
+                "Reticulum link recreation returned no link"
+            )
+        self._links[peer_id] = link
+        return link
+
+    @staticmethod
+    def _teardown(link: Any) -> None:
+        teardown = getattr(link, "teardown", None)
+        if callable(teardown):
+            try:
+                teardown()
+            except Exception:
+                pass
+
+    def exchange(self, peer_id: str, payload: bytes) -> bytes:
+        peer = _required(peer_id, "peer_id")
+        if not isinstance(payload, bytes):
+            raise AuthorityValidationError("payload must be bytes")
+
+        last_error: Optional[BaseException] = None
+        for attempt in range(self.attempts):
+            link = self._links.get(peer)
+            if link is None:
+                try:
+                    link = self._new_link(peer)
+                except ReticulumAdapterError as exc:
+                    last_error = exc
+                    if attempt + 1 >= self.attempts:
+                        break
+                    self.sleep(self.retry_backoff_seconds)
+                    continue
+
+            transport = ReticulumAuthoritySyncTransport(
+                {peer: link},
+                peer_destination_hashes=(
+                    {peer: self.peer_destination_hashes[peer]}
+                    if peer in self.peer_destination_hashes
+                    else None
+                ),
+                request_path=self.request_path,
+                timeout_seconds=self.timeout_seconds,
+                max_response_size=self.max_response_size,
+                poll_interval_seconds=self.poll_interval_seconds,
+                monotonic=self.monotonic,
+                sleep=self.sleep,
+            )
+            try:
+                return transport.exchange(peer, payload)
+            except ReticulumAdapterError as exc:
+                last_error = exc
+                self._teardown(link)
+                self._links.pop(peer, None)
+                if attempt + 1 < self.attempts:
+                    self.sleep(self.retry_backoff_seconds)
+
+        raise ReticulumAdapterError(
+            "Reticulum exchange failed after reconnect attempts"
+        ) from last_error
+
+
 class ReticulumAuthoritySyncServer:
     """Bind an ACP authority-sync endpoint to a Reticulum Destination handler."""
 
@@ -561,6 +668,54 @@ class ReticulumSignedRelayChainServer:
             )
         return self.endpoint.receive(data)
 
+
+
+class ReticulumReconnectingRelayStageTransport(ReticulumReconnectingTransport):
+    """Relay-stage transport with bounded downstream link recreation."""
+
+    def __init__(
+        self,
+        peer_links: Mapping[str, Any],
+        *,
+        link_factory: Callable[[str], Any],
+        peer_destination_hashes: Optional[Mapping[str, bytes]] = None,
+        **kwargs: Any,
+    ) -> None:
+        if "request_path" in kwargs:
+            raise AuthorityValidationError(
+                "reconnecting relay-stage request_path is fixed"
+            )
+        super().__init__(
+            peer_links,
+            link_factory=link_factory,
+            peer_destination_hashes=peer_destination_hashes,
+            request_path=RETICULUM_WATERMARK_RELAY_STAGE_PATH,
+            **kwargs,
+        )
+
+
+class ReticulumReconnectingSignedRelayChainTransport(ReticulumReconnectingTransport):
+    """Final relay-chain transport with bounded downstream link recreation."""
+
+    def __init__(
+        self,
+        peer_links: Mapping[str, Any],
+        *,
+        link_factory: Callable[[str], Any],
+        peer_destination_hashes: Optional[Mapping[str, bytes]] = None,
+        **kwargs: Any,
+    ) -> None:
+        if "request_path" in kwargs:
+            raise AuthorityValidationError(
+                "reconnecting relay-chain request_path is fixed"
+            )
+        super().__init__(
+            peer_links,
+            link_factory=link_factory,
+            peer_destination_hashes=peer_destination_hashes,
+            request_path=RETICULUM_WATERMARK_RELAY_CHAIN_PATH,
+            **kwargs,
+        )
 
 
 class ReticulumRelayStageTransport(ReticulumAuthoritySyncTransport):
