@@ -36,6 +36,8 @@ def write_config(
     *,
     transport: bool,
     instance_name: str,
+    shared_instance_port: int,
+    instance_control_port: int,
     interface_block: str,
 ) -> None:
     path.mkdir(parents=True, exist_ok=True)
@@ -43,7 +45,9 @@ def write_config(
         "[reticulum]\n"
         f"enable_transport = {'Yes' if transport else 'No'}\n"
         "share_instance = Yes\n"
-        f"instance_name = {instance_name}\n\n"
+        f"instance_name = {instance_name}\n"
+        f"shared_instance_port = {shared_instance_port}\n"
+        f"instance_control_port = {instance_control_port}\n\n"
         "[logging]\n"
         "loglevel = 7\n\n"
         "[interfaces]\n"
@@ -173,6 +177,12 @@ def main() -> None:
     args = parser.parse_args()
 
     router_port = free_port()
+    destination_shared_port = free_port()
+    destination_control_port = free_port()
+    router_shared_port = free_port()
+    router_control_port = free_port()
+    client_shared_port = free_port()
+    client_control_port = free_port()
 
     with tempfile.TemporaryDirectory(prefix="acp-reticulum-multihop-") as tmp:
         root = Path(tmp)
@@ -187,6 +197,8 @@ def main() -> None:
             destination_config,
             transport=False,
             instance_name="acp-multihop-destination",
+            shared_instance_port=destination_shared_port,
+            instance_control_port=destination_control_port,
             interface_block=(
                 "[[Destination TCP Client]]\n"
                 "  type = TCPClientInterface\n"
@@ -199,6 +211,8 @@ def main() -> None:
             router_config,
             transport=True,
             instance_name="acp-multihop-router",
+            shared_instance_port=router_shared_port,
+            instance_control_port=router_control_port,
             interface_block=(
                 "[[Router TCP Gateway]]\n"
                 "  type = TCPServerInterface\n"
@@ -213,6 +227,8 @@ def main() -> None:
             client_config,
             transport=False,
             instance_name="acp-multihop-client",
+            shared_instance_port=client_shared_port,
+            instance_control_port=client_control_port,
             interface_block=(
                 "[[Client TCP Interface]]\n"
                 "  type = TCPClientInterface\n"
