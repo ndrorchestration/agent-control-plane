@@ -177,6 +177,14 @@ Synchronization acknowledgements explicitly report `applied`, `duplicate`, or `r
 
 This candidate is transport-neutral and does **not** establish reliable delivery, authentication, message integrity, sender identity, confidentiality, consensus, distributed revocation propagation, or Reticulum compatibility. Those are adapter/runtime concerns that must be separately implemented and verified.
 
+#### Canonical wire representation
+
+Supported sync messages can be serialized as canonical UTF-8 JSON using sorted keys, compact separators, and stable schema fields. The canonical byte representation is hashed with SHA-256 for deterministic content identity and duplicate/conflict comparison.
+
+Strict decoding rejects malformed UTF-8/JSON, non-object payloads, unknown message kinds, missing/extra top-level or nested fields, malformed nested records, and unsupported schema versions.
+
+The content hash is **not** a digital signature, MAC, sender-authentication mechanism, custody proof, or secure-channel guarantee. An eventual transport adapter must bind ACP message identity to whatever authenticated integrity and peer identity mechanism that transport actually provides.
+
 ## Evidence boundary
 
 The kernel and tests demonstrate local deterministic behavior only. The budget tests establish the cooperative count/cost accounting and fail-closed exhaustion properties exercised by those tests. The execution-contract tests establish only the ACP-native contract properties exercised by those tests.
