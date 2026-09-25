@@ -18,9 +18,11 @@ from .authority_sync_watermark_relay import (
     decode_relayed_authenticated_watermark,
 )
 from .authority_sync_watermark_relay_chain import (
+    Ed25519RelayAppenderEndpoint,
     Ed25519RelayChainEndpoint,
     decode_ed25519_relay_chain,
 )
+from .authority_sync_watermark_ed25519 import decode_ed25519_authority_sync_watermark
 from .sync_transport import AuthoritySyncEndpoint
 from .watermark_transport import AuthoritySyncWatermarkEndpoint
 
@@ -29,6 +31,7 @@ RETICULUM_SYNC_PATH = "/ndrorchestration/acp/authority-sync/v0"
 RETICULUM_WATERMARK_PATH = "/ndrorchestration/acp/authority-sync-watermark/v0"
 RETICULUM_WATERMARK_RELAY_PATH = "/ndrorchestration/acp/authority-sync-watermark-relay/v0"
 RETICULUM_WATERMARK_RELAY_CHAIN_PATH = "/ndrorchestration/acp/authority-sync-watermark-relay-chain/v0"
+RETICULUM_WATERMARK_RELAY_STAGE_PATH = "/ndrorchestration/acp/authority-sync-watermark-relay-stage/v0"
 
 
 class ReticulumAdapterError(RuntimeError):
@@ -555,5 +558,126 @@ class ReticulumSignedRelayChainServer:
         if actual_hash != expected_hash:
             raise ReticulumAdapterError(
                 "Reticulum identity does not match terminal ACP relay_id"
+            )
+        return self.endpoint.receive(data)
+
+
+
+class ReticulumRelayStageTransport(ReticulumAuthoritySyncTransport):
+    """Carry a signed chain prefix to one live ACP relay stage."""
+
+    def __init__(
+        self,
+        peer_links: Mapping[str, Any],
+        peer_destination_hashes: Optional[Mapping[str, bytes]] = None,
+        **kwargs: Any,
+    ) -> None:
+        if "request_path" in kwargs:
+            raise AuthorityValidationError(
+                "relay-stage transport request_path is fixed"
+            )
+        super().__init__(
+            peer_links=peer_links,
+            peer_destination_hashes=peer_destination_hashes,
+            request_path=RETICULUM_WATERMARK_RELAY_STAGE_PATH,
+            **kwargs,
+        )
+
+
+class ReticulumRelayStageServer:
+    """Bind one independent ACP relay-stage appender to Reticulum."""
+
+    def __init__(
+        self,
+        *,
+        destination: Any,
+        endpoint: Ed25519RelayAppenderEndpoint,
+        upstream_identity_hashes: Optional[Mapping[str, bytes]] = None,
+    ) -> None:
+        if not isinstance(endpoint, Ed25519RelayAppenderEndpoint):
+            raise AuthorityValidationError(
+                "endpoint must be Ed25519RelayAppenderEndpoint"
+            )
+        self.destination = destination
+        self.endpoint = endpoint
+        self.request_path = RETICULUM_WATERMARK_RELAY_STAGE_PATH
+        self.upstream_identity_hashes = dict(upstream_identity_hashes or {})
+        for upstream_id, identity_hash in self.upstream_identity_hashes.items():
+            _required(upstream_id, "upstream_id")
+            if not isinstance(identity_hash, bytes) or not identity_hash:
+                raise AuthorityValidationError(
+                    "upstream identity hashes must be non-empty bytes"
+                )
+        self._installed = False
+
+    def install(
+        self,
+        *,
+        allow: Any,
+        allowed_list: Optional[list[Any]] = None,
+        auto_compress: bool | int = True,
+    ) -> None:
+        if self._installed:
+            raise ReticulumAdapterError(
+                "Reticulum relay-stage request handler already installed"
+            )
+        self.destination.register_request_handler(
+            self.request_path,
+            response_generator=self._handle_request,
+            allow=allow,
+            allowed_list=allowed_list,
+            auto_compress=auto_compress,
+        )
+        self._installed = True
+
+    def _handle_request(
+        self,
+        path: str,
+        data: Any,
+        request_id: Any,
+        link_id: Any,
+        remote_identity: Any,
+        requested_at: Any,
+    ) -> bytes:
+        del request_id, link_id, requested_at
+        if path != self.request_path:
+            raise ReticulumAdapterError(
+                "unexpected Reticulum relay-stage request path"
+            )
+        if not isinstance(data, bytes):
+            raise ReticulumAdapterError(
+                "Reticulum relay-stage payload must be bytes"
+            )
+
+        chain = decode_ed25519_relay_chain(data)
+        if chain.hops:
+            upstream_id = chain.hops[-1].relay_id
+        else:
+            origin = self.endpoint.appender.origin_verifier.verify(
+                decode_ed25519_authority_sync_watermark(
+                    chain.origin_payload()
+                )
+            )
+            upstream_id = origin.issuer_id
+
+        expected_hash = self.upstream_identity_hashes.get(upstream_id)
+        if expected_hash is None:
+            raise ReticulumAdapterError(
+                "unbound ACP relay-stage upstream identity"
+            )
+        if remote_identity is None:
+            raise ReticulumAdapterError(
+                "Reticulum remote identity required for relay stage"
+            )
+        actual_hash = getattr(remote_identity, "hash", None)
+        if callable(actual_hash):
+            actual_hash = actual_hash()
+        if not isinstance(actual_hash, bytes) or not actual_hash:
+            raise ReticulumAdapterError(
+                "Reticulum remote identity hash unavailable"
+            )
+        if actual_hash != expected_hash:
+            raise ReticulumAdapterError(
+                "Reticulum identity does not match relay-stage upstream"
             )
         return self.endpoint.receive(data)
