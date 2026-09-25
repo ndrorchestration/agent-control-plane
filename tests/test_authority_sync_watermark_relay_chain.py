@@ -24,6 +24,7 @@ from agent_control_plane.authority_sync_watermark_keys import (
     WatermarkAuthenticationKeyRegistry,
 )
 from agent_control_plane.authority_sync_watermark_relay_chain import (
+    Ed25519ForwardingRelayStageEndpoint,
     Ed25519RelayAppenderEndpoint,
     Ed25519RelayChainAppender,
     Ed25519RelayChainEndpoint,
@@ -563,3 +564,53 @@ def test_reticulum_relay_stage_transport_uses_fixed_path():
     returned = transport.exchange("relay-a", payload)
     assert decode_ed25519_relay_chain(returned).hops[0].relay_id == "relay-a"
     assert link.calls[0]["path"] == RETICULUM_WATERMARK_RELAY_STAGE_PATH
+
+
+
+def test_forwarding_relay_stage_appends_then_returns_downstream_response():
+    seen = []
+
+    endpoint = Ed25519ForwardingRelayStageEndpoint(
+        appender=Ed25519RelayChainAppender(
+            relay_id="relay-a",
+            key_id="relay-key",
+            private_key_raw=RELAY_A_PRIVATE,
+            next_receiver_id="relay-b",
+            origin_verifier=origin_verifier(),
+            prefix_verifier=chain_verifier(),
+        ),
+        relayed_at_provider=lambda: "2026-09-25T17:51:00Z",
+        downstream_exchange=lambda payload: (
+            seen.append(decode_ed25519_relay_chain(payload)) or b"final-ack"
+        ),
+    )
+
+    payload = encode_ed25519_relay_chain(
+        new_ed25519_relay_chain(origin_payload())
+    )
+    assert endpoint.receive(payload) == b"final-ack"
+    assert tuple(hop.relay_id for hop in seen[0].hops) == ("relay-a",)
+
+
+def test_forwarding_relay_stage_rejects_non_byte_downstream_response():
+    endpoint = Ed25519ForwardingRelayStageEndpoint(
+        appender=Ed25519RelayChainAppender(
+            relay_id="relay-a",
+            key_id="relay-key",
+            private_key_raw=RELAY_A_PRIVATE,
+            next_receiver_id="relay-b",
+            origin_verifier=origin_verifier(),
+            prefix_verifier=chain_verifier(),
+        ),
+        relayed_at_provider=lambda: "2026-09-25T17:51:00Z",
+        downstream_exchange=lambda payload: "not-bytes",
+    )
+    with pytest.raises(
+        AuthorityValidationError,
+        match="downstream_exchange must return bytes",
+    ):
+        endpoint.receive(
+            encode_ed25519_relay_chain(
+                new_ed25519_relay_chain(origin_payload())
+            )
+        )
