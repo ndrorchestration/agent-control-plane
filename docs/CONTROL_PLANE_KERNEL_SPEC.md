@@ -130,7 +130,9 @@ This candidate is **not part of `agent-control-plane.execution.v1`**. ACP additi
 
 The adapter fails closed when authority is missing, malformed, capability-mismatched, expired, explicitly denied, or conditionally unresolved. Conditional authority requires an explicit caller-supplied evaluator; only a literal successful evaluation permits dispatch.
 
-The adapter does **not** authenticate identities, validate external policy authority or signatures, prove resource/operation scope legitimacy, prove delegation legitimacy, provide revocation, persist leases, or bind authority records into execution-v1 events. Its allow/deny result is therefore a bounded local software decision, not proof of broader authorization validity.
+The adapter can additionally consult an optional revocation checker and delegation evaluator. Revocation is represented by an append-only in-memory registry with schema `agent-control-plane.revocation.v0-candidate`; a record applies at and after its canonical UTC revocation time. Delegated authority fails closed unless an explicit caller-supplied delegation evaluator returns literal `True`.
+
+The adapter still does **not** authenticate identities, validate external policy authority or signatures, prove resource/operation scope legitimacy, cryptographically prove delegation legitimacy, provide durable/distributed revocation, persist leases, or bind authority records into execution-v1 events. Its allow/deny result is therefore a bounded local software decision, not proof of broader authorization validity.
 
 ## Evidence boundary
 
