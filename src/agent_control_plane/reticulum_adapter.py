@@ -681,3 +681,67 @@ class ReticulumRelayStageServer:
                 "Reticulum identity does not match relay-stage upstream"
             )
         return self.endpoint.receive(data)
+
+
+
+class ReticulumForwardingRelayStageServer(ReticulumRelayStageServer):
+    """Relay-stage server that appends one hop and forwards the result downstream."""
+
+    def __init__(
+        self,
+        *,
+        destination: Any,
+        endpoint: Ed25519RelayAppenderEndpoint,
+        downstream_transport: Any,
+        downstream_peer_id: str,
+        upstream_identity_hashes: Optional[Mapping[str, bytes]] = None,
+    ) -> None:
+        super().__init__(
+            destination=destination,
+            endpoint=endpoint,
+            upstream_identity_hashes=upstream_identity_hashes,
+        )
+        exchange = getattr(downstream_transport, "exchange", None)
+        if not callable(exchange):
+            raise AuthorityValidationError(
+                "downstream_transport must provide exchange(peer_id, payload)"
+            )
+        self.downstream_transport = downstream_transport
+        self.downstream_peer_id = _required(
+            downstream_peer_id,
+            "downstream_peer_id",
+        )
+
+    def _handle_request(
+        self,
+        path: str,
+        data: Any,
+        request_id: Any,
+        link_id: Any,
+        remote_identity: Any,
+        requested_at: Any,
+    ) -> bytes:
+        # Reuse the parent handler for path/payload checks, upstream identity
+        # binding, prefix verification, and exactly-one-hop append.
+        updated_chain = super()._handle_request(
+            path,
+            data,
+            request_id,
+            link_id,
+            remote_identity,
+            requested_at,
+        )
+        try:
+            response = self.downstream_transport.exchange(
+                self.downstream_peer_id,
+                updated_chain,
+            )
+        except Exception as exc:
+            raise ReticulumAdapterError(
+                "Reticulum relay-stage downstream forwarding failed"
+            ) from exc
+        if not isinstance(response, bytes):
+            raise ReticulumAdapterError(
+                "Reticulum relay-stage downstream response must be bytes"
+            )
+        return response
