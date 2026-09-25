@@ -60,6 +60,7 @@ def main() -> None:
     parser.add_argument("--hash-file", required=True)
     parser.add_argument("--allowed-sender-id", required=True)
     parser.add_argument("--allowed-identity-hash", required=True)
+    parser.add_argument("--terminal-relay-identity-hash")
     parser.add_argument("--state-db", required=True)
     parser.add_argument("--watermark-db", required=True)
     parser.add_argument("--announce-interval", type=float, default=1.0)
@@ -85,6 +86,11 @@ def main() -> None:
         )
     )
     allowed_identity_hash = bytes.fromhex(args.allowed_identity_hash)
+    terminal_relay_identity_hash = (
+        bytes.fromhex(args.terminal_relay_identity_hash)
+        if args.terminal_relay_identity_hash is not None
+        else allowed_identity_hash
+    )
     server = ReticulumAuthoritySyncServer(
         destination=destination,
         endpoint=endpoint,
@@ -181,12 +187,12 @@ def main() -> None:
             ),
         ),
         terminal_relay_identity_hashes={
-            "relay-c": allowed_identity_hash
+            "relay-c": terminal_relay_identity_hash
         },
     )
     chain_server.install(
         allow=RNS.Destination.ALLOW_LIST,
-        allowed_list=[allowed_identity_hash],
+        allowed_list=[terminal_relay_identity_hash],
     )
 
     Path(args.hash_file).write_text(destination.hash.hex(), encoding="utf-8")
