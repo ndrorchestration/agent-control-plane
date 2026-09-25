@@ -4,10 +4,12 @@ on:
   pull_request:
     paths:
       - "src/agent_control_plane/authority_sync_watermark_ed25519.py"
+      - "src/agent_control_plane/authority_key_binding.py"
       - "src/agent_control_plane/authority_sync_watermark_relay.py"
       - "src/agent_control_plane/authority_sync_watermark_relay_chain.py"
       - "src/agent_control_plane/authority_sync_watermark_keys.py"
       - "tests/test_authority_sync_watermark_ed25519.py"
+      - "tests/test_authority_key_binding.py"
       - "tests/test_authority_sync_watermark_relay_ed25519.py"
       - "tests/test_authority_sync_watermark_relay_chain.py"
       - "pyproject.toml"
@@ -27,4 +29,4 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[crypto]" pytest
-      - run: python -m pytest tests/test_authority_sync_watermark_ed25519.py tests/test_authority_sync_watermark_relay_ed25519.py tests/test_authority_sync_watermark_relay_chain.py -q
+      - run: python -m pytest tests/test_authority_sync_watermark_ed25519.py tests/test_authority_sync_watermark_relay_ed25519.py tests/test_authority_sync_watermark_relay_chain.py tests/test_authority_key_binding.py -q
