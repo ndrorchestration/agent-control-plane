@@ -147,3 +147,19 @@ The routed localhost topology gate now also has a candidate composition path for
 A complete signed origin + three-hop relay chain is encoded by ACP and sent to the final ACP destination over the same verified Reticulum route that traverses the transport-enabled intermediate node. The destination's Reticulum handler binds the currently identified remote peer to the terminal signed relay ID, then the ACP endpoint independently verifies the origin signature, every hash-linked relay-hop signature, relay-key lifecycle, hop ordering, and final-receiver binding before applying the origin watermark.
 
 The first composition slice deliberately constructs the signed relay chain in the sending test process. Therefore a green result establishes that signed ACP relay provenance survives routed Reticulum carriage and is enforced at the final receiver. It does **not** establish that separate application relay processes independently appended each hop. That remains a later test.
+
+
+## Separate relay-process execution candidate
+
+The routed signed relay-chain integration now has a stricter execution candidate: the origin process emits only the signed origin envelope, then three separate OS subprocesses execute relay A, relay B, and relay C in sequence.
+
+Each relay subprocess:
+1. decodes the chain state it receives;
+2. verifies the signed origin;
+3. if prior hops exist, verifies the complete incoming prefix is addressed to its own relay ID;
+4. appends exactly one new Ed25519-signed hop naming the next receiver;
+5. emits a new canonical chain payload.
+
+Only the final chain payload is then sent across the verified routed Reticulum topology to the destination.
+
+This establishes separate process execution boundaries for relay append operations under deterministic test fixtures. It does **not** establish secure private-key isolation, separate hosts, independent trust domains, or one Reticulum application destination per relay process.
