@@ -18,11 +18,32 @@ from agent_control_plane.authority_sync import (
     decode_sync_acknowledgement,
     encode_sync_message,
 )
-from agent_control_plane.reticulum_adapter import ReticulumAuthoritySyncTransport
+from agent_control_plane.authority_sync_watermark import (
+    AuthoritySyncWatermark,
+    WatermarkDisposition,
+    decode_authority_sync_watermark_acknowledgement,
+)
+from agent_control_plane.authority_sync_watermark_ed25519 import (
+    encode_ed25519_authority_sync_watermark,
+    sign_authority_sync_watermark_ed25519,
+)
+from agent_control_plane.authority_sync_watermark_relay_chain import (
+    append_ed25519_relay_hop,
+    encode_ed25519_relay_chain,
+    new_ed25519_relay_chain,
+)
+from agent_control_plane.reticulum_adapter import (
+    ReticulumAuthoritySyncTransport,
+    ReticulumSignedRelayChainTransport,
+)
 
 
 APP_NAME = "ndrorchestration"
 ASPECTS = ("acp", "authority_sync_live")
+CHAIN_ORIGIN_PRIVATE = bytes(range(32))
+CHAIN_RELAY_A_PRIVATE = b"a" * 32
+CHAIN_RELAY_B_PRIVATE = b"b" * 32
+CHAIN_RELAY_C_PRIVATE = b"c" * 32
 
 
 def free_port() -> int:
@@ -275,6 +296,12 @@ def main() -> None:
                 timeout_seconds=args.timeout,
                 max_response_size=65536,
             )
+            relay_chain_transport = ReticulumSignedRelayChainTransport(
+                {"destination": link},
+                peer_destination_hashes={"destination": destination_hash},
+                timeout_seconds=args.timeout,
+                max_response_size=65536,
+            )
             snapshot = SnapshotSyncMessage(
                 message_id="multihop-snapshot-1",
                 sender_id="multihop-client",
@@ -308,6 +335,70 @@ def main() -> None:
                     f"multi-hop duplicate not detected: {duplicate}"
                 )
 
+            origin_watermark = AuthoritySyncWatermark(
+                watermark_id="multihop-origin-watermark-1",
+                issuer_id="origin-peer",
+                target_sender_id="multihop-client",
+                min_sequence=1,
+                issued_at="2026-09-25T19:05:00Z",
+            )
+            origin_envelope = sign_authority_sync_watermark_ed25519(
+                origin_watermark,
+                key_id="origin-ed-key",
+                private_key_raw=CHAIN_ORIGIN_PRIVATE,
+            )
+            chain = new_ed25519_relay_chain(
+                encode_ed25519_authority_sync_watermark(origin_envelope)
+            )
+            chain = append_ed25519_relay_hop(
+                chain,
+                relay_id="relay-a",
+                key_id="relay-ed-key",
+                private_key_raw=CHAIN_RELAY_A_PRIVATE,
+                relayed_at="2026-09-25T19:05:10Z",
+                next_receiver_id="relay-b",
+            )
+            chain = append_ed25519_relay_hop(
+                chain,
+                relay_id="relay-b",
+                key_id="relay-ed-key",
+                private_key_raw=CHAIN_RELAY_B_PRIVATE,
+                relayed_at="2026-09-25T19:05:20Z",
+                next_receiver_id="relay-c",
+            )
+            chain = append_ed25519_relay_hop(
+                chain,
+                relay_id="relay-c",
+                key_id="relay-ed-key",
+                private_key_raw=CHAIN_RELAY_C_PRIVATE,
+                relayed_at="2026-09-25T19:05:30Z",
+                next_receiver_id="reticulum-server",
+            )
+            chain_payload = encode_ed25519_relay_chain(chain)
+
+            chain_ack = decode_authority_sync_watermark_acknowledgement(
+                relay_chain_transport.exchange(
+                    "destination",
+                    chain_payload,
+                )
+            )
+            if chain_ack.disposition is not WatermarkDisposition.APPLIED:
+                raise RuntimeError(
+                    f"signed relay chain not applied: {chain_ack}"
+                )
+
+            chain_duplicate_ack = decode_authority_sync_watermark_acknowledgement(
+                relay_chain_transport.exchange(
+                    "destination",
+                    chain_payload,
+                )
+            )
+            if chain_duplicate_ack.disposition is not WatermarkDisposition.DUPLICATE:
+                raise RuntimeError(
+                    "signed relay-chain duplicate not detected: "
+                    f"{chain_duplicate_ack}"
+                )
+
             link.teardown()
 
             print("RETICULUM_MULTIHOP_INTEGRATION=PASS")
@@ -315,6 +406,11 @@ def main() -> None:
             print(f"DESTINATION={destination_hex}")
             print(f"SNAPSHOT_ACK={acknowledgement.disposition.value}")
             print(f"DUPLICATE_ACK={duplicate.disposition.value}")
+            print(f"SIGNED_RELAY_CHAIN_ACK={chain_ack.disposition.value}")
+            print(
+                "SIGNED_RELAY_CHAIN_DUPLICATE_ACK="
+                f"{chain_duplicate_ack.disposition.value}"
+            )
             print(f"CLIENT_IDENTITY_HASH={client_identity_hash.hex()}")
         except Exception:
             # Stop first so buffered Reticulum logs are flushed, then expose
