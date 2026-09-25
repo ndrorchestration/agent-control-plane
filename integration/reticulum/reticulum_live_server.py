@@ -21,6 +21,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-dir", required=True)
     parser.add_argument("--hash-file", required=True)
+    parser.add_argument("--allowed-sender-id", required=True)
+    parser.add_argument("--allowed-identity-hash", required=True)
     args = parser.parse_args()
 
     RNS.Reticulum(configdir=args.config_dir)
@@ -41,8 +43,16 @@ def main() -> None:
             revocations=InMemoryRevocationRegistry(),
         )
     )
-    server = ReticulumAuthoritySyncServer(destination=destination, endpoint=endpoint)
-    server.install(allow=RNS.Destination.ALLOW_ALL)
+    allowed_identity_hash = bytes.fromhex(args.allowed_identity_hash)
+    server = ReticulumAuthoritySyncServer(
+        destination=destination,
+        endpoint=endpoint,
+        peer_identity_hashes={args.allowed_sender_id: allowed_identity_hash},
+    )
+    server.install(
+        allow=RNS.Destination.ALLOW_LIST,
+        allowed_list=[allowed_identity_hash],
+    )
 
     Path(args.hash_file).write_text(destination.hash.hex(), encoding="utf-8")
 
