@@ -211,7 +211,6 @@ def main() -> None:
             ),
         )
 
-        RNS.Reticulum(configdir=str(client_config))
         client_identity = RNS.Identity()
         client_identity_hash = client_identity.hash
         if not isinstance(client_identity_hash, bytes) or not client_identity_hash:
@@ -228,10 +227,20 @@ def main() -> None:
             watermark_db=watermark_db,
             client_identity_hash=client_identity_hash,
         )
+        # Give the destination listener a bounded head start before the
+        # transport node's client interface begins connecting.
+        time.sleep(1.0)
+
         router = start_transport_node(
             transport_script=transport_script,
             config_dir=router_config,
         )
+        # Let the transport node establish both sides before the leaf client
+        # creates its Reticulum instance. This avoids turning initial TCP
+        # connection retry timing into part of the routing claim.
+        time.sleep(1.5)
+
+        RNS.Reticulum(configdir=str(client_config))
 
         try:
             destination_hex = wait_for_file(hash_file, destination, args.timeout)
