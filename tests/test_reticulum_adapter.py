@@ -91,7 +91,7 @@ def test_client_transport_uses_documented_link_request_surface():
     )
     response = transport.exchange("node-b", encode_sync_message(message()))
     ack = decode_sync_acknowledgement(response)
-    assert ack.disposition is SyncDisposition.DUPLICATE
+    assert ack.disposition is SyncDisposition.APPLIED
     assert link.calls == [{
         "path": RETICULUM_SYNC_PATH,
         "data": encode_sync_message(message()),
