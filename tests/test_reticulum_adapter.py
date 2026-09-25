@@ -34,9 +34,12 @@ class FakeReceipt:
 
 
 class FakeLink:
-    def __init__(self, receipt):
+    def __init__(self, receipt, destination_hash=None):
         self.receipt = receipt
         self.calls = []
+        self.destination = None
+        if destination_hash is not None:
+            self.destination = type("FakeDestinationRef", (), {"hash": destination_hash})()
 
     def request(self, path, data=None, timeout=None, max_response_size=None):
         self.calls.append({
@@ -251,4 +254,47 @@ def test_server_rejects_invalid_configured_identity_hash():
             destination=FakeDestination(),
             endpoint=endpoint(),
             peer_identity_hashes={"node-a": b""},
+        )
+
+
+def test_client_binds_acp_peer_id_to_reticulum_destination_hash():
+    target = endpoint()
+    ack_bytes = target.receive(encode_sync_message(message()))
+    link = FakeLink(FakeReceipt(ack_bytes), destination_hash=b"server-destination")
+    transport = ReticulumAuthoritySyncTransport(
+        {"node-b": link},
+        peer_destination_hashes={"node-b": b"server-destination"},
+        sleep=lambda seconds: None,
+    )
+    response = transport.exchange("node-b", encode_sync_message(message()))
+    assert decode_sync_acknowledgement(response).disposition is SyncDisposition.APPLIED
+
+
+def test_client_rejects_missing_link_destination_when_binding_enabled():
+    transport = ReticulumAuthoritySyncTransport(
+        {"node-b": FakeLink(FakeReceipt(b"ack"))},
+        peer_destination_hashes={"node-b": b"server-destination"},
+        sleep=lambda seconds: None,
+    )
+    with pytest.raises(ReticulumAdapterError, match="link destination unavailable"):
+        transport.exchange("node-b", b"{}")
+
+
+def test_client_rejects_destination_hash_mismatch_before_request():
+    link = FakeLink(FakeReceipt(b"ack"), destination_hash=b"wrong-destination")
+    transport = ReticulumAuthoritySyncTransport(
+        {"node-b": link},
+        peer_destination_hashes={"node-b": b"expected-destination"},
+        sleep=lambda seconds: None,
+    )
+    with pytest.raises(ReticulumAdapterError, match="does not match ACP peer_id"):
+        transport.exchange("node-b", b"{}")
+    assert link.calls == []
+
+
+def test_client_rejects_invalid_configured_destination_hash():
+    with pytest.raises(AuthorityValidationError, match="destination hashes"):
+        ReticulumAuthoritySyncTransport(
+            {},
+            peer_destination_hashes={"node-b": b""},
         )

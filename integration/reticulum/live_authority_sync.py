@@ -152,6 +152,7 @@ def main() -> None:
 
             transport = ReticulumAuthoritySyncTransport(
                 {"server": link},
+                peer_destination_hashes={"server": destination_hash},
                 timeout_seconds=args.timeout,
                 max_response_size=65536,
             )

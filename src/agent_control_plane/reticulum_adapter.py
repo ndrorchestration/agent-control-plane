@@ -37,6 +37,7 @@ class ReticulumAuthoritySyncTransport:
     """
 
     peer_links: Mapping[str, Any]
+    peer_destination_hashes: Optional[Mapping[str, bytes]] = None
     request_path: str = RETICULUM_SYNC_PATH
     timeout_seconds: float = 15.0
     max_response_size: int = 65536
@@ -46,6 +47,11 @@ class ReticulumAuthoritySyncTransport:
 
     def __post_init__(self) -> None:
         self.request_path = _required(self.request_path, "request_path")
+        self.peer_destination_hashes = dict(self.peer_destination_hashes or {})
+        for peer_id, destination_hash in self.peer_destination_hashes.items():
+            _required(peer_id, "peer_id")
+            if not isinstance(destination_hash, bytes) or not destination_hash:
+                raise AuthorityValidationError("peer destination hashes must be non-empty bytes")
         if self.timeout_seconds <= 0:
             raise AuthorityValidationError("timeout_seconds must be > 0")
         if isinstance(self.max_response_size, bool) or not isinstance(self.max_response_size, int) or self.max_response_size <= 0:
@@ -60,6 +66,19 @@ class ReticulumAuthoritySyncTransport:
         link = self.peer_links.get(peer)
         if link is None:
             raise ReticulumAdapterError("unknown Reticulum peer link")
+
+        expected_destination_hash = self.peer_destination_hashes.get(peer)
+        if expected_destination_hash is not None:
+            destination = getattr(link, "destination", None)
+            if destination is None:
+                raise ReticulumAdapterError("Reticulum link destination unavailable")
+            actual_destination_hash = getattr(destination, "hash", None)
+            if callable(actual_destination_hash):
+                actual_destination_hash = actual_destination_hash()
+            if not isinstance(actual_destination_hash, bytes) or not actual_destination_hash:
+                raise ReticulumAdapterError("Reticulum destination hash unavailable")
+            if actual_destination_hash != expected_destination_hash:
+                raise ReticulumAdapterError("Reticulum destination does not match ACP peer_id")
 
         try:
             receipt = link.request(
