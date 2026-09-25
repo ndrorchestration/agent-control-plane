@@ -108,6 +108,12 @@ def main() -> None:
         )
 
         server_script = Path(__file__).with_name("reticulum_live_server.py")
+        RNS.Reticulum(configdir=str(client_config))
+        client_identity = RNS.Identity()
+        client_identity_hash = client_identity.hash
+        if not isinstance(client_identity_hash, bytes) or not client_identity_hash:
+            raise RuntimeError("Reticulum client identity hash unavailable")
+
         server = subprocess.Popen(
             [
                 sys.executable,
@@ -116,6 +122,10 @@ def main() -> None:
                 str(server_config),
                 "--hash-file",
                 str(hash_file),
+                "--allowed-sender-id",
+                "reticulum-client",
+                "--allowed-identity-hash",
+                client_identity_hash.hex(),
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -123,7 +133,6 @@ def main() -> None:
         )
         try:
             destination_hex = wait_for_file(hash_file, server, args.timeout)
-            RNS.Reticulum(configdir=str(client_config))
             destination_hash = bytes.fromhex(destination_hex)
             wait_for_path(destination_hash, args.timeout)
             identity = wait_for_identity(destination_hash, args.timeout)
@@ -139,6 +148,7 @@ def main() -> None:
             link = RNS.Link(remote_destination, established_callback=lambda active_link: established.set())
             if not established.wait(args.timeout):
                 raise RuntimeError("timed out establishing Reticulum link")
+            link.identify(client_identity)
 
             transport = ReticulumAuthoritySyncTransport(
                 {"server": link},
@@ -184,6 +194,7 @@ def main() -> None:
             print(f"DESTINATION={destination_hex}")
             print(f"SNAPSHOT_ACK={snapshot_ack.disposition.value}")
             print(f"REVOCATION_ACK={revocation_ack.disposition.value}")
+            print(f"CLIENT_IDENTITY_HASH={client_identity_hash.hex()}")
         except Exception:
             if server.stdout is not None:
                 output = server.stdout.read() if server.poll() is not None else ""
