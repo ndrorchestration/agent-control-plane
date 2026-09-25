@@ -138,3 +138,12 @@ The test requires:
 - exact replay over the same routed path to return `DUPLICATE`.
 
 A green result would establish only bounded localhost Reticulum routing across one transport-enabled intermediate node under pinned `rns==1.5.4`. It would not establish arbitrary Internet/radio topology behavior, route resilience, partition healing, LoRa performance, long-duration liveness, or the signed ACP relay-chain protocol traversing that topology.
+
+
+## Signed relay-chain composition over routed Reticulum
+
+The routed localhost topology gate now also has a candidate composition path for the accepted Ed25519 relay-chain profile.
+
+A complete signed origin + three-hop relay chain is encoded by ACP and sent to the final ACP destination over the same verified Reticulum route that traverses the transport-enabled intermediate node. The destination's Reticulum handler binds the currently identified remote peer to the terminal signed relay ID, then the ACP endpoint independently verifies the origin signature, every hash-linked relay-hop signature, relay-key lifecycle, hop ordering, and final-receiver binding before applying the origin watermark.
+
+The first composition slice deliberately constructs the signed relay chain in the sending test process. Therefore a green result establishes that signed ACP relay provenance survives routed Reticulum carriage and is enforced at the final receiver. It does **not** establish that separate application relay processes independently appended each hop. That remains a later test.

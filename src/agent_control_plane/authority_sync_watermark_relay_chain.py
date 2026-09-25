@@ -10,7 +10,12 @@ import json
 from typing import Mapping, Sequence
 
 from .authority import AuthorityValidationError
-from .authority_sync_watermark import AuthoritySyncWatermark
+from .authority_sync_watermark import (
+    AuthoritySyncWatermark,
+    AuthoritySyncWatermarkAcknowledgement,
+    AuthoritySyncWatermarkRegistry,
+    encode_authority_sync_watermark_acknowledgement,
+)
 from .authority_sync_watermark_ed25519 import (
     Ed25519AuthoritySyncWatermarkVerifier,
     decode_ed25519_authority_sync_watermark,
@@ -592,4 +597,49 @@ class Ed25519RelayChainVerifier:
             watermark=watermark,
             relay_path=tuple(hop.relay_id for hop in chain.hops),
             final_receiver_id=final_receiver,
+        )
+
+
+
+class Ed25519RelayChainEndpoint:
+    """Verify a complete signed relay chain and apply its origin watermark."""
+
+    def __init__(
+        self,
+        *,
+        receiver_id: str,
+        verifier: Ed25519RelayChainVerifier,
+        registry: AuthoritySyncWatermarkRegistry,
+    ) -> None:
+        self.receiver_id = _required(receiver_id, "receiver_id")
+        if not isinstance(verifier, Ed25519RelayChainVerifier):
+            raise AuthorityValidationError(
+                "verifier must be Ed25519RelayChainVerifier"
+            )
+        if not isinstance(registry, AuthoritySyncWatermarkRegistry):
+            raise AuthorityValidationError(
+                "registry must be AuthoritySyncWatermarkRegistry"
+            )
+        self.verifier = verifier
+        self.registry = registry
+
+    def receive(self, payload: bytes) -> bytes:
+        if not isinstance(payload, bytes):
+            raise AuthorityValidationError("payload must be bytes")
+        chain = decode_ed25519_relay_chain(payload)
+        verified = self.verifier.verify(
+            chain,
+            final_receiver_id=self.receiver_id,
+        )
+        watermark = verified.watermark
+        disposition = self.registry.apply(watermark)
+        return encode_authority_sync_watermark_acknowledgement(
+            AuthoritySyncWatermarkAcknowledgement(
+                watermark_id=watermark.watermark_id,
+                issuer_id=watermark.issuer_id,
+                receiver_id=self.receiver_id,
+                target_sender_id=watermark.target_sender_id,
+                min_sequence=watermark.min_sequence,
+                disposition=disposition,
+            )
         )
