@@ -193,3 +193,18 @@ Relay C forwards the complete chain to the final ACP destination, where the orig
 The dedicated `reticulum-autonomous-relay-chain` workflow is the acceptance gate for this composition. Until that exact-head workflow is terminal green and merged, autonomous multi-stage forwarding remains NOT ESTABLISHED.
 
 Even after a green localhost run, this remains bounded evidence. Separate physical hosts, independent administrative trust domains, key custody, route failover, partition healing, radio/LoRa, Byzantine behavior, and production security remain outside the claim.
+
+
+## Relay outage / identity-preserving recovery candidate
+
+The autonomous relay-chain harness now contains an additional failure/recovery phase.
+
+After an initial `APPLIED` and exact `DUPLICATE` result, relay B is terminated while the origin, relay A and final destination remain live. A new higher-sequence origin watermark is then sent through relay A. The request must fail closed and must not produce an accepted acknowledgement while the application chain is incomplete.
+
+The origin-facing link and remaining relay processes are then torn down, and relay A/B/C are restarted using the exact same provisioned Reticulum identity files. The final destination remains live and retains its previously accepted watermark state. Recovery requires:
+
+- relay A/B/C destination hashes to remain unchanged after restart;
+- the higher-sequence watermark to return `APPLIED`;
+- exact replay after recovery to return `DUPLICATE`.
+
+This is explicit restart/reconnect recovery, not automatic self-healing. A green run does not establish transparent link re-establishment, process supervision, retry orchestration, partition healing, durable relay queues, or delivery guarantees.
