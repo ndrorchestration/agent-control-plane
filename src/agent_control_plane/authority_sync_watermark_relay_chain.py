@@ -714,3 +714,39 @@ class Ed25519RelayChainAppender:
             relayed_at=relayed_at,
             next_receiver_id=self.next_receiver_id,
         )
+
+
+
+class Ed25519RelayAppenderEndpoint:
+    """Byte-facing relay stage that verifies its addressed prefix and appends one hop."""
+
+    def __init__(
+        self,
+        *,
+        appender: Ed25519RelayChainAppender,
+        relayed_at_provider,
+    ) -> None:
+        if not isinstance(appender, Ed25519RelayChainAppender):
+            raise AuthorityValidationError(
+                "appender must be Ed25519RelayChainAppender"
+            )
+        if not callable(relayed_at_provider):
+            raise AuthorityValidationError(
+                "relayed_at_provider must be callable"
+            )
+        self.appender = appender
+        self.relayed_at_provider = relayed_at_provider
+
+    @property
+    def relay_id(self) -> str:
+        return self.appender.relay_id
+
+    def receive(self, payload: bytes) -> bytes:
+        if not isinstance(payload, bytes):
+            raise AuthorityValidationError("payload must be bytes")
+        chain = decode_ed25519_relay_chain(payload)
+        updated = self.appender.append(
+            chain,
+            relayed_at=self.relayed_at_provider(),
+        )
+        return encode_ed25519_relay_chain(updated)
