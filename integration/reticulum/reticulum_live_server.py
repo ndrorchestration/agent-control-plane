@@ -36,7 +36,10 @@ def main() -> None:
     parser.add_argument("--allowed-identity-hash", required=True)
     parser.add_argument("--state-db", required=True)
     parser.add_argument("--watermark-db", required=True)
+    parser.add_argument("--announce-interval", type=float, default=1.0)
     args = parser.parse_args()
+    if args.announce_interval <= 0:
+        raise RuntimeError("announce interval must be > 0")
 
     RNS.Reticulum(configdir=args.config_dir)
     identity = RNS.Identity()
@@ -106,7 +109,7 @@ def main() -> None:
 
     while True:
         destination.announce()
-        time.sleep(1.0)
+        time.sleep(args.announce_interval)
 
 
 if __name__ == "__main__":
