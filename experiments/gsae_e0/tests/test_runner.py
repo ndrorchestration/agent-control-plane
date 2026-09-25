@@ -17,7 +17,7 @@ SOURCE_SHA = "07a09698ca66e8837d04e6ec05b4de3448eced04"
 SCHEMA_VERSION = "agent-control-plane.execution.v1"
 
 
-def test_bound_source_is_ancestor_and_acp_package_is_unchanged():
+def test_bound_source_commit_exists_and_acp_package_is_unchanged():
     verify_source_binding(Path.cwd(), SOURCE_SHA)
 
 
