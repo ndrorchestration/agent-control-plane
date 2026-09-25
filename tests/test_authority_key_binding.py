@@ -152,3 +152,159 @@ def test_manifest_contains_fingerprints_not_raw_key_material():
     serialized = str(manifest)
     assert str(PUB) not in serialized
     assert str(TRANSPORT) not in serialized
+
+
+
+def test_bound_ed25519_verifier_requires_matching_public_and_transport_binding():
+    cryptography = pytest.importorskip("cryptography")
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from agent_control_plane.authority_key_binding import (
+        BoundEd25519WatermarkVerifier,
+    )
+    from agent_control_plane.authority_sync_watermark import AuthoritySyncWatermark
+    from agent_control_plane.authority_sync_watermark_ed25519 import (
+        sign_authority_sync_watermark_ed25519,
+    )
+    from agent_control_plane.authority_sync_watermark_keys import (
+        WatermarkAuthenticationKeyRecord,
+        WatermarkAuthenticationKeyRegistry,
+    )
+
+    private_raw = bytes(range(32))
+    private = Ed25519PrivateKey.from_private_bytes(private_raw)
+    public_raw = private.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+
+    lifecycle = WatermarkAuthenticationKeyRegistry()
+    lifecycle.register(
+        WatermarkAuthenticationKeyRecord(
+            issuer_id="peer-a",
+            key_id="ed-key-1",
+            valid_from="2026-09-25T17:00:00Z",
+        )
+    )
+
+    bindings = AuthorityKeyBindingRegistry()
+    bindings.register(
+        binding_from_public_key(
+            binding_id="binding-ed-1",
+            subject_id="peer-a",
+            key_id="ed-key-1",
+            public_key_raw=public_raw,
+            transport_identity_raw=TRANSPORT,
+            valid_from="2026-09-25T17:00:00Z",
+        )
+    )
+
+    verifier = BoundEd25519WatermarkVerifier(
+        public_keys={("peer-a", "ed-key-1"): public_raw},
+        key_registry=lifecycle,
+        binding_registry=bindings,
+    )
+    watermark = AuthoritySyncWatermark(
+        watermark_id="wm-ed-1",
+        issuer_id="peer-a",
+        target_sender_id="authority-source",
+        min_sequence=3,
+        issued_at="2026-09-25T18:00:00Z",
+    )
+    envelope = sign_authority_sync_watermark_ed25519(
+        watermark,
+        key_id="ed-key-1",
+        private_key_raw=private_raw,
+    )
+
+    assert verifier.verify(
+        envelope,
+        observed_at="2026-09-25T18:05:00Z",
+        transport_identity_raw=TRANSPORT,
+    ) == watermark
+
+    with pytest.raises(
+        AuthorityValidationError,
+        match="transport identity binding mismatch",
+    ):
+        verifier.verify(
+            envelope,
+            observed_at="2026-09-25T18:05:00Z",
+            transport_identity_raw=b"wrong-transport",
+        )
+
+
+def test_bound_ed25519_verifier_rejects_wrong_provisioned_public_key_before_signature():
+    cryptography = pytest.importorskip("cryptography")
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from agent_control_plane.authority_key_binding import (
+        BoundEd25519WatermarkVerifier,
+    )
+    from agent_control_plane.authority_sync_watermark import AuthoritySyncWatermark
+    from agent_control_plane.authority_sync_watermark_ed25519 import (
+        sign_authority_sync_watermark_ed25519,
+    )
+    from agent_control_plane.authority_sync_watermark_keys import (
+        WatermarkAuthenticationKeyRecord,
+        WatermarkAuthenticationKeyRegistry,
+    )
+
+    private_raw = bytes(range(32))
+    private = Ed25519PrivateKey.from_private_bytes(private_raw)
+    public_raw = private.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    wrong_private = Ed25519PrivateKey.from_private_bytes(b"x" * 32)
+    wrong_public = wrong_private.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+
+    lifecycle = WatermarkAuthenticationKeyRegistry()
+    lifecycle.register(
+        WatermarkAuthenticationKeyRecord(
+            issuer_id="peer-a",
+            key_id="ed-key-1",
+            valid_from="2026-09-25T17:00:00Z",
+        )
+    )
+    bindings = AuthorityKeyBindingRegistry()
+    bindings.register(
+        binding_from_public_key(
+            binding_id="binding-ed-1",
+            subject_id="peer-a",
+            key_id="ed-key-1",
+            public_key_raw=public_raw,
+            valid_from="2026-09-25T17:00:00Z",
+        )
+    )
+
+    verifier = BoundEd25519WatermarkVerifier(
+        public_keys={("peer-a", "ed-key-1"): wrong_public},
+        key_registry=lifecycle,
+        binding_registry=bindings,
+    )
+    envelope = sign_authority_sync_watermark_ed25519(
+        AuthoritySyncWatermark(
+            watermark_id="wm-ed-1",
+            issuer_id="peer-a",
+            target_sender_id="authority-source",
+            min_sequence=3,
+            issued_at="2026-09-25T18:00:00Z",
+        ),
+        key_id="ed-key-1",
+        private_key_raw=private_raw,
+    )
+
+    with pytest.raises(
+        AuthorityValidationError,
+        match="public key binding mismatch",
+    ):
+        verifier.verify(
+            envelope,
+            observed_at="2026-09-25T18:05:00Z",
+        )
