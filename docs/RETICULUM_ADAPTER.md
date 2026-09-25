@@ -103,3 +103,21 @@ When watermark peer binding is configured, `ReticulumAuthoritySyncWatermarkServe
 The live localhost gate exercises one identified Reticulum client sending a watermark for its authority-sync stream, verifies `APPLIED`, then resends the exact watermark and requires `DUPLICATE`.
 
 The live integration now also uses `DurableAuthoritySyncWatermarkRegistry` and reuses the same watermark database after terminating and restarting the Reticulum server process. The exact pre-restart watermark must then return `DUPLICATE`, demonstrating that the accepted watermark floor and identity survive the process restart in the tested configuration.\n\nThis remains bounded local evidence only. It is not multi-peer dissemination, quorum agreement, global completeness, secure trust provisioning, cryptographic watermark authentication, or proof that the SQLite database cannot be maliciously rewritten.
+
+
+## Authenticated single-relay watermark carriage
+
+ACP now has a separate one-hop relay path candidate:
+
+`/ndrorchestration/acp/authority-sync-watermark-relay/v0`
+
+`ReticulumRelayedWatermarkServer` binds the relay envelope's declared `relay_id` to the Reticulum `remote_identity` hash before passing the bytes into the ACP relay endpoint. The relay endpoint then independently verifies the embedded origin-authenticated watermark and applies only the original watermark to the trusted monotonic registry.
+
+This deliberately separates two identities:
+
+- **relay identity** — bound by the Reticulum link;
+- **origin watermark issuer** — verified by the embedded authenticated-watermark profile.
+
+The relay does not become the origin merely by transporting the record.
+
+This is still one-hop adapter evidence only. It does not establish a multi-hop relay chain, relay-path signatures, origin-key provisioning, asymmetric signatures, compromised-relay resistance, or global completeness.
