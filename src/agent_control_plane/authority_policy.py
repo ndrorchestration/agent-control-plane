@@ -14,6 +14,7 @@ ObservationTimeResolver = Callable[[str, "Task"], str]
 ConditionEvaluator = Callable[[AuthorityEnvelope, str, "Task"], bool]
 DelegationEvaluator = Callable[[AuthorityEnvelope, str, "Task"], bool]
 RevocationChecker = Callable[[str, str], bool]
+StateFreshnessChecker = Callable[[AuthorityEnvelope, str], Optional[str]]
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,8 @@ class AuthorityPolicyEvaluation:
     revocation_checked: bool = False
     delegation_checked: bool = False
     conditions_checked: bool = False
+    state_checked: bool = False
+    state_reason: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,7 @@ class AuthorityPolicy:
     condition_evaluator: Optional[ConditionEvaluator] = None
     delegation_evaluator: Optional[DelegationEvaluator] = None
     revocation_checker: Optional[RevocationChecker] = None
+    state_freshness_checker: Optional[StateFreshnessChecker] = None
 
     def evaluate(self, capability: str, task: "Task") -> AuthorityPolicyEvaluation:
         try:
@@ -67,6 +71,14 @@ class AuthorityPolicy:
             return AuthorityPolicyEvaluation(False, "authority lease invalid or expired", authority_id=authority.authority_id, decision_id=authority.decision.decision_id, policy_id=authority.policy.policy_id, outcome=authority.decision.outcome.value, reason_code=authority.decision.reason_code)
         except Exception:
             return AuthorityPolicyEvaluation(False, "authority time resolution failed", authority_id=authority.authority_id, decision_id=authority.decision.decision_id, policy_id=authority.policy.policy_id, outcome=authority.decision.outcome.value, reason_code=authority.decision.reason_code)
+
+        if self.state_freshness_checker is not None:
+            try:
+                state_reason = self.state_freshness_checker(authority, observed_at)
+            except Exception:
+                return AuthorityPolicyEvaluation(False, "authority state check failed", authority_id=authority.authority_id, decision_id=authority.decision.decision_id, policy_id=authority.policy.policy_id, outcome=authority.decision.outcome.value, reason_code=authority.decision.reason_code, observed_at=observed_at, state_checked=True, state_reason="checker_error")
+            if state_reason is not None:
+                return AuthorityPolicyEvaluation(False, f"authority state stale:{state_reason}", authority_id=authority.authority_id, decision_id=authority.decision.decision_id, policy_id=authority.policy.policy_id, outcome=authority.decision.outcome.value, reason_code=authority.decision.reason_code, observed_at=observed_at, state_checked=True, state_reason=state_reason)
 
         if self.revocation_checker is not None:
             try:
@@ -100,7 +112,7 @@ class AuthorityPolicy:
             if satisfied is not True:
                 return AuthorityPolicyEvaluation(False, "authority conditions unsatisfied", authority_id=authority.authority_id, decision_id=authority.decision.decision_id, policy_id=authority.policy.policy_id, outcome=authority.decision.outcome.value, reason_code=authority.decision.reason_code, observed_at=observed_at, revocation_checked=self.revocation_checker is not None, delegation_checked=authority.delegation is not None, conditions_checked=True)
 
-        return AuthorityPolicyEvaluation(True, authority_id=authority.authority_id, decision_id=authority.decision.decision_id, policy_id=authority.policy.policy_id, outcome=authority.decision.outcome.value, reason_code=authority.decision.reason_code, observed_at=observed_at, revocation_checked=self.revocation_checker is not None, delegation_checked=authority.delegation is not None, conditions_checked=authority.decision.outcome is DecisionOutcome.CONDITIONAL)
+        return AuthorityPolicyEvaluation(True, authority_id=authority.authority_id, decision_id=authority.decision.decision_id, policy_id=authority.policy.policy_id, outcome=authority.decision.outcome.value, reason_code=authority.decision.reason_code, observed_at=observed_at, revocation_checked=self.revocation_checker is not None, delegation_checked=authority.delegation is not None, conditions_checked=authority.decision.outcome is DecisionOutcome.CONDITIONAL, state_checked=self.state_freshness_checker is not None)
 
 
     def __call__(self, capability: str, task: "Task") -> Optional[str]:
