@@ -77,10 +77,15 @@ def wait_for_path(destination_hash: bytes, timeout: float) -> None:
     # path requests in the poll loop trips Reticulum burst controls and turns
     # rate limiting into part of the routing experiment.
     RNS.Transport.request_path(destination_hash)
+    retry_at = time.monotonic() + 20.0
     while time.monotonic() < deadline:
         if RNS.Transport.has_path(destination_hash):
             return
-        time.sleep(0.2)
+        now = time.monotonic()
+        if now >= retry_at:
+            RNS.Transport.request_path(destination_hash)
+            retry_at = now + 20.0
+        time.sleep(0.1)
     raise RuntimeError("timed out waiting for multi-hop Reticulum path")
 
 
@@ -141,7 +146,7 @@ def start_destination(
             "--watermark-db",
             str(watermark_db),
             "--announce-interval",
-            "5.0",
+            "60.0",
             "--allowed-sender-id",
             "multihop-client",
             "--allowed-identity-hash",
