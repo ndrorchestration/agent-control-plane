@@ -185,6 +185,16 @@ Strict decoding rejects malformed UTF-8/JSON, non-object payloads, unknown messa
 
 The content hash is **not** a digital signature, MAC, sender-authentication mechanism, custody proof, or secure-channel guarantee. An eventual transport adapter must bind ACP message identity to whatever authenticated integrity and peer identity mechanism that transport actually provides.
 
+#### Adapter boundary
+
+`AuthoritySyncTransport` defines the minimum synchronous adapter contract used by the current conformance slice: exchange canonical ACP sync bytes with a named peer and return canonical acknowledgement bytes.
+
+`AuthoritySyncEndpoint` owns wire decoding and passes reconstructed messages to `AuthoritySyncReconciler`; adapters do not interpret or override ACP reconciliation outcomes. `LoopbackAuthoritySyncTransport` is an in-process test adapter used to verify this separation.
+
+A future Reticulum adapter may provide delivery, addressing, peer identity, and authenticated integrity information, but ACP remains authoritative for schema validation, replay/sequence rejection, authority epoch reconciliation, revocation conflicts, duplicate handling, and acknowledgement disposition.
+
+The current adapter interface is a local synchronous candidate, not a claim that Reticulum or other transports must expose an identical blocking API. An asynchronous/network implementation may wrap this contract while preserving the same message and reconciliation semantics.
+
 ## Evidence boundary
 
 The kernel and tests demonstrate local deterministic behavior only. The budget tests establish the cooperative count/cost accounting and fail-closed exhaustion properties exercised by those tests. The execution-contract tests establish only the ACP-native contract properties exercised by those tests.

@@ -162,6 +162,8 @@ The authority-sync candidate is transport-neutral. Transport sequence numbers pr
 
 Sync messages now also have a canonical UTF-8 JSON representation with sorted keys, compact separators, strict reconstruction, and SHA-256 content identity. Unknown message kinds, malformed UTF-8/JSON, wrong schemas, extra fields, malformed nested records, and unsupported nested values fail closed. The SHA-256 is a deterministic content identifier only; it is not a cryptographic signature, sender authentication, or tamper-evident transport by itself.
 
+`AuthoritySyncTransport` defines the adapter boundary: a transport exchanges canonical ACP bytes with a peer and returns canonical acknowledgement bytes. `AuthoritySyncEndpoint` retains decoding and reconciliation inside ACP, while `LoopbackAuthoritySyncTransport` provides an in-process conformance harness. Transport adapters must not redefine replay, authority-epoch, revocation, conflict, or acknowledgement semantics.
+
 ## Evidence standard
 
 Claims in this repository should distinguish:
