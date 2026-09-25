@@ -1,0 +1,29 @@
+name: reticulum-autonomous-relay-chain
+
+on:
+  pull_request:
+    paths:
+      - "src/agent_control_plane/authority_sync_watermark_relay_chain.py"
+      - "src/agent_control_plane/reticulum_adapter.py"
+      - "integration/reticulum/reticulum_relay_stage_process.py"
+      - "integration/reticulum/live_autonomous_relay_chain.py"
+      - "integration/reticulum/reticulum_live_server.py"
+      - "integration/reticulum/reticulum_transport_node.py"
+      - ".github/workflows/reticulum-autonomous-relay-chain.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  autonomous-relay-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[crypto]" "rns==1.5.4"
+      - run: python integration/reticulum/live_autonomous_relay_chain.py --timeout 35
