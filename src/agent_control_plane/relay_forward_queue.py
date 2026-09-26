@@ -66,11 +66,35 @@ class PendingRelayForward:
             )
 
 
+class RelayQueueCapacityExceeded(AuthorityValidationError):
+    """Raised when a new pending forward would exceed configured capacity."""
+
+
 class DurableRelayForwardQueue:
     """SQLite-backed queue of pending signed relay-chain forwards."""
 
-    def __init__(self, database_path: str | Path) -> None:
+    def __init__(
+        self,
+        database_path: str | Path,
+        *,
+        max_pending_items: Optional[int] = None,
+        max_pending_bytes: Optional[int] = None,
+    ) -> None:
         self.database_path = str(database_path)
+        for value, field_name in (
+            (max_pending_items, "max_pending_items"),
+            (max_pending_bytes, "max_pending_bytes"),
+        ):
+            if value is not None and (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value < 1
+            ):
+                raise AuthorityValidationError(
+                    f"{field_name} must be an integer >= 1 or None"
+                )
+        self.max_pending_items = max_pending_items
+        self.max_pending_bytes = max_pending_bytes
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
@@ -114,6 +138,9 @@ class DurableRelayForwardQueue:
         queued_at = enqueued_at or _utc_now()
 
         with self._connect() as connection:
+            # Serialize capacity check + insert so concurrent enqueue attempts
+            # cannot both admit against the same stale usage snapshot.
+            connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 "SELECT * FROM relay_forward_queue WHERE item_id = ?",
                 (identifier,),
@@ -129,6 +156,31 @@ class DurableRelayForwardQueue:
                         "relay forward item_id conflict"
                     )
                 return prior
+
+            usage = connection.execute(
+                """
+                SELECT
+                    COUNT(*) AS pending_items,
+                    COALESCE(SUM(LENGTH(payload)), 0) AS pending_bytes
+                FROM relay_forward_queue
+                """
+            ).fetchone()
+            pending_items = int(usage["pending_items"])
+            pending_bytes = int(usage["pending_bytes"])
+            if (
+                self.max_pending_items is not None
+                and pending_items + 1 > self.max_pending_items
+            ):
+                raise RelayQueueCapacityExceeded(
+                    "relay forward queue pending-item capacity exceeded"
+                )
+            if (
+                self.max_pending_bytes is not None
+                and pending_bytes + len(payload) > self.max_pending_bytes
+            ):
+                raise RelayQueueCapacityExceeded(
+                    "relay forward queue pending-byte capacity exceeded"
+                )
 
             connection.execute(
                 """
@@ -189,6 +241,24 @@ class DurableRelayForwardQueue:
                 """
             ).fetchall()
         return tuple(self._row(row) for row in rows)
+
+
+    def usage(self) -> dict[str, int | None]:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    COUNT(*) AS pending_items,
+                    COALESCE(SUM(LENGTH(payload)), 0) AS pending_bytes
+                FROM relay_forward_queue
+                """
+            ).fetchone()
+        return {
+            "pending_items": int(row["pending_items"]),
+            "pending_bytes": int(row["pending_bytes"]),
+            "max_pending_items": self.max_pending_items,
+            "max_pending_bytes": self.max_pending_bytes,
+        }
 
     def mark_attempt(
         self,
@@ -279,10 +349,14 @@ class DurableRelayForwardQueue:
 
     def manifest(self) -> dict[str, object]:
         items = self.pending()
+        usage = self.usage()
         return {
             "schema": RELAY_FORWARD_QUEUE_SCHEMA_VERSION,
             "database_path": self.database_path,
             "pending_count": len(items),
+            "pending_bytes": usage["pending_bytes"],
+            "max_pending_items": self.max_pending_items,
+            "max_pending_bytes": self.max_pending_bytes,
             "pending": [
                 {
                     "item_id": item.item_id,

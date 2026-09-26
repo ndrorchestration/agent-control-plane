@@ -260,3 +260,14 @@ The dead-letter ID is deterministic from the relay/downstream/payload/item ident
 `dead_letter_exhausted(...)` consults the accepted `BoundedRelayRetryPolicy` and moves only items whose durable attempt count has reached the configured maximum. Retryable records remain pending.
 
 This establishes terminal local storage semantics only. It does not establish operator notification, re-drive workflows, retention policy, deletion policy, queue quotas, external alerting, guaranteed delivery, or production dead-letter infrastructure.
+
+
+## Bounded local relay-queue capacity
+
+The durable pending relay-forward queue can now be configured with optional maximum pending-item and pending-byte limits.
+
+Admission is fail-closed for a **new** item that would exceed either configured limit. The capacity check and insert occur under a SQLite `BEGIN IMMEDIATE` transaction so concurrent enqueue attempts cannot both pass the same stale usage snapshot. Re-enqueuing the exact same already-pending item remains idempotent even when the queue is otherwise at capacity. Acknowledgement or dead-letter movement releases pending capacity.
+
+The queue exposes current pending item/byte usage and configured limits through its manifest without including payload bytes.
+
+These controls provide local storage backpressure only. They do not establish network congestion control, sender-side flow-control signaling, fairness, priority scheduling, disk-space guarantees, denial-of-service resistance, or production queue sizing.
