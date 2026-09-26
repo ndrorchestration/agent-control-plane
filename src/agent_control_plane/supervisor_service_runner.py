@@ -13,6 +13,7 @@ from .process_monitor_cadence import (
 )
 from .process_runtime import ManagedProcessController, ProcessObservation
 from .process_supervision import ProcessSupervisionDecision
+from .supervisor_concurrency import SupervisorConcurrencyPolicy
 from .supervisor_ownership import (
     SupervisorOwnershipLease,
     SupervisorOwnershipLeaseStore,
@@ -195,6 +196,8 @@ class BoundedSupervisorServiceReport:
         SupervisorRecoveryDecision
     ] = None
     runtime_recovery_authorization_id: Optional[str] = None
+    max_in_flight_workers: int = 1
+    worker_scheduling_mode: str = "contract_order_serial"
 
 
 class BoundedSupervisorServiceRunner:
@@ -215,6 +218,9 @@ class BoundedSupervisorServiceRunner:
         runtime_checkpoint_configuration: Optional[
             SupervisorRuntimeCheckpointConfiguration
         ] = None,
+        concurrency_policy: SupervisorConcurrencyPolicy = (
+            SupervisorConcurrencyPolicy()
+        ),
     ) -> None:
         if not isinstance(contract, SupervisorServiceContract):
             raise AuthorityValidationError(
@@ -282,6 +288,10 @@ class BoundedSupervisorServiceRunner:
                 "runtime_checkpoint_configuration must be "
                 "SupervisorRuntimeCheckpointConfiguration or None"
             )
+        if not isinstance(concurrency_policy, SupervisorConcurrencyPolicy):
+            raise AuthorityValidationError(
+                "concurrency_policy must be SupervisorConcurrencyPolicy"
+            )
         if (
             runtime_checkpoint_configuration is not None
             and lease_configuration is None
@@ -313,6 +323,7 @@ class BoundedSupervisorServiceRunner:
         self.runtime_checkpoint_configuration = (
             runtime_checkpoint_configuration
         )
+        self.concurrency_policy = concurrency_policy
 
     def _service_resource_id(self) -> str:
         assert self.lease_configuration is not None
@@ -484,6 +495,12 @@ class BoundedSupervisorServiceRunner:
                 runtime_recovery_decision=runtime_recovery_decision,
                 runtime_recovery_authorization_id=(
                     runtime_recovery_authorization_id
+                ),
+                max_in_flight_workers=(
+                    self.concurrency_policy.max_in_flight_workers
+                ),
+                worker_scheduling_mode=(
+                    self.concurrency_policy.scheduling_mode.value
                 ),
             )
 
@@ -678,7 +695,7 @@ class BoundedSupervisorServiceRunner:
                         )
                     break
 
-            for worker in self.workers:
+            for worker in self.concurrency_policy.ordered(self.workers):
                 if self.contract.state is not SupervisorServiceState.RUNNING:
                     break
                 result = worker.scheduler.run_if_due(
