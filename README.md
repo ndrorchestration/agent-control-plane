@@ -220,4 +220,4 @@ Current mapping:
 
 ACP has no pause/resume lifecycle semantics, so `SERVICE_CONTROL_PAUSE` and `SERVICE_CONTROL_CONTINUE` fail closed instead of being reinterpreted.
 
-This is control-code translation only. It does not establish Windows SCM service registration, ServiceMain/HandlerEx hosting, reboot persistence, Windows service-account semantics, or production Windows-service operation.
+This is control-code translation only. It does not establish Windows SCM service registration, ServiceMain/HandlerEx hosting, reboot persistence, Windows service-account semantics, or production Windows-service operation.\n\nA `WindowsScmServiceHostContract` candidate now models the ServiceMain/HandlerEx-facing status lifecycle (`STOPPED -> START_PENDING -> RUNNING -> STOP_PENDING -> STOPPED`), accepted SCM controls, checkpoint/wait-hint fields, first-stop latching, and typed stop-reason composition into the existing supervisor runner. It remains a host contract only: it does not register a service with SCM or host native callbacks.
