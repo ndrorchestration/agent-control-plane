@@ -11,6 +11,7 @@ from typing import Optional
 
 from .authority import AuthorityValidationError
 from .relay_forward_queue import DurableRelayForwardQueue, PendingRelayForward
+from .relay_retry_policy import BoundedRelayRetryPolicy
 
 
 RELAY_DEAD_LETTER_SCHEMA_VERSION = (
@@ -264,3 +265,40 @@ class DurableRelayDeadLetterStore:
                 for entry in entries
             ],
         }
+
+
+
+def dead_letter_exhausted(
+    *,
+    queue: DurableRelayForwardQueue,
+    store: DurableRelayDeadLetterStore,
+    policy: BoundedRelayRetryPolicy,
+    reason: str = "retry attempts exhausted",
+    dead_lettered_at: Optional[str] = None,
+) -> tuple[str, ...]:
+    """Move only policy-exhausted pending items into durable dead-letter state."""
+    if not isinstance(queue, DurableRelayForwardQueue):
+        raise AuthorityValidationError(
+            "queue must be DurableRelayForwardQueue"
+        )
+    if not isinstance(store, DurableRelayDeadLetterStore):
+        raise AuthorityValidationError(
+            "store must be DurableRelayDeadLetterStore"
+        )
+    if not isinstance(policy, BoundedRelayRetryPolicy):
+        raise AuthorityValidationError(
+            "policy must be BoundedRelayRetryPolicy"
+        )
+
+    moved: list[str] = []
+    for item in queue.pending():
+        if not policy.is_exhausted(item):
+            continue
+        store.move_from_queue(
+            queue,
+            item_id=item.item_id,
+            reason=reason,
+            dead_lettered_at=dead_lettered_at,
+        )
+        moved.append(item.item_id)
+    return tuple(moved)
