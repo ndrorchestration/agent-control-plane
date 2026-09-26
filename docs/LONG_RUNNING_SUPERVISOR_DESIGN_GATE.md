@@ -550,3 +550,34 @@ This remains a pure host contract. It does **not**:
 - prove behavior on a real Windows SCM host.
 
 Until exact-head CI passes, this remains candidate evidence.
+
+
+## Native Windows SCM ABI candidate
+
+ACP now has a dependency-free `ctypes` binding candidate for the minimal native service-host APIs required by a future Windows service entrypoint.
+
+The candidate validates and binds:
+
+- `StartServiceCtrlDispatcherW`;
+- `RegisterServiceCtrlHandlerExW`;
+- `SetServiceStatus`.
+
+It also maps the accepted `WindowsScmServiceStatus` into the native `SERVICE_STATUS` structure, preserving:
+
+- service type;
+- current state;
+- accepted control mask;
+- Win32 exit code;
+- service-specific exit code;
+- checkpoint;
+- wait hint.
+
+The module fails closed off Windows when native bindings are requested.
+
+### Evidence gates
+
+- ordinary Python CI checks cross-platform import/mapping/fail-closed behavior;
+- dedicated `windows-scm-native-probe` CI runs on `windows-latest` and requires the actual Advapi32 exports and Windows callback ABI;
+- operator-local corroboration on a non-elevated Windows 11 build 26200 / Python 3.14.5 environment produced `5 passed, 1 skipped` for the native test file.
+
+This still does **not** call the dispatcher, register callbacks with SCM, create/install a service, mutate SCM configuration, require elevation, establish reboot persistence, or prove service-account behavior.
