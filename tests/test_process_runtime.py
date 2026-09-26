@@ -206,3 +206,29 @@ def test_spec_validation_rejects_empty_argv():
             process_id="bad",
             argv=(),
         )
+
+
+
+def test_terminate_uses_kill_fallback_when_child_ignores_sigterm():
+    controller = ManagedProcessController(
+        ManagedProcessSpec(
+            process_id="ignores-term",
+            argv=(
+                sys.executable,
+                "-c",
+                (
+                    "import signal,time;"
+                    "signal.signal(signal.SIGTERM, signal.SIG_IGN);"
+                    "time.sleep(30)"
+                ),
+            ),
+        )
+    )
+    started = controller.start()
+    assert started.running is True
+
+    time.sleep(0.1)
+    stopped = controller.terminate(timeout_seconds=0.1)
+
+    assert stopped.running is False
+    assert stopped.returncode is not None
