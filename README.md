@@ -231,3 +231,8 @@ A `WindowsScmNativeInstallationBackend` candidate now implements the already-aut
 ### Crash-safe Windows installation journal
 
 A `WindowsScmInstallationJournal` candidate now records append-only durable install phases and recovery classifications. The install transaction records create/configure/delete intent **before** those irreversible SCM calls. Interrupted transactions therefore reopen into explicit recovery states rather than being assumed successful.
+
+
+### Read-only Windows install recovery inspection
+
+A `WindowsScmInstallRecoveryInspector` candidate can now narrow ambiguous install-journal HOLD states using read-only live SCM configuration. It compares the observed service type, start type, error control, binary command, dependencies, account, display name, and delayed-auto-start setting against the exact admitted registration plan. Observation never authorizes or performs a recovery mutation.
