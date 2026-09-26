@@ -496,3 +496,21 @@ The supervisor runner consumes these typed stop reasons through a dedicated prov
 This preserves the OS/service-manager boundary: systemd, Windows SCM, launchd, containers, and other hosts may translate their native events into this contract, but they may not redefine ACP lifecycle, ownership, recovery, or process-control semantics.
 
 This slice does not yet implement any concrete systemd, Windows SCM, or launchd service registration.
+
+
+## Windows SCM control translation candidate
+
+ACP now has a pure translation candidate for Windows Service Control Manager control codes.
+
+The adapter preserves ACP lifecycle semantics rather than redefining them:
+
+- `SERVICE_CONTROL_STOP (0x00000001)` -> host `stop` -> ACP `service_stop`;
+- `SERVICE_CONTROL_SHUTDOWN (0x00000005)` -> host `shutdown` -> ACP `service_shutdown`;
+- `SERVICE_CONTROL_PRESHUTDOWN (0x0000000F)` -> host `preshutdown` -> ACP `service_preshutdown`;
+- `SERVICE_CONTROL_INTERROGATE (0x00000004)` -> status-only, no stop event.
+
+Pause/continue controls fail closed because ACP has no accepted pause/resume lifecycle state.
+
+The runner composition tests prove STOP and PRESHUTDOWN reach the existing typed lifecycle and terminate managed workers cleanly.
+
+This remains a pure adapter layer. No Windows service is installed or registered, no `ServiceMain`/HandlerEx callback is hosted, and Windows service-account/reboot semantics remain unestablished.
