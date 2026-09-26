@@ -1,0 +1,114 @@
+# Remote Desktop Commander Adapter Candidate
+
+Status: local candidate only; not merged, released, or production-authorized.
+
+## Purpose
+
+Bind ACP's framework-neutral execution contract to evidence returned by an external real-machine executor without making that executor an authority source.
+
+Remote Desktop Commander (RDC) is treated as an execution endpoint. ACP validates request identity and returned evidence. DGAF or another owning governance layer retains authorization and adjudication authority.
+
+## Invariant
+
+Executor != authorizer != evidence adjudicator.
+
+## Candidate flow
+
+1. Governance admits a bounded action.
+2. ACP constructs a device-scoped execution request.
+3. The action string is bound by SHA-256.
+4. RDC executes on the named device.
+5. RDC returns a structured receipt.
+6. ACP validates identity, digest, profile, path, completion and side effects.
+7. Governance decides what claims, if any, the evidence supports.
+## Implemented candidate checks
+
+- non-empty request, device, profile and working-directory identity;
+- exact SHA-256 binding of `command_or_action`;
+- request/receipt matching;
+- integer exit code;
+- artifact SHA-256 syntax validation;
+- successful completion requires exit code 0 and `command_completed=true`;
+- `READ_ONLY_DISCOVERY` requires no `files_changed`;
+- an explicitly false `working_tree_unchanged` fails read-only validation.
+
+## Deliberately not established
+
+- transport authentication between ACP and RDC;
+- signed receipts or hardware-backed device identity;
+- remote nonce/challenge freshness;
+- trusted clock synchronization;
+- replay-resistant receipt persistence;
+- automatic side-effect classification;
+- mutation authorization;
+- production security;
+- DGAF High-Assurance status;
+- scientific independence or scientific-N increment.
+## Local evidence — 2026-09-26
+
+Baseline protected-main candidate: `ee8f48faa0af95aeae5336ae34cf4da7ea83723b`.
+
+Baseline full suite before candidate: 556 passed, 4 skipped.
+
+Candidate focused tests: 5 passed, 1 skipped.
+
+Candidate full regression: 561 passed, 5 skipped.
+
+A real RDC control receipt was then validated using caller-supplied expected request identity, device `neontic`, profile `READ_ONLY_DISCOVERY`, working directory, and exact command. Result:
+
+`REMOTE_EXECUTION_RECEIPT=PASS`
+
+The source receipt recorded zero files changed. This establishes local contract composition only; it does not establish trusted remote transport or production authorization.
+
+## Next bounded tranche
+
+Add signed/fresh request and receipt envelopes, explicit side-effect classes, nonce/replay handling, and adapter-level tests for unknown/partial outcomes before any mutation-capable integration is considered.
+
+## Freshness, replay and unknown-outcome hardening — 2026-09-26
+
+The local candidate now includes a bounded freshness envelope, process-local single-use replay guard, and explicit remote outcome classification.
+
+- freshness requires a non-empty nonce plus integer issue/expiry times;
+- requests fail if not-yet-valid or expired;
+- the same request-id + nonce pair cannot be consumed twice by the guard;
+- receipt outcomes are classified narrowly as `SUCCEEDED`, `FAILED`, or `UNKNOWN`;
+- missing/non-true completion evidence is `UNKNOWN`, never inferred success;
+- only `SUCCEEDED` can satisfy `assert_known_success`.
+
+Focused adapter tests: 9 passed, 1 skipped. Full ACP regression: 565 passed, 5 skipped.
+
+This remains local candidate evidence. Replay protection is currently process-local rather than durable, and there is still no signed transport envelope or hardware-rooted device identity.
+
+## Durable replay + side-effect-class receipts — 2026-09-26
+
+The candidate now persists consumed request-id + nonce pairs in SQLite so replay rejection survives process restart. The real RDC control runner also emits an explicit `side_effect_class` derived from the bounded execution profile; read-only validation requires both `READ_ONLY_DISCOVERY` and `side_effect_class=READ_ONLY`.
+
+Focused adapter coverage: 11 passed, 1 skipped. Full ACP regression: 567 passed, 5 skipped.
+
+A newly emitted real control receipt containing `side_effect_class=READ_ONLY` was validated end-to-end by ACP: `REMOTE_EXECUTION_RECEIPT=PASS`. This still does not establish signed transport, trusted clocks, hardware identity, or mutation authority.
+
+## Structured receipt signature envelopes — 2026-09-26
+
+The real local runner now signs the entire serialized receipt with HMAC-SHA256 and emits an `ndr.receipt-signature.v1` detached JSON envelope containing `algorithm`, non-secret `key_id`, `receipt_sha256`, and `signature`. The machine-local 32-byte key is ACL-restricted to `NEONTIC\\Admin` and `SYSTEM`; current non-secret key ID is `bad6db52b5b028c1`.
+
+ACP validates the envelope schema, algorithm, exact receipt SHA-256, key ID, and HMAC before accepting integrity. Any receipt-byte change fails verification. Focused adapter coverage: 16 passed, 1 skipped. Full ACP regression: 572 passed, 5 skipped. Real envelope conformance passed locally.
+
+Boundary: HMAC proves possession of the same local secret, not independent identity. It is not TPM/hardware-rooted attestation, not remote endpoint authentication, and not external trust.
+
+## Request-side side-effect binding + bounded TTL — 2026-09-26
+
+The candidate request now carries `expected_side_effect_class` and receipt matching fails closed if the executor reports a different class. Signed request canonicalization includes this expected class. Freshness envelopes are capped at 300 seconds; longer TTLs are rejected before execution admission.
+
+Focused adapter coverage: 18 passed, 1 skipped. Full ACP regression: 574 passed, 5 skipped. A real `READ_ONLY_DISCOVERY` / `READ_ONLY` receipt passed the updated request↔receipt conformance check.
+
+## Device binding, local ordering, and signed pre-execution requests — 2026-09-26
+
+The real runner now emits a privacy-preserving SHA-256 device fingerprint derived from stable system/firmware facts while retaining no raw identifiers in the identity record. The observed attestation level is explicitly `SOFTWARE_DERIVED_NOT_HARDWARE_ATTESTED`; TPM and Secure Boot state are not observable from the current non-elevated RDC context and are therefore not inferred.
+
+ACP requests now bind expected device fingerprint and expected attestation level. Drift in either field fails closed. Focused adapter coverage reached 23 passed / 1 skipped; full ACP regression reached 579 passed / 5 skipped.
+
+Receipts also carry a durable monotonically increasing local sequence number, backward-clock detection, and `trusted_time_established=false`. Consecutive real receipts were sequence 3 then 4 with no rollback detected. Windows Time was observed stopped/manual, so trusted time remains NOT_ESTABLISHED.
+
+A signed read-only pre-execution envelope path is operational locally. The envelope binds request ID, device identity, attestation level, profile, expected side-effect class, exact command digest, working directory, nonce, and bounded freshness. The executor verifies the signature, device binding, TTL, and durable replay guard before execution. A valid read-only envelope executed and retained the exact request envelope as a hashed receipt artifact. Replaying the same envelope returns `REMOTE_REQUEST_FAIL: remote execution request replay detected` and `SIGNED_REMOTE_EXECUTION=BLOCKED`. Correctly signed mutation-profile requests are also refused.
+
+This remains local candidate evidence only. Hardware-rooted attestation, trusted external time, remote endpoint authentication, mutation authorization, independent validation, and High-Assurance remain unestablished.
