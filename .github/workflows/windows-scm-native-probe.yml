@@ -10,11 +10,13 @@ on:
       - "src/agent_control_plane/windows_scm_binary_verification.py"
       - "src/agent_control_plane/windows_scm_registration.py"
       - "src/agent_control_plane/windows_scm_registration_plan.py"
+      - "src/agent_control_plane/windows_scm_install_authorization.py"
       - "tests/test_windows_scm_native.py"
       - "tests/test_windows_scm_native_runtime.py"
       - "tests/test_windows_scm_binary_verification.py"
       - "tests/test_windows_scm_registration.py"
       - "tests/test_windows_scm_registration_plan.py"
+      - "tests/test_windows_scm_install_authorization.py"
       - ".github/workflows/windows-scm-native-probe.yml"
   pull_request:
     paths:
@@ -25,11 +27,13 @@ on:
       - "src/agent_control_plane/windows_scm_binary_verification.py"
       - "src/agent_control_plane/windows_scm_registration.py"
       - "src/agent_control_plane/windows_scm_registration_plan.py"
+      - "src/agent_control_plane/windows_scm_install_authorization.py"
       - "tests/test_windows_scm_native.py"
       - "tests/test_windows_scm_native_runtime.py"
       - "tests/test_windows_scm_binary_verification.py"
       - "tests/test_windows_scm_registration.py"
       - "tests/test_windows_scm_registration_plan.py"
+      - "tests/test_windows_scm_install_authorization.py"
       - ".github/workflows/windows-scm-native-probe.yml"
 
 permissions:
@@ -45,7 +49,7 @@ jobs:
           python-version: "3.14"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest
-      - run: python -m pytest tests/test_windows_scm_native.py tests/test_windows_scm_native_runtime.py tests/test_windows_scm_registration.py tests/test_windows_scm_binary_verification.py tests/test_windows_scm_registration_plan.py -q
+      - run: python -m pytest tests/test_windows_scm_native.py tests/test_windows_scm_native_runtime.py tests/test_windows_scm_registration.py tests/test_windows_scm_binary_verification.py tests/test_windows_scm_registration_plan.py tests/test_windows_scm_install_authorization.py -q
       - name: Verify required registration SCM exports
         shell: pwsh
         run: |
