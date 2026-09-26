@@ -772,3 +772,40 @@ Consumption occurs under a SQLite `BEGIN IMMEDIATE` transaction and fails closed
 - registration-plan drift.
 
 This is an authorization record, not authentication of the human named in `authorized_by`. It does not provide RBAC, MFA, cryptographic operator signatures, credential resolution, or SCM mutation. A future mutating installer must consume this exact authorization before privileged calls are permitted.
+
+
+## Backend-injected Windows installation transaction candidate
+
+ACP now has a mutation-orchestration candidate that deliberately accepts an injected backend instead of calling real SCM APIs.
+
+`WindowsScmServiceInstallationTransaction` enforces this order:
+
+1. validate the exact service/manifest/plan target;
+2. validate required credential plumbing exists;
+3. consume the exact single-use installation authorization;
+4. only then call the backend to open SCM;
+5. create the service;
+6. configure delayed auto-start only when the admitted plan requires it;
+7. on post-create configuration failure, attempt service deletion rollback;
+8. close service and SCM handles in all paths.
+
+Credential handling:
+
+- only plans that explicitly require credential resolution invoke the resolver;
+- the resolver receives the opaque credential reference;
+- plaintext secret is passed only to the backend create call;
+- no secret field exists in the transaction result;
+- ACP clears its local secret reference after use.
+
+Failure behavior:
+
+- plan drift fails before authorization consumption or backend access;
+- missing resolver fails before authorization consumption;
+- create failure consumes the authorization but performs no delete rollback because no service handle exists;
+- post-create failure attempts delete rollback;
+- rollback failure is surfaced separately and never hidden;
+- consumed authorization cannot be replayed for a second backend attempt.
+
+Operator-local Windows corroboration on the connected Windows 11 / Python 3.14.5 machine produced `8/8 PASS`.
+
+This slice still does not implement a native SCM mutation backend. Therefore no service was created, changed, deleted, started, or installed by this candidate.
