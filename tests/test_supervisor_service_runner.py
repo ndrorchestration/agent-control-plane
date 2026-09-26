@@ -27,6 +27,9 @@ from agent_control_plane.supervisor_recovery import (
     SupervisorRecoveryAdmissionPolicy,
     SupervisorRecoveryDecision,
 )
+from agent_control_plane.supervisor_recovery_authorization import (
+    SupervisorRecoveryAuthorizationStore,
+)
 from agent_control_plane.supervisor_runtime_checkpoint import (
     DurableSupervisorRuntimeCheckpointStore,
     SupervisorPreviousRunDisposition,
@@ -34,6 +37,7 @@ from agent_control_plane.supervisor_runtime_checkpoint import (
 from agent_control_plane.supervisor_service_runner import (
     BoundedSupervisorServiceRunner,
     SupervisorLeaseConfiguration,
+    SupervisorRecoveryAuthorizationConfiguration,
     SupervisorRuntimeCheckpointConfiguration,
     SupervisorWorkerRuntime,
 )
@@ -528,7 +532,7 @@ def test_next_checkpointed_run_classifies_prior_clean_stop(tmp_path):
     assert report.service_lease_fencing_token == 2
 
 
-def test_unclean_prior_generation_is_held_before_worker_start(tmp_path):
+def test_unclean_prior_generation_is_held_without_shadowing_checkpoint(tmp_path):
     lease_store = SupervisorOwnershipLeaseStore(
         tmp_path / "ownership-unclean.sqlite3"
     )
@@ -561,9 +565,8 @@ def test_unclean_prior_generation_is_held_before_worker_start(tmp_path):
     workers = (worker(tmp_path, "relay-a"),)
     contract = service_for(workers)
     times = iter([
-        "2026-09-25T23:00:00Z",  # acquire + begin generation
-        "2026-09-25T23:00:01Z",  # persist recovery hold
-        "2026-09-25T23:00:02Z",  # release leases
+        "2026-09-25T23:00:00Z",  # acquire + recovery assessment
+        "2026-09-25T23:00:01Z",  # release leases
     ])
     runner = BoundedSupervisorServiceRunner(
         contract=contract,
@@ -596,6 +599,7 @@ def test_unclean_prior_generation_is_held_before_worker_start(tmp_path):
         report.runtime_recovery_decision
         is SupervisorRecoveryDecision.HOLD
     )
+    assert report.runtime_generation is None
     assert report.final_snapshot.state is SupervisorServiceState.FAILED
     assert (
         report.final_snapshot.stop_reason
@@ -604,16 +608,213 @@ def test_unclean_prior_generation_is_held_before_worker_start(tmp_path):
     assert report.cycles_completed == 0
     assert report.final_observations[0].pid is None
     assert report.final_observations[0].running is False
+
+    # HOLD does not create a shadow generation that would obscure the exact
+    # checkpoint an operator must authorize.
     persisted = runtime_store.get("acp-supervisor")
     assert persisted is not None
-    assert persisted.generation == 2
-    assert persisted.state is SupervisorServiceState.FAILED
-    assert persisted.stop_reason is SupervisorStopReason.RECOVERY_HOLD
+    assert persisted.generation == 1
+    assert persisted.state is SupervisorServiceState.RUNNING
     assert lease_store.get("service:acp-supervisor").released_at is not None
     assert lease_store.get("relay-a-process").released_at is not None
 
 
-def test_explicit_policy_can_admit_unclean_prior_generation(tmp_path):
+def test_exact_one_time_authorization_admits_held_unclean_generation(tmp_path):
+    lease_store = SupervisorOwnershipLeaseStore(
+        tmp_path / "ownership-unclean-auth.sqlite3"
+    )
+    runtime_store = DurableSupervisorRuntimeCheckpointStore(
+        tmp_path / "runtime-unclean-auth.sqlite3"
+    )
+    authorization_store = SupervisorRecoveryAuthorizationStore(
+        tmp_path / "recovery-auth.sqlite3"
+    )
+    prior = runtime_store.begin_run(
+        service_id="acp-supervisor",
+        owner_id="old-supervisor",
+        fencing_token=9,
+        started_at="2026-09-25T22:00:00Z",
+    )
+    prior_contract = SupervisorServiceContract(
+        service_id="acp-supervisor",
+        workers=(
+            SupervisorWorkerRegistration(
+                worker_id="relay-a",
+                process_id="relay-a-process",
+                ownership_token="owner-relay-a",
+            ),
+        ),
+    )
+    prior_contract.begin_startup()
+    runtime_store.write_snapshot(
+        prior.checkpoint,
+        prior_contract.mark_running(),
+        updated_at="2026-09-25T22:00:01Z",
+    )
+
+    exact_assessment = runtime_store.assess_previous(
+        service_id="acp-supervisor",
+        owner_id="acp-supervisor",
+        fencing_token=1,
+    )
+    authorization_store.issue(
+        authorization_id="recover-generation-1",
+        assessment=exact_assessment,
+        authorized_by="operator-1",
+        issued_at="2026-09-25T22:30:00Z",
+        expires_at="2026-09-25T23:30:00Z",
+    )
+
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+    times = iter([
+        "2026-09-25T23:00:00Z",  # acquire, assess, consume, begin generation
+        "2026-09-25T23:00:01Z",  # running
+        "2026-09-25T23:00:02Z",  # cycle
+        "2026-09-25T23:00:03Z",  # stop request
+        "2026-09-25T23:00:04Z",  # stopping
+        "2026-09-25T23:00:05Z",  # lease release
+        "2026-09-25T23:00:06Z",  # stopped
+    ])
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        max_cycles=1,
+        interval_seconds=0,
+        now_provider=lambda: next(times),
+        sleep_fn=lambda seconds: None,
+        terminate_timeout_seconds=2,
+        lease_configuration=SupervisorLeaseConfiguration(
+            store=lease_store,
+            owner_id="acp-supervisor",
+            instance_token="runtime-instance-authorized",
+            ttl_seconds=30,
+        ),
+        runtime_checkpoint_configuration=(
+            SupervisorRuntimeCheckpointConfiguration(
+                store=runtime_store,
+                recovery_authorization=(
+                    SupervisorRecoveryAuthorizationConfiguration(
+                        store=authorization_store,
+                        authorization_id="recover-generation-1",
+                    )
+                ),
+            )
+        ),
+    )
+    report = runner.run()
+
+    assert (
+        report.runtime_recovery.disposition
+        is SupervisorPreviousRunDisposition.UNCLEAN_EXIT
+    )
+    assert (
+        report.runtime_recovery_decision
+        is SupervisorRecoveryDecision.ALLOW
+    )
+    assert (
+        report.runtime_recovery_authorization_id
+        == "recover-generation-1"
+    )
+    assert report.runtime_generation == 2
+    assert report.final_snapshot.state is SupervisorServiceState.STOPPED
+    consumed = authorization_store.get("recover-generation-1")
+    assert consumed is not None
+    assert consumed.consumed_at == "2026-09-25T23:00:00Z"
+
+
+def test_expired_authorization_leaves_recovery_held_and_worker_unstarted(tmp_path):
+    lease_store = SupervisorOwnershipLeaseStore(
+        tmp_path / "ownership-expired-auth.sqlite3"
+    )
+    runtime_store = DurableSupervisorRuntimeCheckpointStore(
+        tmp_path / "runtime-expired-auth.sqlite3"
+    )
+    authorization_store = SupervisorRecoveryAuthorizationStore(
+        tmp_path / "expired-auth.sqlite3"
+    )
+    prior = runtime_store.begin_run(
+        service_id="acp-supervisor",
+        owner_id="old-supervisor",
+        fencing_token=9,
+        started_at="2026-09-25T22:00:00Z",
+    )
+    prior_contract = SupervisorServiceContract(
+        service_id="acp-supervisor",
+        workers=(
+            SupervisorWorkerRegistration(
+                worker_id="relay-a",
+                process_id="relay-a-process",
+                ownership_token="owner-relay-a",
+            ),
+        ),
+    )
+    prior_contract.begin_startup()
+    runtime_store.write_snapshot(
+        prior.checkpoint,
+        prior_contract.mark_running(),
+        updated_at="2026-09-25T22:00:01Z",
+    )
+    exact_assessment = runtime_store.assess_previous(
+        service_id="acp-supervisor",
+        owner_id="acp-supervisor",
+        fencing_token=1,
+    )
+    authorization_store.issue(
+        authorization_id="expired-recovery",
+        assessment=exact_assessment,
+        authorized_by="operator-1",
+        issued_at="2026-09-25T22:10:00Z",
+        expires_at="2026-09-25T22:20:00Z",
+    )
+
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+    times = iter([
+        "2026-09-25T23:00:00Z",
+        "2026-09-25T23:00:01Z",
+    ])
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        max_cycles=1,
+        interval_seconds=0,
+        now_provider=lambda: next(times),
+        sleep_fn=lambda seconds: None,
+        terminate_timeout_seconds=2,
+        lease_configuration=SupervisorLeaseConfiguration(
+            store=lease_store,
+            owner_id="acp-supervisor",
+            instance_token="expired-instance",
+            ttl_seconds=30,
+        ),
+        runtime_checkpoint_configuration=(
+            SupervisorRuntimeCheckpointConfiguration(
+                store=runtime_store,
+                recovery_authorization=(
+                    SupervisorRecoveryAuthorizationConfiguration(
+                        store=authorization_store,
+                        authorization_id="expired-recovery",
+                    )
+                ),
+            )
+        ),
+    )
+    report = runner.run()
+
+    assert (
+        report.runtime_recovery_decision
+        is SupervisorRecoveryDecision.HOLD
+    )
+    assert report.runtime_recovery_authorization_id is None
+    assert report.runtime_generation is None
+    assert report.final_observations[0].pid is None
+    assert authorization_store.get("expired-recovery").consumed_at is None
+
+
+def test_explicit_policy_can_admit_unclean_prior_generation_without_authorization(
+    tmp_path,
+):
     lease_store = SupervisorOwnershipLeaseStore(
         tmp_path / "ownership-unclean-override.sqlite3"
     )
@@ -691,6 +892,7 @@ def test_explicit_policy_can_admit_unclean_prior_generation(tmp_path):
         report.runtime_recovery_decision
         is SupervisorRecoveryDecision.ALLOW
     )
+    assert report.runtime_recovery_authorization_id is None
     assert report.final_snapshot.state is SupervisorServiceState.STOPPED
     assert report.runtime_generation == 2
 
