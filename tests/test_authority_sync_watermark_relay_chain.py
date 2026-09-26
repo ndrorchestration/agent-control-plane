@@ -24,6 +24,7 @@ from agent_control_plane.authority_sync_watermark_keys import (
     WatermarkAuthenticationKeyRegistry,
 )
 from agent_control_plane.authority_sync_watermark_relay_chain import (
+    DurableEd25519ForwardingRelayStageEndpoint,
     Ed25519ForwardingRelayStageEndpoint,
     Ed25519RelayAppenderEndpoint,
     Ed25519RelayChainAppender,
@@ -614,3 +615,120 @@ def test_forwarding_relay_stage_rejects_non_byte_downstream_response():
                 new_ed25519_relay_chain(origin_payload())
             )
         )
+
+
+
+def test_durable_forwarding_stage_keeps_failed_send_for_restart(tmp_path):
+    from agent_control_plane.relay_forward_queue import DurableRelayForwardQueue
+
+    queue_path = tmp_path / "relay-forward.sqlite3"
+    q = DurableRelayForwardQueue(queue_path)
+
+    endpoint = DurableEd25519ForwardingRelayStageEndpoint(
+        appender=Ed25519RelayChainAppender(
+            relay_id="relay-a",
+            key_id="relay-key",
+            private_key_raw=RELAY_A_PRIVATE,
+            next_receiver_id="relay-b",
+            origin_verifier=origin_verifier(),
+            prefix_verifier=chain_verifier(),
+        ),
+        relayed_at_provider=lambda: "2026-09-25T17:51:00Z",
+        downstream_exchange=lambda payload: (_ for _ in ()).throw(
+            RuntimeError("relay-b offline")
+        ),
+        forward_queue=q,
+        downstream_id="relay-b",
+    )
+
+    payload = encode_ed25519_relay_chain(
+        new_ed25519_relay_chain(origin_payload())
+    )
+    with pytest.raises(RuntimeError, match="relay-b offline"):
+        endpoint.receive(payload)
+
+    reopened = DurableRelayForwardQueue(queue_path)
+    pending = reopened.pending()
+    assert len(pending) == 1
+    queued_chain = decode_ed25519_relay_chain(pending[0].payload)
+    assert tuple(hop.relay_id for hop in queued_chain.hops) == ("relay-a",)
+    assert pending[0].attempt_count == 1
+
+
+def test_durable_forwarding_stage_can_drain_after_restart(tmp_path):
+    from agent_control_plane.relay_forward_queue import DurableRelayForwardQueue
+
+    queue_path = tmp_path / "relay-forward.sqlite3"
+    first_queue = DurableRelayForwardQueue(queue_path)
+
+    failing = DurableEd25519ForwardingRelayStageEndpoint(
+        appender=Ed25519RelayChainAppender(
+            relay_id="relay-a",
+            key_id="relay-key",
+            private_key_raw=RELAY_A_PRIVATE,
+            next_receiver_id="relay-b",
+            origin_verifier=origin_verifier(),
+            prefix_verifier=chain_verifier(),
+        ),
+        relayed_at_provider=lambda: "2026-09-25T17:51:00Z",
+        downstream_exchange=lambda payload: (_ for _ in ()).throw(
+            RuntimeError("offline")
+        ),
+        forward_queue=first_queue,
+        downstream_id="relay-b",
+    )
+    with pytest.raises(RuntimeError):
+        failing.receive(
+            encode_ed25519_relay_chain(
+                new_ed25519_relay_chain(origin_payload())
+            )
+        )
+
+    reopened = DurableRelayForwardQueue(queue_path)
+    seen = []
+    recovered = DurableEd25519ForwardingRelayStageEndpoint(
+        appender=failing.appender,
+        relayed_at_provider=lambda: "2026-09-25T17:51:00Z",
+        downstream_exchange=lambda payload: (
+            seen.append(decode_ed25519_relay_chain(payload))
+            or b"final-ack"
+        ),
+        forward_queue=reopened,
+        downstream_id="relay-b",
+    )
+
+    completed = recovered.drain_pending()
+    assert len(completed) == 1
+    assert reopened.pending() == ()
+    assert tuple(hop.relay_id for hop in seen[0].hops) == ("relay-a",)
+
+
+def test_durable_forwarding_stage_rejects_pending_other_downstream(tmp_path):
+    from agent_control_plane.relay_forward_queue import DurableRelayForwardQueue
+
+    q = DurableRelayForwardQueue(tmp_path / "relay-forward.sqlite3")
+    q.enqueue(
+        relay_id="relay-a",
+        downstream_id="relay-c",
+        payload=b"opaque-pending",
+    )
+
+    endpoint = DurableEd25519ForwardingRelayStageEndpoint(
+        appender=Ed25519RelayChainAppender(
+            relay_id="relay-a",
+            key_id="relay-key",
+            private_key_raw=RELAY_A_PRIVATE,
+            next_receiver_id="relay-b",
+            origin_verifier=origin_verifier(),
+            prefix_verifier=chain_verifier(),
+        ),
+        relayed_at_provider=lambda: "2026-09-25T17:51:00Z",
+        downstream_exchange=lambda payload: b"ack",
+        forward_queue=q,
+        downstream_id="relay-b",
+    )
+    with pytest.raises(
+        AuthorityValidationError,
+        match="downstream mismatch",
+    ):
+        endpoint.drain_pending()
