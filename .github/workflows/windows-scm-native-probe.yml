@@ -7,9 +7,11 @@ on:
       - "src/agent_control_plane/windows_scm_service_host.py"
       - "src/agent_control_plane/windows_scm_native.py"
       - "src/agent_control_plane/windows_scm_native_runtime.py"
+      - "src/agent_control_plane/windows_scm_binary_verification.py"
       - "src/agent_control_plane/windows_scm_registration.py"
       - "tests/test_windows_scm_native.py"
       - "tests/test_windows_scm_native_runtime.py"
+      - "tests/test_windows_scm_binary_verification.py"
       - "tests/test_windows_scm_registration.py"
       - ".github/workflows/windows-scm-native-probe.yml"
   pull_request:
@@ -21,6 +23,7 @@ on:
       - "src/agent_control_plane/windows_scm_registration.py"
       - "tests/test_windows_scm_native.py"
       - "tests/test_windows_scm_native_runtime.py"
+      - "tests/test_windows_scm_binary_verification.py"
       - "tests/test_windows_scm_registration.py"
       - ".github/workflows/windows-scm-native-probe.yml"
 
