@@ -14,8 +14,8 @@ from agent_control_plane.remote_execution_adapter import (
 def request(command="git status --short"):
     return RemoteExecutionRequest(
         request_id="req-1",
-        device_id="neontic",
-        expected_device_identity_fingerprint="6a3e26a3861ee63431c546e10f80ce02df5255f4bec01b9ae31b40af92ff5fc3",
+        device_id="test-device",
+        expected_device_identity_fingerprint="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         expected_device_attestation_level="SOFTWARE_DERIVED_NOT_HARDWARE_ATTESTED",
         execution_profile="READ_ONLY_DISCOVERY",
         expected_side_effect_class="READ_ONLY",
@@ -28,8 +28,8 @@ def request(command="git status --short"):
 def receipt_data(command="git status --short"):
     return {
         "request_id": "req-1",
-        "device": "neontic",
-        "device_identity_fingerprint": "6a3e26a3861ee63431c546e10f80ce02df5255f4bec01b9ae31b40af92ff5fc3",
+        "device": "test-device",
+        "device_identity_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "device_attestation_level": "SOFTWARE_DERIVED_NOT_HARDWARE_ATTESTED",
         "execution_profile": "READ_ONLY_DISCOVERY",
         "side_effect_class": "READ_ONLY",
@@ -449,3 +449,15 @@ def test_signed_read_only_policy_rejects_arbitrary_or_chained_commands(command):
 )
 def test_signed_read_only_policy_accepts_only_pre_reviewed_commands(command):
     assert_read_only_command_allowed(command)
+
+
+def test_receipt_accepts_canonical_device_id_field():
+    data = receipt_data()
+    data["device_id"] = data.pop("device")
+    receipt = RemoteExecutionReceipt.from_mapping(data)
+    assert receipt.device_id == "test-device"
+
+
+def test_receipt_legacy_device_alias_remains_supported():
+    receipt = RemoteExecutionReceipt.from_mapping(receipt_data())
+    assert receipt.device_id == "test-device"
