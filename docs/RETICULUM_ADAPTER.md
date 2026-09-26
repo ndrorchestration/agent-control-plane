@@ -271,3 +271,20 @@ Admission is fail-closed for a **new** item that would exceed either configured 
 The queue exposes current pending item/byte usage and configured limits through its manifest without including payload bytes.
 
 These controls provide local storage backpressure only. They do not establish network congestion control, sender-side flow-control signaling, fairness, priority scheduling, disk-space guarantees, denial-of-service resistance, or production queue sizing.
+
+
+## Deterministic relay supervision cycle
+
+ACP now has a caller-driven supervisory maintenance primitive that composes the accepted durable queue, bounded retry policy, and dead-letter store.
+
+A `RelaySupervisorCycle.run(now=...)` call:
+1. performs one bounded retry sweep over pending records;
+2. moves only retry-policy-exhausted records into durable dead-letter state;
+3. samples remaining queue usage and total dead-letter count;
+4. reports a deterministic health state:
+   - `idle`: no work;
+   - `healthy`: retry work completed with no pending/degraded state;
+   - `degraded`: deferred/failed/retryable work remains;
+   - `blocked`: an item exhausted and was dead-lettered.
+
+The cycle does not schedule itself, sleep, restart relay processes, supervise OS PIDs, or create background workers. It is orchestration logic for a future supervisor, not evidence of an automatic supervisory runtime.
