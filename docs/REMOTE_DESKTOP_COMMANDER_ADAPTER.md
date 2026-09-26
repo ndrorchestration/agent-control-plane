@@ -56,7 +56,7 @@ Candidate focused tests: 5 passed, 1 skipped.
 
 Candidate full regression: 561 passed, 5 skipped.
 
-A real RDC control receipt was then validated using caller-supplied expected request identity, device `neontic`, profile `READ_ONLY_DISCOVERY`, working directory, and exact command. Result:
+A real local-executor control receipt was then validated using caller-supplied expected request identity, a synthetic/public-safe device identifier, profile `READ_ONLY_DISCOVERY`, working directory, and exact command. Result:
 
 `REMOTE_EXECUTION_RECEIPT=PASS`
 
@@ -91,7 +91,7 @@ A newly emitted real control receipt containing `side_effect_class=READ_ONLY` wa
 
 ## Structured receipt signature envelopes — 2026-09-26
 
-The real local runner now signs the entire serialized receipt with HMAC-SHA256 and emits an `ndr.receipt-signature.v1` detached JSON envelope containing `algorithm`, non-secret `key_id`, `receipt_sha256`, and `signature`. The machine-local 32-byte key is ACL-restricted to `NEONTIC\\Admin` and `SYSTEM`; current non-secret key ID is `bad6db52b5b028c1`.
+The real local runner now signs the entire serialized receipt with HMAC-SHA256 and emits an `ndr.receipt-signature.v1` detached JSON envelope containing `algorithm`, non-secret `key_id`, `receipt_sha256`, and `signature`. Production/local deployments should keep concrete account names, key IDs, fingerprints, and custody metadata outside public repository fixtures and documentation.
 
 ACP validates the envelope schema, algorithm, exact receipt SHA-256, key ID, and HMAC before accepting integrity. Any receipt-byte change fails verification. Focused adapter coverage: 16 passed, 1 skipped. Full ACP regression: 572 passed, 5 skipped. Real envelope conformance passed locally.
 
@@ -130,3 +130,7 @@ Post-audit local verification: 28 focused tests passed / 1 skipped; full ACP reg
 A second PR review pass identified a critical semantic gap: a request could declare `READ_ONLY` while carrying an arbitrary shell command. The signed pre-execution path now rejects arbitrary shell content and admits only exact, pre-reviewed inspection commands from `READ_ONLY_COMMAND_ALLOWLIST`. Shell chaining/metacharacter variants and destructive commands are rejected even if the envelope is otherwise correctly signed.
 
 This is intentionally narrow. Expanding the signed execution surface requires adding a reviewed operation to the allowlist with tests; callers cannot create new read-only capabilities by relabeling arbitrary commands.
+
+## Public schema / portability cleanup — 2026-09-26
+
+Public fixtures use synthetic device identities and fingerprints; deployment-specific hostnames, account names, key IDs, and stable machine fingerprints are intentionally excluded from repository examples. `device_id` is the canonical ACP field for both requests and receipts. Receipt parsing retains the legacy executor field `device` as a backward-compatible alias for existing evidence packets.
