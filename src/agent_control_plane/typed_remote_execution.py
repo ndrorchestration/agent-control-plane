@@ -20,6 +20,7 @@ TYPED_REQUEST_ENVELOPE_SCHEMA_VERSION = "ndr.remote-execution-request.v2"
 REMOTE_EXECUTION_MAX_RUNTIME_SECONDS = 30
 REMOTE_EXECUTION_MAX_OUTPUT_BYTES = 1024 * 1024
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_SAFE_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 
 @dataclass(frozen=True)
@@ -181,6 +182,11 @@ class TypedRemoteExecutionRequest:
 
     def __post_init__(self) -> None:
         _required(self.request_id, "request_id")
+        if (
+            _SAFE_REQUEST_ID_RE.fullmatch(self.request_id) is None
+            or self.request_id in {".", ".."}
+        ):
+            raise ContractValidationError("request_id is not path-safe")
         _required(self.device_id, "device_id")
         _sha256(
             self.expected_device_identity_fingerprint,
@@ -469,6 +475,11 @@ class TypedRemoteExecutionResult:
 
     def _validate(self) -> None:
         _required(self.request_id, "request_id")
+        if (
+            _SAFE_REQUEST_ID_RE.fullmatch(self.request_id) is None
+            or self.request_id in {".", ".."}
+        ):
+            raise ContractValidationError("request_id is not path-safe")
         _required(self.operation_id, "operation_id")
         _validate_operation_parameters(
             self.operation_id,

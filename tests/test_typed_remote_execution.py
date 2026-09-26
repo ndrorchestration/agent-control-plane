@@ -339,3 +339,42 @@ def test_typed_result_assert_matches_binds_expected_envelope_digest():
     result.assert_matches(req, request_envelope_sha256="b" * 64)
     with pytest.raises(ContractValidationError, match="request envelope digest mismatch"):
         result.assert_matches(req, request_envelope_sha256="c" * 64)
+
+
+@pytest.mark.parametrize(
+    "request_id",
+    [
+        "../escape",
+        "..\\escape",
+        "/absolute",
+        r"C:\absolute",
+        ".",
+        "..",
+        "has/slash",
+        "has\\backslash",
+        "has:colon",
+        "has space",
+        "x" * 129,
+    ],
+)
+def test_typed_request_rejects_path_unsafe_request_id(request_id):
+    with pytest.raises(ContractValidationError, match="request_id is not path-safe"):
+        TypedRemoteExecutionRequest(
+            request_id=request_id,
+            device_id="test-device",
+            expected_device_identity_fingerprint=FINGERPRINT,
+            expected_device_attestation_level="SOFTWARE_DERIVED_NOT_HARDWARE_ATTESTED",
+            execution_profile="READ_ONLY_DISCOVERY",
+            expected_side_effect_class="READ_ONLY",
+            working_directory="/tmp/repo",
+            operation_id="git.status.short",
+            operation_parameters={},
+            operation_sha256=operation_sha256("git.status.short", {}),
+        )
+
+
+def test_typed_result_rejects_path_unsafe_request_id():
+    data = result_data()
+    data["request_id"] = "../escape"
+    with pytest.raises(ContractValidationError, match="request_id is not path-safe"):
+        TypedRemoteExecutionResult.from_mapping(data)
