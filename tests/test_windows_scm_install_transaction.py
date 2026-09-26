@@ -10,6 +10,11 @@ from agent_control_plane.windows_scm_install_transaction import (
     WindowsScmInstallationTransactionError,
     WindowsScmServiceInstallationTransaction,
 )
+from agent_control_plane.windows_scm_install_journal import (
+    WindowsScmInstallationJournal,
+    WindowsScmInstallJournalState,
+    WindowsScmInstallRecoveryDisposition,
+)
 from agent_control_plane.windows_scm_registration_plan import (
     WindowsScmServiceRegistrationPlan,
 )
@@ -371,3 +376,242 @@ def test_plan_drift_fails_before_authorization_or_backend(tmp_path):
 
     assert store.get("install-1").consumed_at is None
     assert backend.calls == []
+
+
+
+def test_success_is_durably_journaled_to_completed(tmp_path):
+    item = plan()
+    target = target_for(item)
+    store = WindowsScmInstallationAuthorizationStore(
+        tmp_path / "install.sqlite3"
+    )
+    issue(store, target)
+    journal = WindowsScmInstallationJournal(
+        tmp_path / "journal.sqlite3"
+    )
+    tx = WindowsScmServiceInstallationTransaction(
+        authorization_store=store,
+        backend=FakeBackend(),
+        journal=journal,
+    )
+
+    tx.install(
+        authorization_id="install-1",
+        target=target,
+        plan=item,
+        now="2026-09-26T09:05:00Z",
+        transaction_id="tx-success",
+    )
+
+    record = journal.get("tx-success")
+    assert tuple(event.state for event in record.events) == (
+        WindowsScmInstallJournalState.PREPARED,
+        WindowsScmInstallJournalState.AUTHORIZATION_CONSUMED,
+        WindowsScmInstallJournalState.SCM_OPENED,
+        WindowsScmInstallJournalState.CREATE_INTENT_RECORDED,
+        WindowsScmInstallJournalState.SERVICE_CREATED,
+        WindowsScmInstallJournalState.COMPLETED,
+    )
+    assessment = journal.assess_recovery("tx-success")
+    assert (
+        assessment.disposition
+        is WindowsScmInstallRecoveryDisposition.CLEAN_INSTALLED
+    )
+
+
+def test_delayed_auto_start_success_journals_configure_intent(tmp_path):
+    item = plan(delayed_auto_start=True)
+    target = target_for(item)
+    store = WindowsScmInstallationAuthorizationStore(
+        tmp_path / "install.sqlite3"
+    )
+    issue(store, target)
+    journal = WindowsScmInstallationJournal(
+        tmp_path / "journal.sqlite3"
+    )
+    tx = WindowsScmServiceInstallationTransaction(
+        authorization_store=store,
+        backend=FakeBackend(),
+        journal=journal,
+    )
+
+    tx.install(
+        authorization_id="install-1",
+        target=target,
+        plan=item,
+        now="2026-09-26T09:05:00Z",
+        transaction_id="tx-config",
+    )
+
+    states = tuple(
+        event.state for event in journal.get("tx-config").events
+    )
+    assert states[-3:] == (
+        WindowsScmInstallJournalState.CONFIGURE_INTENT_RECORDED,
+        WindowsScmInstallJournalState.DELAYED_AUTO_START_CONFIGURED,
+        WindowsScmInstallJournalState.COMPLETED,
+    )
+
+
+def test_config_failure_journals_rollback_before_delete(tmp_path):
+    item = plan(delayed_auto_start=True)
+    target = target_for(item)
+    store = WindowsScmInstallationAuthorizationStore(
+        tmp_path / "install.sqlite3"
+    )
+    issue(store, target)
+    journal = WindowsScmInstallationJournal(
+        tmp_path / "journal.sqlite3"
+    )
+    backend = FakeBackend(fail_config=True)
+    tx = WindowsScmServiceInstallationTransaction(
+        authorization_store=store,
+        backend=backend,
+        journal=journal,
+    )
+
+    with pytest.raises(WindowsScmInstallationTransactionError):
+        tx.install(
+            authorization_id="install-1",
+            target=target,
+            plan=item,
+            now="2026-09-26T09:05:00Z",
+            transaction_id="tx-rollback",
+        )
+
+    record = journal.get("tx-rollback")
+    assert record.current_state is WindowsScmInstallJournalState.ROLLED_BACK
+    assert (
+        journal.assess_recovery("tx-rollback").disposition
+        is WindowsScmInstallRecoveryDisposition.CLEAN_ROLLED_BACK
+    )
+
+
+def test_rollback_failure_is_durably_held(tmp_path):
+    item = plan(delayed_auto_start=True)
+    target = target_for(item)
+    store = WindowsScmInstallationAuthorizationStore(
+        tmp_path / "install.sqlite3"
+    )
+    issue(store, target)
+    journal = WindowsScmInstallationJournal(
+        tmp_path / "journal.sqlite3"
+    )
+    tx = WindowsScmServiceInstallationTransaction(
+        authorization_store=store,
+        backend=FakeBackend(fail_config=True, fail_delete=True),
+        journal=journal,
+    )
+
+    with pytest.raises(WindowsScmInstallationTransactionError):
+        tx.install(
+            authorization_id="install-1",
+            target=target,
+            plan=item,
+            now="2026-09-26T09:05:00Z",
+            transaction_id="tx-rollback-failed",
+        )
+
+    record = journal.get("tx-rollback-failed")
+    assert (
+        record.current_state
+        is WindowsScmInstallJournalState.ROLLBACK_FAILED
+    )
+    assessment = journal.assess_recovery("tx-rollback-failed")
+    assert (
+        assessment.disposition
+        is WindowsScmInstallRecoveryDisposition.HOLD_ROLLBACK_FAILED
+    )
+
+
+def test_abrupt_exit_during_create_leaves_create_intent_hold(tmp_path):
+    class CrashDuringCreateBackend(FakeBackend):
+        def create_service(self, scm_handle, plan, credential_secret):
+            self.calls.append(
+                ("create_service_crash", scm_handle, plan.service_name)
+            )
+            raise SystemExit("simulated process death")
+
+    item = plan()
+    target = target_for(item)
+    store = WindowsScmInstallationAuthorizationStore(
+        tmp_path / "install.sqlite3"
+    )
+    issue(store, target)
+    journal = WindowsScmInstallationJournal(
+        tmp_path / "journal.sqlite3"
+    )
+    tx = WindowsScmServiceInstallationTransaction(
+        authorization_store=store,
+        backend=CrashDuringCreateBackend(),
+        journal=journal,
+    )
+
+    with pytest.raises(SystemExit):
+        tx.install(
+            authorization_id="install-1",
+            target=target,
+            plan=item,
+            now="2026-09-26T09:05:00Z",
+            transaction_id="tx-create-crash",
+        )
+
+    record = WindowsScmInstallationJournal(
+        tmp_path / "journal.sqlite3"
+    ).get("tx-create-crash")
+    assert (
+        record.current_state
+        is WindowsScmInstallJournalState.CREATE_INTENT_RECORDED
+    )
+    assessment = journal.assess_recovery("tx-create-crash")
+    assert (
+        assessment.disposition
+        is WindowsScmInstallRecoveryDisposition
+        .HOLD_POSSIBLE_INSTALLED_SERVICE
+    )
+
+
+def test_abrupt_exit_during_configure_leaves_ambiguous_hold(tmp_path):
+    class CrashDuringConfigureBackend(FakeBackend):
+        def configure_delayed_auto_start(self, service_handle, enabled):
+            self.calls.append(
+                ("configure_crash", service_handle, enabled)
+            )
+            raise SystemExit("simulated process death")
+
+    item = plan(delayed_auto_start=True)
+    target = target_for(item)
+    store = WindowsScmInstallationAuthorizationStore(
+        tmp_path / "install.sqlite3"
+    )
+    issue(store, target)
+    journal = WindowsScmInstallationJournal(
+        tmp_path / "journal.sqlite3"
+    )
+    tx = WindowsScmServiceInstallationTransaction(
+        authorization_store=store,
+        backend=CrashDuringConfigureBackend(),
+        journal=journal,
+    )
+
+    with pytest.raises(SystemExit):
+        tx.install(
+            authorization_id="install-1",
+            target=target,
+            plan=item,
+            now="2026-09-26T09:05:00Z",
+            transaction_id="tx-config-crash",
+        )
+
+    record = WindowsScmInstallationJournal(
+        tmp_path / "journal.sqlite3"
+    ).get("tx-config-crash")
+    assert (
+        record.current_state
+        is WindowsScmInstallJournalState.CONFIGURE_INTENT_RECORDED
+    )
+    assert (
+        journal.assess_recovery("tx-config-crash").disposition
+        is WindowsScmInstallRecoveryDisposition
+        .HOLD_POSSIBLE_INSTALLED_SERVICE
+    )
