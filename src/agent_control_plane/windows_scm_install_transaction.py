@@ -17,6 +17,10 @@ from .windows_scm_install_authorization import (
 from .windows_scm_registration_plan import (
     WindowsScmServiceRegistrationPlan,
 )
+from .windows_scm_install_journal import (
+    DurableWindowsScmInstallJournal,
+    WindowsScmInstallJournalEvent,
+)
 
 
 @runtime_checkable
@@ -74,6 +78,7 @@ class WindowsScmServiceInstallationTransaction:
         authorization_store: WindowsScmInstallationAuthorizationStore,
         backend: WindowsScmInstallationBackend,
         credential_resolver: Optional[Callable[[str], str]] = None,
+        journal: Optional[DurableWindowsScmInstallJournal] = None,
     ) -> None:
         if not isinstance(
             authorization_store,
@@ -94,9 +99,17 @@ class WindowsScmServiceInstallationTransaction:
             raise AuthorityValidationError(
                 "credential_resolver must be callable or None"
             )
+        if journal is not None and not isinstance(
+            journal,
+            DurableWindowsScmInstallJournal,
+        ):
+            raise AuthorityValidationError(
+                "journal must be DurableWindowsScmInstallJournal or None"
+            )
         self.authorization_store = authorization_store
         self.backend = backend
         self.credential_resolver = credential_resolver
+        self.journal = journal
 
     def _validate_exact_target(
         self,
@@ -137,6 +150,25 @@ class WindowsScmServiceInstallationTransaction:
                     "credential resolver required by installation plan"
                 )
 
+    def _journal(
+        self,
+        *,
+        authorization_id: str,
+        target: WindowsScmInstallationTarget,
+        event: WindowsScmInstallJournalEvent,
+        recorded_at: str,
+        detail: Optional[str] = None,
+    ) -> None:
+        if self.journal is None:
+            return
+        self.journal.append(
+            authorization_id=authorization_id,
+            target=target,
+            event=event,
+            recorded_at=recorded_at,
+            detail=detail,
+        )
+
     def install(
         self,
         *,
@@ -152,6 +184,12 @@ class WindowsScmServiceInstallationTransaction:
             authorization_id,
             target=target,
             now=now,
+        )
+        self._journal(
+            authorization_id=authorization_id,
+            target=target,
+            event=WindowsScmInstallJournalEvent.AUTHORIZATION_CONSUMED,
+            recorded_at=now,
         )
 
         credential_secret: Optional[str] = None
@@ -176,28 +214,76 @@ class WindowsScmServiceInstallationTransaction:
         rollback_error: Optional[str] = None
 
         try:
+            self._journal(
+                authorization_id=authorization_id,
+                target=target,
+                event=WindowsScmInstallJournalEvent.SCM_OPEN_INTENT,
+                recorded_at=now,
+            )
             scm_handle = self.backend.open_scm(
                 plan.desired_scm_access
             )
             steps.append("scm_opened")
+            self._journal(
+                authorization_id=authorization_id,
+                target=target,
+                event=WindowsScmInstallJournalEvent.SCM_OPENED,
+                recorded_at=now,
+            )
 
+            self._journal(
+                authorization_id=authorization_id,
+                target=target,
+                event=WindowsScmInstallJournalEvent.CREATE_SERVICE_INTENT,
+                recorded_at=now,
+            )
             service_handle = self.backend.create_service(
                 scm_handle,
                 plan,
                 credential_secret,
             )
             steps.append("service_created")
+            self._journal(
+                authorization_id=authorization_id,
+                target=target,
+                event=WindowsScmInstallJournalEvent.SERVICE_CREATED,
+                recorded_at=now,
+            )
 
             # Drop the reference immediately after the native create call.
             credential_secret = None
 
             if plan.delayed_auto_start:
+                self._journal(
+                    authorization_id=authorization_id,
+                    target=target,
+                    event=(
+                        WindowsScmInstallJournalEvent.
+                        DELAYED_AUTO_START_INTENT
+                    ),
+                    recorded_at=now,
+                )
                 self.backend.configure_delayed_auto_start(
                     service_handle,
                     True,
                 )
                 steps.append("delayed_auto_start_configured")
+                self._journal(
+                    authorization_id=authorization_id,
+                    target=target,
+                    event=(
+                        WindowsScmInstallJournalEvent.
+                        DELAYED_AUTO_START_CONFIGURED
+                    ),
+                    recorded_at=now,
+                )
 
+            self._journal(
+                authorization_id=authorization_id,
+                target=target,
+                event=WindowsScmInstallJournalEvent.INSTALL_COMMITTED,
+                recorded_at=now,
+            )
             return WindowsScmInstallTransactionResult(
                 authorization_id=consumed.authorization_id,
                 service_name=target.service_name,
@@ -214,14 +300,42 @@ class WindowsScmServiceInstallationTransaction:
             credential_secret = None
             if service_handle is not None:
                 try:
+                    self._journal(
+                        authorization_id=authorization_id,
+                        target=target,
+                        event=(
+                            WindowsScmInstallJournalEvent.
+                            ROLLBACK_DELETE_INTENT
+                        ),
+                        recorded_at=now,
+                    )
                     self.backend.delete_service(service_handle)
                     steps.append("service_deleted_rollback")
                     rollback_performed = True
+                    self._journal(
+                        authorization_id=authorization_id,
+                        target=target,
+                        event=(
+                            WindowsScmInstallJournalEvent.
+                            ROLLBACK_DELETE_COMPLETE
+                        ),
+                        recorded_at=now,
+                    )
                 except Exception as rollback_exc:
                     rollback_error = (
                         f"{type(rollback_exc).__name__}: {rollback_exc}"
                     )
                     steps.append("service_delete_rollback_failed")
+                    self._journal(
+                        authorization_id=authorization_id,
+                        target=target,
+                        event=(
+                            WindowsScmInstallJournalEvent.
+                            ROLLBACK_DELETE_FAILED
+                        ),
+                        recorded_at=now,
+                        detail=rollback_error,
+                    )
             raise WindowsScmInstallationTransactionError(
                 f"{type(exc).__name__}: {exc}",
                 mutation_steps=tuple(steps),
