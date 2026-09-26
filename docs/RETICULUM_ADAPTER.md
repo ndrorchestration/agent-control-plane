@@ -301,3 +301,24 @@ ACP now has a scheduler-neutral process-failure policy that maps explicit failur
 The policy consumes explicit `ProcessFailureState` containing process ID, failure count, failure time, and optional last-restart time. It does not inspect OS processes, spawn subprocesses, terminate workers, sleep, persist process state, or restart anything itself.
 
 This establishes deterministic restart-decision semantics only. Actual process supervision, PID tracking, executable configuration, restart execution, backoff scheduling, and crash-loop recovery remain unestablished.
+
+
+## Bounded caller-driven subprocess control
+
+ACP now has an explicit process-control runtime for one configured child process.
+
+`ManagedProcessController` can:
+- start the configured argv;
+- observe PID/running/return-code state;
+- terminate with bounded wait then kill fallback;
+- restart by terminating an active child and starting a new child;
+- read captured combined stdout/stderr after process completion.
+
+`SupervisedProcessController` applies the accepted `ProcessSupervisionPolicy`:
+- `restart` executes a bounded restart;
+- `hold` leaves the current process unchanged;
+- `give_up` terminates an active process.
+
+Tests include real Python child processes for start, termination and restart behavior.
+
+This remains caller-driven. There is no monitoring loop, crash detector, persistent failure counter, executable allow-list, privilege sandbox, service manager integration, or autonomous restart scheduler. The runtime proves bounded subprocess control semantics only.
