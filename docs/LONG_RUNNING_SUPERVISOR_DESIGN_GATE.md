@@ -281,8 +281,42 @@ Default admission:
 - `terminal_give_up` -> HOLD;
 - `prior_failure` -> HOLD.
 
-A HOLD occurs after the new service lease/runtime generation is established but **before any worker process starts**. The new generation is persisted as `FAILED / recovery_hold`, all acquired leases are released, and the report retains both the prior recovery assessment and the HOLD decision.
+A HOLD occurs after the prospective service/worker leases are acquired but **before any new runtime generation or worker process starts**. The exact prior checkpoint remains intact, all newly acquired leases are released, and the report retains both the prior recovery assessment and the in-memory `FAILED / recovery_hold` outcome. This avoids shadowing the checkpoint that an operator may need to authorize.
 
 A caller may explicitly widen the allowed disposition set. There is no implicit automatic recovery from unclean or failed prior state.
 
 This establishes local fail-closed recovery admission only. It does not establish remediation of the prior failure, operator authorization UX, distributed recovery, or service-manager restart policy.
+
+
+## Exact one-time recovery authorization candidate
+
+A held non-clean recovery may now be authorized only by an exact durable record.
+
+`SupervisorRecoveryAuthorizationStore` binds one authorization ID to:
+
+- service ID;
+- exact previous runtime generation;
+- previous owner ID;
+- previous ownership fencing token;
+- SHA-256 of the complete prior checkpoint;
+- exact previous-run disposition;
+- operator label (`authorized_by`);
+- issue time;
+- expiry time;
+- single-use consumption time.
+
+The runner assesses recovery **before** creating the next runtime generation. If the default recovery policy returns HOLD, an optional configured authorization is consumed against that exact assessment. Only a successful exact match changes the startup decision to ALLOW; then and only then is the next runtime generation created.
+
+Fail-closed cases include:
+
+- wrong or changed prior generation;
+- wrong prior fence/owner/checkpoint hash;
+- wrong disposition;
+- expired authorization;
+- missing authorization;
+- already consumed authorization;
+- terminal give-up unless `allow_terminal_give_up=true` is separately configured.
+
+A HOLD with no valid authorization does not mutate the prior runtime checkpoint and starts no worker.
+
+The `authorized_by` field is an audit label supplied by the caller; this slice does not authenticate a human operator, implement RBAC/MFA, provide an approval UI, or establish cryptographic operator signatures.
