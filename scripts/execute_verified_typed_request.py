@@ -111,7 +111,10 @@ result_payload = {
 }
 
 validated = TypedRemoteExecutionResult.from_mapping(result_payload)
-validated.assert_matches(request)
+validated.assert_matches(
+    request,
+    request_envelope_sha256=request_envelope_sha256,
+)
 
 out = evidence_root / f"{request.request_id}.typed-result.json"
 out.write_text(

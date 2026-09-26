@@ -121,3 +121,9 @@ The verified executor reads the request envelope bytes once, computes the envelo
 Result placement is executor-owned rather than request/caller-owned. The executor receives a configured evidence root and derives the result filename as `<request_id>.typed-result.json`. A signed request cannot select an arbitrary output path or redirect result evidence into the target working tree.
 
 The generic argv execution helper is private to the typed module. Public execution accepts an admitted operation ID plus validated parameters and derives argv internally.
+
+### Result-evidence validation
+
+`TypedRemoteExecutionResult` validates the evidence packet itself, not only operation identity. For untruncated stdout/stderr it recomputes UTF-8 byte counts and SHA-256 exactly. For truncated streams it requires a full byte count larger than the retained prefix and enforces the retention bound; the full-stream digest remains executor-produced because the omitted suffix is intentionally unavailable to the verifier. The result also validates start/finish ordering, boolean timeout state, timeout exit-code semantics, derived argv, `shell=false`, and the exact expected request-envelope SHA-256 when supplied by the verifier.
+
+This means a result whose retained output, byte counts, timing, timeout state, argv, operation digest, or request-envelope binding drifts fails closed instead of being accepted as structurally plausible evidence.

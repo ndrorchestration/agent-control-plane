@@ -370,8 +370,17 @@ class TypedRemoteExecutionResult:
     shell: bool
     working_directory: str
     exit_code: int
+    started_epoch_seconds: float
+    finished_epoch_seconds: float
+    timed_out: bool
     stdout_sha256: str
     stderr_sha256: str
+    stdout_bytes: int
+    stderr_bytes: int
+    stdout_truncated: bool
+    stderr_truncated: bool
+    stdout: str
+    stderr: str
 
     @classmethod
     def from_mapping(
@@ -393,8 +402,17 @@ class TypedRemoteExecutionResult:
                 shell=data["shell"],
                 working_directory=data["working_directory"],
                 exit_code=data["exit_code"],
+                started_epoch_seconds=data["started_epoch_seconds"],
+                finished_epoch_seconds=data["finished_epoch_seconds"],
+                timed_out=data["timed_out"],
                 stdout_sha256=data["stdout_sha256"],
                 stderr_sha256=data["stderr_sha256"],
+                stdout_bytes=data["stdout_bytes"],
+                stderr_bytes=data["stderr_bytes"],
+                stdout_truncated=data["stdout_truncated"],
+                stderr_truncated=data["stderr_truncated"],
+                stdout=data["stdout"],
+                stderr=data["stderr"],
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ContractValidationError(
@@ -402,6 +420,53 @@ class TypedRemoteExecutionResult:
             ) from exc
         result._validate()
         return result
+
+    @staticmethod
+    def _validate_stream(
+        *,
+        name: str,
+        text: str,
+        digest: str,
+        total_bytes: int,
+        truncated: bool,
+    ) -> None:
+        if not isinstance(text, str):
+            raise ContractValidationError(f"{name} must be text")
+        _sha256(digest, f"{name}_sha256")
+        if (
+            isinstance(total_bytes, bool)
+            or not isinstance(total_bytes, int)
+            or total_bytes < 0
+        ):
+            raise ContractValidationError(
+                f"{name}_bytes must be a non-negative integer"
+            )
+        if not isinstance(truncated, bool):
+            raise ContractValidationError(
+                f"{name}_truncated must be boolean"
+            )
+        retained = text.encode("utf-8")
+        retained_bytes = len(retained)
+        if retained_bytes > REMOTE_EXECUTION_MAX_OUTPUT_BYTES:
+            raise ContractValidationError(
+                f"{name} retained output exceeds execution bound"
+            )
+        if truncated:
+            if total_bytes <= retained_bytes:
+                raise ContractValidationError(
+                    f"{name} truncation byte count is inconsistent"
+                )
+        else:
+            if total_bytes != retained_bytes:
+                raise ContractValidationError(
+                    f"{name} byte count mismatch"
+                )
+            observed = hashlib.sha256(retained).hexdigest()
+            if observed != digest:
+                raise ContractValidationError(
+                    f"{name} digest mismatch"
+                )
+
     def _validate(self) -> None:
         _required(self.request_id, "request_id")
         _required(self.operation_id, "operation_id")
@@ -442,12 +507,50 @@ class TypedRemoteExecutionResult:
             raise ContractValidationError(
                 "typed execution exit_code must be integer"
             )
-        _sha256(self.stdout_sha256, "stdout_sha256")
-        _sha256(self.stderr_sha256, "stderr_sha256")
+        for value, field_name in (
+            (self.started_epoch_seconds, "started_epoch_seconds"),
+            (self.finished_epoch_seconds, "finished_epoch_seconds"),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or value < 0
+            ):
+                raise ContractValidationError(
+                    f"{field_name} must be a non-negative number"
+                )
+        if self.finished_epoch_seconds < self.started_epoch_seconds:
+            raise ContractValidationError(
+                "typed execution finish precedes start"
+            )
+        if not isinstance(self.timed_out, bool):
+            raise ContractValidationError(
+                "typed execution timed_out must be boolean"
+            )
+        if self.timed_out and self.exit_code != 124:
+            raise ContractValidationError(
+                "typed execution timeout must use exit code 124"
+            )
+        self._validate_stream(
+            name="stdout",
+            text=self.stdout,
+            digest=self.stdout_sha256,
+            total_bytes=self.stdout_bytes,
+            truncated=self.stdout_truncated,
+        )
+        self._validate_stream(
+            name="stderr",
+            text=self.stderr,
+            digest=self.stderr_sha256,
+            total_bytes=self.stderr_bytes,
+            truncated=self.stderr_truncated,
+        )
 
     def assert_matches(
         self,
         request: TypedRemoteExecutionRequest,
+        *,
+        request_envelope_sha256: str | None = None,
     ) -> None:
         if not isinstance(request, TypedRemoteExecutionRequest):
             raise ContractValidationError(
@@ -477,12 +580,27 @@ class TypedRemoteExecutionResult:
                 raise ContractValidationError(
                     f"typed execution result {field_name} mismatch"
                 )
+        if request_envelope_sha256 is not None:
+            expected_envelope = _sha256(
+                request_envelope_sha256,
+                "expected request_envelope_sha256",
+            )
+            if self.request_envelope_sha256 != expected_envelope:
+                raise ContractValidationError(
+                    "typed execution result request envelope digest mismatch"
+                )
 
     def assert_succeeded(self) -> None:
+        if self.timed_out:
+            raise ContractValidationError(
+                "typed execution timed out"
+            )
         if self.exit_code != 0:
             raise ContractValidationError(
                 "typed execution did not exit successfully"
             )
+
+
 def resolve_authorized_working_directory(
     working_directory: str,
     allowed_roots: Tuple[str, ...] | list[str],

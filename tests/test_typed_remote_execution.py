@@ -72,8 +72,17 @@ def result_data(request=None):
         "shell": False,
         "working_directory": request.working_directory,
         "exit_code": 0,
+        "started_epoch_seconds": 100.0,
+        "finished_epoch_seconds": 101.0,
+        "timed_out": False,
         "stdout_sha256": hashlib.sha256(b"").hexdigest(),
         "stderr_sha256": hashlib.sha256(b"").hexdigest(),
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "stdout_truncated": False,
+        "stderr_truncated": False,
+        "stdout": "",
+        "stderr": "",
     }
 
 
@@ -271,3 +280,62 @@ def test_operation_spec_is_immutable():
     spec = READ_ONLY_OPERATION_SPECS["git.status.short"]
     with pytest.raises(FrozenInstanceError):
         spec.argv = ("git", "status")
+
+
+def test_typed_result_rejects_untruncated_stdout_digest_drift():
+    data = result_data()
+    data["stdout"] = "changed"
+    data["stdout_bytes"] = len(data["stdout"].encode("utf-8"))
+    with pytest.raises(ContractValidationError, match="stdout digest mismatch"):
+        TypedRemoteExecutionResult.from_mapping(data)
+
+
+def test_typed_result_rejects_untruncated_stdout_byte_count_drift():
+    data = result_data()
+    data["stdout_bytes"] = 1
+    with pytest.raises(ContractValidationError, match="stdout byte count mismatch"):
+        TypedRemoteExecutionResult.from_mapping(data)
+
+
+def test_typed_result_accepts_bounded_truncated_stream_metadata():
+    data = result_data()
+    data["stdout"] = "x" * 64
+    data["stdout_bytes"] = 1000
+    data["stdout_truncated"] = True
+    data["stdout_sha256"] = "c" * 64
+    result = TypedRemoteExecutionResult.from_mapping(data)
+    assert result.stdout_truncated is True
+    assert result.stdout_bytes == 1000
+
+
+def test_typed_result_rejects_inconsistent_truncation_count():
+    data = result_data()
+    data["stdout"] = "abc"
+    data["stdout_bytes"] = 3
+    data["stdout_truncated"] = True
+    with pytest.raises(ContractValidationError, match="truncation byte count"):
+        TypedRemoteExecutionResult.from_mapping(data)
+
+
+def test_typed_result_rejects_finish_before_start():
+    data = result_data()
+    data["started_epoch_seconds"] = 102.0
+    data["finished_epoch_seconds"] = 101.0
+    with pytest.raises(ContractValidationError, match="finish precedes start"):
+        TypedRemoteExecutionResult.from_mapping(data)
+
+
+def test_typed_result_timeout_requires_124():
+    data = result_data()
+    data["timed_out"] = True
+    data["exit_code"] = 1
+    with pytest.raises(ContractValidationError, match="exit code 124"):
+        TypedRemoteExecutionResult.from_mapping(data)
+
+
+def test_typed_result_assert_matches_binds_expected_envelope_digest():
+    req = typed_request()
+    result = TypedRemoteExecutionResult.from_mapping(result_data(req))
+    result.assert_matches(req, request_envelope_sha256="b" * 64)
+    with pytest.raises(ContractValidationError, match="request envelope digest mismatch"):
+        result.assert_matches(req, request_envelope_sha256="c" * 64)
