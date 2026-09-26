@@ -204,8 +204,9 @@ After an initial `APPLIED` and exact `DUPLICATE` result, relay B is terminated w
 The origin-facing link and remaining relay processes are then torn down, and relay A/B/C are restarted using the exact same provisioned Reticulum identity files. The final destination remains live and retains its previously accepted watermark state. Recovery requires:
 
 - relay A/B/C destination hashes to remain unchanged after restart;
-- the higher-sequence watermark to return `APPLIED`;
-- exact replay after recovery to return `DUPLICATE`.
+- recovered relay A to drain exactly one pending forward before readiness;
+- the origin's resend of that higher-sequence watermark to return `DUPLICATE`, proving the queued forward already reached the destination during startup drain;
+- exact replay after recovery to remain `DUPLICATE`.
 
 This is explicit restart/reconnect recovery, not automatic self-healing. A green run does not establish transparent link re-establishment, process supervision, retry orchestration, partition healing, durable relay queues, or delivery guarantees.
 
