@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/agent_control_plane/authority_sync_watermark_relay_chain.py"
+      - "src/agent_control_plane/relay_forward_queue.py"
       - "src/agent_control_plane/reticulum_adapter.py"
       - "integration/reticulum/reticulum_relay_stage_process.py"
       - "integration/reticulum/live_autonomous_relay_chain.py"
