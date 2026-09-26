@@ -82,6 +82,7 @@ class RemoteExecutionReceipt:
     trusted_time_established: bool
     files_changed: Tuple[str, ...]
     artifacts: Tuple[Mapping[str, Any], ...]
+    side_effects: Tuple[Mapping[str, Any] | str, ...]
     not_established: Tuple[str, ...]
     postconditions: Mapping[str, Any]
     @classmethod
@@ -106,6 +107,7 @@ class RemoteExecutionReceipt:
                 trusted_time_established=data["trusted_time_established"],
                 files_changed=tuple(data.get("files_changed", ())),
                 artifacts=tuple(data.get("artifacts", ())),
+                side_effects=tuple(data.get("side_effects", ())),
                 not_established=tuple(data.get("not_established", ())),
                 postconditions=dict(data.get("postconditions", {})),
             )
@@ -177,6 +179,8 @@ class RemoteExecutionReceipt:
             raise ContractValidationError("local clock rollback detected")
         if self.files_changed:
             raise ContractValidationError("read-only execution changed files")
+        if self.side_effects:
+            raise ContractValidationError("read-only execution reported side effects")
         unchanged = self.postconditions.get("working_tree_unchanged")
         if unchanged is False:
             raise ContractValidationError("read-only execution changed working tree")
@@ -332,8 +336,8 @@ def sign_request_hmac_sha256(
     *,
     key: bytes,
 ) -> str:
-    if not isinstance(key, (bytes, bytearray)) or not key:
-        raise ContractValidationError("signing key must be non-empty bytes")
+    if not isinstance(key, (bytes, bytearray)) or len(key) < 32:
+        raise ContractValidationError("signing key must be at least 32 bytes")
     import hmac
     return hmac.new(bytes(key), canonical_request_bytes(request, freshness), hashlib.sha256).hexdigest()
 
@@ -372,6 +376,7 @@ def canonical_receipt_bytes(receipt: RemoteExecutionReceipt) -> bytes:
         "trusted_time_established": receipt.trusted_time_established,
         "files_changed": list(receipt.files_changed),
         "artifacts": [dict(item) for item in receipt.artifacts],
+        "side_effects": [dict(item) if isinstance(item, Mapping) else item for item in receipt.side_effects],
         "not_established": list(receipt.not_established),
         "postconditions": dict(receipt.postconditions),
     }
@@ -380,8 +385,8 @@ def canonical_receipt_bytes(receipt: RemoteExecutionReceipt) -> bytes:
 
 
 def sign_receipt_hmac_sha256(receipt: RemoteExecutionReceipt, *, key: bytes) -> str:
-    if not isinstance(key, (bytes, bytearray)) or not key:
-        raise ContractValidationError("signing key must be non-empty bytes")
+    if not isinstance(key, (bytes, bytearray)) or len(key) < 32:
+        raise ContractValidationError("signing key must be at least 32 bytes")
     import hmac
     return hmac.new(bytes(key), canonical_receipt_bytes(receipt), hashlib.sha256).hexdigest()
 
@@ -412,8 +417,8 @@ def verify_detached_receipt_file_hmac(
         raise ContractValidationError("receipt file missing")
     if not signature_file.is_file():
         raise ContractValidationError("receipt signature file missing")
-    if not isinstance(key, (bytes, bytearray)) or not key:
-        raise ContractValidationError("signing key must be non-empty bytes")
+    if not isinstance(key, (bytes, bytearray)) or len(key) < 32:
+        raise ContractValidationError("signing key must be at least 32 bytes")
     signature = signature_file.read_text(encoding="ascii").strip()
     _sha256(signature, "signature")
     expected = hmac.new(bytes(key), receipt.read_bytes(), hashlib.sha256).hexdigest()
@@ -463,3 +468,32 @@ def verify_receipt_signature_envelope(
     expected = hmac.new(bytes(key), receipt_bytes, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, signature):
         raise ContractValidationError("receipt signature envelope mismatch")
+
+
+def verify_receipt_chain_link(
+    previous_receipt_path: str | Path,
+    current_receipt_path: str | Path,
+) -> None:
+    import json
+
+    previous_path = Path(previous_receipt_path)
+    current_path = Path(current_receipt_path)
+    if not previous_path.is_file():
+        raise ContractValidationError("previous receipt file missing")
+    if not current_path.is_file():
+        raise ContractValidationError("current receipt file missing")
+
+    try:
+        previous_data = json.loads(previous_path.read_text(encoding="utf-8-sig"))
+        current_data = json.loads(current_path.read_text(encoding="utf-8-sig"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise ContractValidationError("malformed receipt chain input") from exc
+
+    previous = RemoteExecutionReceipt.from_mapping(previous_data)
+    current = RemoteExecutionReceipt.from_mapping(current_data)
+
+    expected_previous_hash = hashlib.sha256(previous_path.read_bytes()).hexdigest()
+    if current.previous_receipt_sha256 != expected_previous_hash:
+        raise ContractValidationError("previous receipt hash link mismatch")
+    if current.sequence_number != previous.sequence_number + 1:
+        raise ContractValidationError("receipt sequence is not contiguous")

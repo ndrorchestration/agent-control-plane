@@ -43,6 +43,7 @@ def receipt_data(command="git status --short"):
         "trusted_time_established": False,
         "files_changed": [],
         "artifacts": [],
+        "side_effects": [],
         "not_established": ["independent_validation"],
         "postconditions": {
             "command_completed": True,
@@ -190,7 +191,7 @@ def test_request_hmac_binds_action_and_freshness():
         issued_at_epoch_seconds=100,
         expires_at_epoch_seconds=110,
     )
-    key = b"test-only-key"
+    key = b"test-only-key-that-is-long-enough-32"
     signature = sign_request_hmac_sha256(req, freshness, key=key)
     verify_request_hmac_sha256(req, freshness, key=key, signature=signature)
     changed = request(command="git clean -fd")
@@ -210,14 +211,14 @@ def test_request_hmac_rejects_freshness_drift():
         issued_at_epoch_seconds=100,
         expires_at_epoch_seconds=111,
     )
-    key = b"test-only-key"
+    key = b"test-only-key-that-is-long-enough-32"
     signature = sign_request_hmac_sha256(req, first, key=key)
     with pytest.raises(ContractValidationError, match="signature mismatch"):
         verify_request_hmac_sha256(req, second, key=key, signature=signature)
 
 
 def test_receipt_hmac_detects_side_effect_class_tamper():
-    key = b"test-only-key"
+    key = b"test-only-key-that-is-long-enough-32"
     receipt = RemoteExecutionReceipt.from_mapping(receipt_data())
     signature = sign_receipt_hmac_sha256(receipt, key=key)
     verify_receipt_hmac_sha256(receipt, key=key, signature=signature)
@@ -346,3 +347,69 @@ def test_previous_receipt_hash_must_be_sha256_when_present():
     data["previous_receipt_sha256"] = "not-a-digest"
     with pytest.raises(ContractValidationError, match="previous_receipt_sha256"):
         RemoteExecutionReceipt.from_mapping(data)
+
+
+def test_read_only_reported_side_effect_fails_closed():
+    data = receipt_data()
+    data["side_effects"] = [{"kind": "network", "target": "example.invalid"}]
+    receipt = RemoteExecutionReceipt.from_mapping(data)
+    with pytest.raises(ContractValidationError, match="reported side effects"):
+        receipt.assert_read_only()
+
+
+from agent_control_plane.remote_execution_adapter import verify_receipt_chain_link
+
+
+def test_receipt_chain_link_verifies_hash_and_sequence(tmp_path):
+    previous = receipt_data()
+    previous["sequence_number"] = 10
+    current = receipt_data()
+    current["request_id"] = "req-2"
+    current["sequence_number"] = 11
+
+    previous_path = tmp_path / "previous.json"
+    current_path = tmp_path / "current.json"
+
+    previous_path.write_text(json.dumps(previous), encoding="utf-8")
+    import hashlib as _hashlib
+    current["previous_receipt_sha256"] = _hashlib.sha256(
+        previous_path.read_bytes()
+    ).hexdigest()
+    current_path.write_text(json.dumps(current), encoding="utf-8")
+
+    verify_receipt_chain_link(previous_path, current_path)
+
+
+def test_receipt_chain_link_rejects_noncontiguous_sequence(tmp_path):
+    previous = receipt_data()
+    previous["sequence_number"] = 10
+    current = receipt_data()
+    current["request_id"] = "req-2"
+    current["sequence_number"] = 12
+
+    previous_path = tmp_path / "previous.json"
+    current_path = tmp_path / "current.json"
+
+    previous_path.write_text(json.dumps(previous), encoding="utf-8")
+    import hashlib as _hashlib
+    current["previous_receipt_sha256"] = _hashlib.sha256(
+        previous_path.read_bytes()
+    ).hexdigest()
+    current_path.write_text(json.dumps(current), encoding="utf-8")
+
+    with pytest.raises(ContractValidationError, match="sequence is not contiguous"):
+        verify_receipt_chain_link(previous_path, current_path)
+
+
+def test_hmac_helpers_reject_short_keys():
+    req = request()
+    freshness = RemoteExecutionFreshness(
+        nonce="nonce-short-key",
+        issued_at_epoch_seconds=100,
+        expires_at_epoch_seconds=110,
+    )
+    with pytest.raises(ContractValidationError, match="at least 32 bytes"):
+        sign_request_hmac_sha256(req, freshness, key=b"short")
+    receipt = RemoteExecutionReceipt.from_mapping(receipt_data())
+    with pytest.raises(ContractValidationError, match="at least 32 bytes"):
+        sign_receipt_hmac_sha256(receipt, key=b"short")

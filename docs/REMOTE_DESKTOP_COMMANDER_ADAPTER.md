@@ -34,12 +34,14 @@ Executor != authorizer != evidence adjudicator.
 
 ## Deliberately not established
 
-- transport authentication between ACP and RDC;
-- signed receipts or hardware-backed device identity;
-- remote nonce/challenge freshness;
-- trusted clock synchronization;
-- replay-resistant receipt persistence;
-- automatic side-effect classification;
+The current candidate does establish local HMAC-signed request/receipt integrity, bounded nonce freshness, durable replay rejection, explicit side-effect classes, and receipt-chain linkage. Those controls are local engineering evidence only.
+
+The following remain deliberately **not established**:
+
+- authenticated transport identity between ACP and a remote executor;
+- hardware-backed / TPM-rooted device attestation;
+- trusted external clock synchronization;
+- externally trusted key custody or independent signer identity;
 - mutation authorization;
 - production security;
 - DGAF High-Assurance status;
@@ -112,3 +114,13 @@ Receipts also carry a durable monotonically increasing local sequence number, ba
 A signed read-only pre-execution envelope path is operational locally. The envelope binds request ID, device identity, attestation level, profile, expected side-effect class, exact command digest, working directory, nonce, and bounded freshness. The executor verifies the signature, device binding, TTL, and durable replay guard before execution. A valid read-only envelope executed and retained the exact request envelope as a hashed receipt artifact. Replaying the same envelope returns `REMOTE_REQUEST_FAIL: remote execution request replay detected` and `SIGNED_REMOTE_EXECUTION=BLOCKED`. Correctly signed mutation-profile requests are also refused.
 
 This remains local candidate evidence only. Hardware-rooted attestation, trusted external time, remote endpoint authentication, mutation authorization, independent validation, and High-Assurance remain unestablished.
+
+## PR #91 audit hardening — 2026-09-26
+
+A dedicated review pass found and corrected three contract gaps before review advancement:
+
+1. `READ_ONLY_DISCOVERY` now fails closed if the receipt reports any non-empty `side_effects`, not only changed files.
+2. All HMAC signing paths now require at least 32 bytes of key material; request, canonical-receipt, detached-file, and envelope verification use one minimum-strength rule.
+3. ACP now verifies actual receipt-chain continuity: the current receipt must reference the SHA-256 of the exact previous receipt bytes and use the immediately subsequent sequence number.
+
+Post-audit local verification: 28 focused tests passed / 1 skipped; full ACP regression 584 passed / 5 skipped.
