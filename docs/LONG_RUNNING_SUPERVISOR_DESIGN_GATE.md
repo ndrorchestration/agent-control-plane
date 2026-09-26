@@ -286,3 +286,22 @@ A HOLD occurs after the new service lease/runtime generation is established but 
 A caller may explicitly widen the allowed disposition set. There is no implicit automatic recovery from unclean or failed prior state.
 
 This establishes local fail-closed recovery admission only. It does not establish remediation of the prior failure, operator authorization UX, distributed recovery, or service-manager restart policy.
+
+
+## Real OS signal integration candidate
+
+A finite integration process now installs actual POSIX `SIGTERM` and `SIGINT` handlers around the bounded supervisor service runner.
+
+The integration test:
+1. launches the supervisor as a real subprocess;
+2. waits until the service has reached the `RUNNING` lifecycle and reports readiness;
+3. sends a real operating-system signal to the supervisor PID;
+4. requires the signal latch to preserve the first supported signal;
+5. requires the service to stop scheduling new work after the signal is observed;
+6. requires bounded worker termination;
+7. requires final lifecycle state `STOPPED`;
+8. requires explicit terminal reason `signal_term` or `signal_int`.
+
+Signal handlers are temporary and restore the process's prior handlers when the bounded integration exits.
+
+This remains a finite integration process. It does not install a persistent daemon or service.
