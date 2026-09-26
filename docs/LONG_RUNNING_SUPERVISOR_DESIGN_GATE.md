@@ -181,3 +181,22 @@ Required evidence for both SIGTERM and SIGINT:
 - supervisor exits normally in terminal `STOPPED` state.
 
 This closes only the OS-signal translation and finite graceful-shutdown proof. It does not establish an unbounded daemon, service registration, reboot persistence, signal behavior on Windows Service Control Manager, or production watchdog availability.
+
+
+## Durable supervisor ownership lease candidate
+
+ACP now has a SQLite-backed ownership lease primitive for worker/service resources.
+
+Each lease binds:
+- resource ID;
+- logical owner ID;
+- per-instance ownership token;
+- monotonic fencing token;
+- acquired / renewed / expiry timestamps;
+- optional release timestamp.
+
+Acquisition occurs under a SQLite write lock. A competing owner is rejected while the lease is active. An expired or explicitly released lease may be taken over, but every takeover increments the fencing token.
+
+Renew and release operations must match the current owner ID, ownership token and fencing token. A stale supervisor instance therefore cannot renew or release a lease after takeover. Expired leases cannot be renewed; they must be reacquired and receive a new fencing token.
+
+This closes only the local durable ownership/fencing primitive. The bounded supervisor runner does not yet require a lease before worker control, and no cross-host distributed lease/consensus claim is established.
