@@ -700,3 +700,40 @@ ACP now has a candidate verifier for the registration manifest's declared servic
 Operator-local Windows corroboration on the connected Windows 11 build 26200 / Python 3.14.5 machine produced `6 passed, 1 expected skip` for the binary-verification test file.
 
 This is still not code signing, Authenticode verification, publisher identity, protected deployment, anti-tamper storage, or an SCM mutation. A file that matches the configured SHA-256 is byte-identical to the admitted artifact; no broader trust claim is implied.
+
+
+## Non-mutating Windows service registration call-plan candidate
+
+ACP now has a dry-run compiler for the privileged SCM registration boundary.
+
+`WindowsScmServiceRegistrationPlanner` first applies the existing fail-closed manifest policy, then compiles admitted intent into exact call data for a future native registration adapter:
+
+- service and display names;
+- quoted binary command path;
+- `SERVICE_WIN32_OWN_PROCESS`;
+- exact SCM start type;
+- normal error control;
+- dependency MULTI_SZ encoding;
+- service account;
+- opaque credential reference only;
+- whether credential resolution is required;
+- delayed-auto-start intent;
+- exact desired SCM access mask;
+- exact desired service access mask.
+
+Credential behavior is explicit:
+
+- LocalSystem/LocalService/NetworkService and `NT SERVICE\...` virtual accounts do not require a secret;
+- other admitted accounts require an opaque `credential_reference`;
+- no plaintext password field exists in the plan.
+
+A Windows-native capability probe verifies availability of:
+
+- `OpenSCManagerW`;
+- `CreateServiceW`;
+- `ChangeServiceConfig2W`;
+- `CloseServiceHandle`.
+
+Operator-local Windows corroboration on the connected Windows 11 build 26200 / Python 3.14.5 machine produced `6 passed, 1 expected skip`, and all four required registration exports were present.
+
+This slice remains non-mutating. It does not open SCM handles, create a service, resolve credentials, configure recovery actions, start a service, or establish reboot persistence.
