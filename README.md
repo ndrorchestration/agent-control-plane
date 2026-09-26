@@ -236,3 +236,8 @@ A `WindowsScmInstallationJournal` candidate now records append-only durable inst
 ### Read-only Windows install recovery inspection
 
 A `WindowsScmInstallRecoveryInspector` candidate can now narrow ambiguous install-journal HOLD states using read-only live SCM configuration. It compares the observed service type, start type, error control, binary command, dependencies, account, display name, and delayed-auto-start setting against the exact admitted registration plan. Observation never authorizes or performs a recovery mutation.
+
+
+### Exact Windows SCM recovery authorization
+
+A `WindowsScmRecoveryAuthorizationStore` candidate now provides durable, expiring, single-use authorization for one recovery action: `delete_exact_service`. Authorization is bound to the journal transaction, manifest/binary/plan hashes, journal state/disposition, read-only inspection resolution, and canonical hash of the observed live service configuration. It performs no SCM mutation by itself.
