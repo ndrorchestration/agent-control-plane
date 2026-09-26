@@ -144,3 +144,30 @@ def test_unknown_signal_fails_closed():
         match="unsupported supervisor signal",
     ):
         service.handle_signal("SIGHUP")
+
+
+
+def test_repeated_stop_requests_are_idempotent_and_latch_first_reason():
+    service = SupervisorServiceContract(
+        service_id="acp-supervisor",
+        workers=workers(),
+    )
+    service.begin_startup()
+    service.mark_running()
+
+    first = service.handle_signal("SIGTERM")
+    assert first.stop_reason is SupervisorStopReason.SIGNAL_TERM
+
+    second = service.handle_signal("SIGINT")
+    assert second.state is SupervisorServiceState.STOP_REQUESTED
+    assert second.stop_reason is SupervisorStopReason.SIGNAL_TERM
+
+    service.begin_stopping()
+    during_stopping = service.handle_signal("SIGINT")
+    assert during_stopping.state is SupervisorServiceState.STOPPING
+    assert during_stopping.stop_reason is SupervisorStopReason.SIGNAL_TERM
+
+    service.mark_stopped()
+    after_stopped = service.handle_signal("SIGINT")
+    assert after_stopped.state is SupervisorServiceState.STOPPED
+    assert after_stopped.stop_reason is SupervisorStopReason.SIGNAL_TERM
