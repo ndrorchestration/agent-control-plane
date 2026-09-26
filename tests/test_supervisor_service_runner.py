@@ -1070,3 +1070,28 @@ def test_worker_exit_before_stop_does_not_restart_after_stop_request(tmp_path):
     assert failure_store.get(process_id) is None
     assert report.final_observations[0].running is False
     assert report.final_observations[0].returncode == 7
+
+
+
+def test_runner_reports_serial_concurrency_boundary(tmp_path):
+    workers = (
+        worker(tmp_path, "relay-a"),
+        worker(tmp_path, "relay-b"),
+    )
+    contract = service_for(workers)
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        max_cycles=1,
+        interval_seconds=0,
+        now_provider=lambda: "2026-09-26T00:30:00Z",
+        sleep_fn=lambda seconds: None,
+        terminate_timeout_seconds=2,
+    )
+    report = runner.run()
+    assert report.max_in_flight_workers == 1
+    assert report.worker_scheduling_mode == "contract_order_serial"
+    assert tuple(
+        worker_id
+        for worker_id, _result in report.cycle_records[0].worker_results
+    ) == ("relay-a", "relay-b")

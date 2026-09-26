@@ -371,3 +371,20 @@ This is **not** a sandbox. It does not:
 - establish code signing or package provenance.
 
 Until exact-head CI passes, this remains candidate evidence toward the executable/privilege-policy gate.
+
+
+## Explicit serial concurrency candidate
+
+The current bounded supervisor scheduling model is now represented by an explicit `SupervisorConcurrencyPolicy`.
+
+Candidate semantics:
+
+- scheduling mode is `contract_order_serial`;
+- worker monitor actions follow the service contract's worker order;
+- `max_in_flight_workers = 1`;
+- the runner reports the active scheduling mode and concurrency limit;
+- any request for parallelism greater than one fails closed.
+
+This satisfies bounded-concurrency semantics by making the current single-in-flight model explicit rather than implying unsupported parallel execution. It does **not** establish concurrent worker monitoring, thread/process pools, fairness under parallel scheduling, or parallel failure isolation.
+
+Until exact-head CI passes, this remains candidate evidence.
