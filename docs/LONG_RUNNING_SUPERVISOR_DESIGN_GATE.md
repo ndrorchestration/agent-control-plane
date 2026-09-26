@@ -217,3 +217,31 @@ When lease enforcement is configured:
 7. the report records the fencing token used for each worker resource.
 
 This materially narrows local split-brain risk for the tested SQLite-backed single-host model. It does not establish distributed consensus, cross-host clock correctness, partition-safe leases, or fencing enforcement by external resources themselves.
+
+
+## Durable supervisor runtime checkpoint candidate
+
+ACP now has a generation-fenced SQLite runtime checkpoint for supervisor-service state.
+
+Each service checkpoint binds:
+- service ID;
+- monotonically increasing runtime generation;
+- owner ID;
+- ownership fencing token;
+- lifecycle state;
+- optional stop reason;
+- update timestamp.
+
+A new run atomically replaces the previous generation with `STARTING` and returns a recovery assessment of the previous state:
+
+- `fresh` — no prior checkpoint;
+- `clean_stop` — prior generation reached `STOPPED`;
+- `unclean_exit` — prior generation ended in a nonterminal state;
+- `terminal_give_up` — prior generation failed due to worker give-up;
+- `prior_failure` — prior generation ended in another failure.
+
+The assessment separately marks whether the prior owner/fence differs from the new owner/fence.
+
+Checkpoint updates are generation- and fence-bound. Once a newer run begins, an older supervisor instance cannot overwrite the persisted lifecycle state.
+
+This closes durable recovery classification only. The bounded supervisor runner does not yet write its lifecycle transitions into this store, and no automatic recovery decision is inferred from the classification.
