@@ -342,3 +342,32 @@ The test uses a worker that exits independently between monitor cycles. The next
 A real child process deliberately ignores `SIGTERM`. Acceptance requires the managed-process controller to wait only for the configured timeout, then use its kill fallback and return a terminal non-running observation.
 
 Until exact-head CI is green, these remain candidate evidence.
+
+
+## Process execution admission candidate
+
+A fail-closed launch-admission layer now exists as a candidate security gate before service installation.
+
+`ProcessExecutionAdmissionPolicy` can require:
+
+- exact admitted executable paths;
+- working directories under configured roots;
+- explicit environment mappings instead of unrestricted inherited environment;
+- admitted environment-variable names;
+- explicit forbidden environment-variable names;
+- SHA-256 binding to an immutable `ManagedProcessSpec` representation;
+- an expected effective UID when the platform exposes one.
+
+`AdmittedManagedProcessController` performs the admission check immediately before calling the accepted subprocess start primitive. A denied launch produces no child PID.
+
+The spec fingerprint covers process ID, complete argv, canonical working directory, and sorted explicit environment mapping.
+
+This is **not** a sandbox. It does not:
+- change UID/GID;
+- create namespaces, containers, chroots or seccomp profiles;
+- secure secrets in memory;
+- prevent an admitted executable from opening arbitrary files or sockets;
+- define Windows service-account semantics;
+- establish code signing or package provenance.
+
+Until exact-head CI passes, this remains candidate evidence toward the executable/privilege-policy gate.
