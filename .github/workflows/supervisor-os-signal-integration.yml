@@ -1,0 +1,28 @@
+name: supervisor-os-signal-integration
+
+on:
+  pull_request:
+    paths:
+      - "src/agent_control_plane/supervisor_signal.py"
+      - "src/agent_control_plane/supervisor_service.py"
+      - "src/agent_control_plane/supervisor_service_runner.py"
+      - "integration/supervisor/finite_signal_service.py"
+      - "integration/supervisor/run_signal_integration.py"
+      - ".github/workflows/supervisor-os-signal-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  finite-os-signals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e .
+      - run: python integration/supervisor/run_signal_integration.py

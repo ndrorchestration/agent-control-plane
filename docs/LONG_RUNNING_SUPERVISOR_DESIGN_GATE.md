@@ -166,3 +166,18 @@ Candidate invariants:
 - runtime worker order must exactly match contract worker order.
 
 This remains finite and caller-started. It is not an unbounded daemon.
+
+
+## Real OS-signal integration candidate
+
+A dedicated Linux integration candidate now launches the finite bounded supervisor in a child process and sends real OS signals from a parent harness.
+
+Required evidence for both SIGTERM and SIGINT:
+- supervisor process reaches ready state;
+- parent delivers the actual OS signal;
+- typed service lifecycle records the corresponding first stop reason;
+- bounded shutdown completes;
+- managed worker is no longer running;
+- supervisor exits normally in terminal `STOPPED` state.
+
+This closes only the OS-signal translation and finite graceful-shutdown proof. It does not establish an unbounded daemon, service registration, reboot persistence, signal behavior on Windows Service Control Manager, or production watchdog availability.
