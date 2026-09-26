@@ -36,6 +36,7 @@ class SupervisorStopReason(str, Enum):
     SIGNAL_INT = "signal_int"
     SERVICE_STOP = "service_stop"
     SERVICE_SHUTDOWN = "service_shutdown"
+    SERVICE_PRESHUTDOWN = "service_preshutdown"
     WORKER_GIVE_UP = "worker_give_up"
     STARTUP_FAILURE = "startup_failure"
     RECOVERY_HOLD = "recovery_hold"

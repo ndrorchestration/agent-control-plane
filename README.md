@@ -206,3 +206,18 @@ A platform-neutral `SupervisorServiceHostEventLatch` candidate translates extern
 - `SHUTDOWN -> service_shutdown`
 
 The supervisor runner accepts these typed reasons separately from POSIX signal input. This keeps platform/service-manager adapters from redefining ACP lifecycle semantics or pretending every service stop is a Unix signal.
+
+
+### Windows SCM translation boundary
+
+A pure `WindowsScmControlAdapter` candidate translates selected Windows Service Control Manager control codes into the platform-neutral ACP service-host contract without adding a pywin32 dependency or installing a Windows service.
+
+Current mapping:
+- `SERVICE_CONTROL_STOP` -> ACP `service_stop`;
+- `SERVICE_CONTROL_SHUTDOWN` -> ACP `service_shutdown`;
+- `SERVICE_CONTROL_PRESHUTDOWN` -> ACP `service_preshutdown`;
+- `SERVICE_CONTROL_INTERROGATE` -> status-only, no lifecycle transition.
+
+ACP has no pause/resume lifecycle semantics, so `SERVICE_CONTROL_PAUSE` and `SERVICE_CONTROL_CONTINUE` fail closed instead of being reinterpreted.
+
+This is control-code translation only. It does not establish Windows SCM service registration, ServiceMain/HandlerEx hosting, reboot persistence, Windows service-account semantics, or production Windows-service operation.

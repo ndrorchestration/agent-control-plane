@@ -13,6 +13,7 @@ from .supervisor_service import SupervisorStopReason
 class SupervisorServiceHostEvent(str, Enum):
     STOP = "stop"
     SHUTDOWN = "shutdown"
+    PRESHUTDOWN = "preshutdown"
 
 
 @dataclass(frozen=True)
@@ -50,4 +51,6 @@ class SupervisorServiceHostEventLatch:
             return SupervisorStopReason.SERVICE_STOP
         if self._event is SupervisorServiceHostEvent.SHUTDOWN:
             return SupervisorStopReason.SERVICE_SHUTDOWN
+        if self._event is SupervisorServiceHostEvent.PRESHUTDOWN:
+            return SupervisorStopReason.SERVICE_PRESHUTDOWN
         return None
