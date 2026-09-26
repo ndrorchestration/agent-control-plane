@@ -20,6 +20,7 @@ on:
       - "src/agent_control_plane/windows_scm_service_host.py"
       - "src/agent_control_plane/windows_scm_native.py"
       - "src/agent_control_plane/windows_scm_native_runtime.py"
+      - "src/agent_control_plane/windows_scm_binary_verification.py"
       - "src/agent_control_plane/windows_scm_registration.py"
       - "tests/test_windows_scm_native.py"
       - "tests/test_windows_scm_native_runtime.py"
@@ -40,7 +41,7 @@ jobs:
           python-version: "3.14"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest
-      - run: python -m pytest tests/test_windows_scm_native.py tests/test_windows_scm_native_runtime.py tests/test_windows_scm_registration.py -q
+      - run: python -m pytest tests/test_windows_scm_native.py tests/test_windows_scm_native_runtime.py tests/test_windows_scm_registration.py tests/test_windows_scm_binary_verification.py -q
       - name: Verify required native SCM exports
         shell: pwsh
         run: |
