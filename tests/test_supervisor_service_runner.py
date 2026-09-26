@@ -37,6 +37,7 @@ from agent_control_plane.supervisor_runtime_checkpoint import (
 )
 from agent_control_plane.supervisor_service_runner import (
     BoundedSupervisorServiceRunner,
+    ExperimentalLongRunningSupervisorServiceRunner,
     SupervisorLeaseConfiguration,
     SupervisorRecoveryAuthorizationConfiguration,
     SupervisorRuntimeCheckpointConfiguration,
@@ -1095,3 +1096,56 @@ def test_runner_reports_serial_concurrency_boundary(tmp_path):
         worker_id
         for worker_id, _result in report.cycle_records[0].worker_results
     ) == ("relay-a", "relay-b")
+
+
+
+def test_bounded_runner_rejects_unbounded_cycles(tmp_path):
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+
+    import pytest
+    from agent_control_plane.authority import AuthorityValidationError
+
+    with pytest.raises(
+        AuthorityValidationError,
+        match="unbounded supervisor cycles require explicit experimental admission",
+    ):
+        BoundedSupervisorServiceRunner(
+            contract=contract,
+            workers=workers,
+            max_cycles=None,
+            interval_seconds=0,
+            now_provider=lambda: "2026-09-26T01:00:00Z",
+            sleep_fn=lambda seconds: None,
+        )
+
+
+def test_experimental_long_running_runner_stops_only_on_signal(tmp_path):
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+    times = iter([
+        "2026-09-26T01:00:00Z",
+        "2026-09-26T01:00:01Z",
+        "2026-09-26T01:00:02Z",
+    ])
+
+    runner = ExperimentalLongRunningSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        interval_seconds=0,
+        now_provider=lambda: next(times),
+        sleep_fn=lambda seconds: None,
+        signal_provider=lambda index: "SIGTERM" if index == 2 else None,
+        terminate_timeout_seconds=2,
+    )
+    report = runner.run()
+
+    assert report.cycles_completed == 2
+    assert report.final_snapshot.state is SupervisorServiceState.STOPPED
+    assert (
+        report.final_snapshot.stop_reason
+        is SupervisorStopReason.SIGNAL_TERM
+    )
+    assert report.max_in_flight_workers == 1
+    assert report.worker_scheduling_mode == "contract_order_serial"
+    assert report.final_observations[0].running is False
