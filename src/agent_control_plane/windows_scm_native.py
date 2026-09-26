@@ -18,6 +18,7 @@ from .windows_scm_service_host import WindowsScmServiceStatus
 
 SERVICE_WIN32_OWN_PROCESS = 0x00000010
 ERROR_SERVICE_SPECIFIC_ERROR = 1066
+ERROR_FAILED_SERVICE_CONTROLLER_CONNECT = 1063
 
 _REQUIRED_EXPORTS = (
     "StartServiceCtrlDispatcherW",
