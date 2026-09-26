@@ -124,3 +124,9 @@ A dedicated review pass found and corrected three contract gaps before review ad
 3. ACP now verifies actual receipt-chain continuity: the current receipt must reference the SHA-256 of the exact previous receipt bytes and use the immediately subsequent sequence number.
 
 Post-audit local verification: 28 focused tests passed / 1 skipped; full ACP regression 584 passed / 5 skipped.
+
+## Signed-command allowlist hardening — 2026-09-26
+
+A second PR review pass identified a critical semantic gap: a request could declare `READ_ONLY` while carrying an arbitrary shell command. The signed pre-execution path now rejects arbitrary shell content and admits only exact, pre-reviewed inspection commands from `READ_ONLY_COMMAND_ALLOWLIST`. Shell chaining/metacharacter variants and destructive commands are rejected even if the envelope is otherwise correctly signed.
+
+This is intentionally narrow. Expanding the signed execution surface requires adding a reviewed operation to the allowlist with tests; callers cannot create new read-only capabilities by relabeling arbitrary commands.

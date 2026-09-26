@@ -15,6 +15,27 @@ REMOTE_EXECUTION_SCHEMA_VERSION = "agent-control-plane.remote-execution.v0-candi
 REMOTE_EXECUTION_MAX_TTL_SECONDS = 300
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
+READ_ONLY_COMMAND_ALLOWLIST = frozenset(
+    {
+        "git status --short",
+        "git status --porcelain=v1",
+        "git rev-parse HEAD",
+        "git branch --show-current",
+        "git remote get-url origin",
+        "git diff --name-only",
+        "git diff --cached --check",
+    }
+)
+
+
+def assert_read_only_command_allowed(command_or_action: str) -> None:
+    """Admit only exact pre-reviewed shell commands on the signed read-only path."""
+    action_sha256(command_or_action)
+    if command_or_action not in READ_ONLY_COMMAND_ALLOWLIST:
+        raise ContractValidationError(
+            "command is not in signed read-only allowlist"
+        )
+
 
 def action_sha256(command_or_action: str) -> str:
     if not isinstance(command_or_action, str) or not command_or_action.strip():

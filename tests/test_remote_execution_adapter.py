@@ -413,3 +413,39 @@ def test_hmac_helpers_reject_short_keys():
     receipt = RemoteExecutionReceipt.from_mapping(receipt_data())
     with pytest.raises(ContractValidationError, match="at least 32 bytes"):
         sign_receipt_hmac_sha256(receipt, key=b"short")
+
+
+from agent_control_plane.remote_execution_adapter import (
+    assert_read_only_command_allowed,
+)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "Remove-Item -Recurse -Force C:\\important",
+        "git status --short; Remove-Item victim.txt",
+        "git status --short | Set-Content victim.txt",
+        "git status --short && del victim.txt",
+        "Write-Output SIGNED_E2E_OK",
+    ],
+)
+def test_signed_read_only_policy_rejects_arbitrary_or_chained_commands(command):
+    with pytest.raises(ContractValidationError, match="not in signed read-only allowlist"):
+        assert_read_only_command_allowed(command)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git status --short",
+        "git status --porcelain=v1",
+        "git rev-parse HEAD",
+        "git branch --show-current",
+        "git remote get-url origin",
+        "git diff --name-only",
+        "git diff --cached --check",
+    ],
+)
+def test_signed_read_only_policy_accepts_only_pre_reviewed_commands(command):
+    assert_read_only_command_allowed(command)

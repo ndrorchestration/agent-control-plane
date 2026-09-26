@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from agent_control_plane.remote_execution_adapter import (
     ContractValidationError,
     DurableRemoteExecutionReplayGuard,
+    assert_read_only_command_allowed,
     RemoteExecutionFreshness,
     RemoteExecutionRequest,
     verify_request_hmac_sha256,
@@ -54,6 +55,7 @@ if request.execution_profile != "READ_ONLY_DISCOVERY":
 if request.expected_side_effect_class != "READ_ONLY":
     raise SystemExit("REMOTE_REQUEST_FAIL: only READ_ONLY side effects are admissible")
 try:
+    assert_read_only_command_allowed(request.command_or_action)
     verify_request_hmac_sha256(
         request,
         freshness,
