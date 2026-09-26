@@ -46,7 +46,7 @@ def _account_requires_secret(account_name: str) -> bool:
     normalized = account_name.strip().lower()
     if normalized in _PASSWORDLESS_ACCOUNTS:
         return False
-    if normalized.startswith(r"nt service\"):
+    if normalized.startswith("nt service\\\\"):
         return False
     return True
 
