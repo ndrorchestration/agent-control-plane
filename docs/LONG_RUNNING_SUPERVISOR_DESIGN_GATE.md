@@ -142,3 +142,27 @@ At minimum:
 Until those gates are satisfied:
 
 **LONG_RUNNING_SUPERVISOR = NOT AUTHORIZED**
+
+
+## Bounded service-runner candidate
+
+A finite multi-worker service runner now exists as a candidate integration step beneath this gate.
+
+It composes:
+- the typed supervisor lifecycle contract;
+- explicit worker ownership registrations;
+- accepted managed-process controllers;
+- accepted scheduled process monitors;
+- an explicit maximum cycle count;
+- injected signal input;
+- bounded reverse-order worker termination.
+
+Candidate invariants:
+- SIGTERM/SIGINT are checked before each cycle;
+- once stop is requested, no new monitor cycle starts;
+- repeated stop signals preserve the first latched reason;
+- finite completion maps to an explicit operator-requested stop;
+- all configured child processes are terminated before the service reaches `STOPPED`;
+- runtime worker order must exactly match contract worker order.
+
+This remains finite and caller-started. It is not an unbounded daemon.
