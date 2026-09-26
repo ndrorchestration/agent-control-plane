@@ -17,6 +17,10 @@ from .supervisor_ownership import (
     SupervisorOwnershipLease,
     SupervisorOwnershipLeaseStore,
 )
+from .supervisor_recovery import (
+    SupervisorRecoveryAdmissionPolicy,
+    SupervisorRecoveryDecision,
+)
 from .supervisor_runtime_checkpoint import (
     DurableSupervisorRuntimeCheckpointStore,
     SupervisorRecoveryAssessment,
@@ -104,6 +108,9 @@ class SupervisorLeaseConfiguration:
 @dataclass(frozen=True)
 class SupervisorRuntimeCheckpointConfiguration:
     store: DurableSupervisorRuntimeCheckpointStore
+    recovery_policy: SupervisorRecoveryAdmissionPolicy = (
+        SupervisorRecoveryAdmissionPolicy()
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(
@@ -112,6 +119,13 @@ class SupervisorRuntimeCheckpointConfiguration:
         ):
             raise AuthorityValidationError(
                 "store must be DurableSupervisorRuntimeCheckpointStore"
+            )
+        if not isinstance(
+            self.recovery_policy,
+            SupervisorRecoveryAdmissionPolicy,
+        ):
+            raise AuthorityValidationError(
+                "recovery_policy must be SupervisorRecoveryAdmissionPolicy"
             )
 
 
@@ -133,6 +147,9 @@ class BoundedSupervisorServiceReport:
     service_lease_fencing_token: Optional[int] = None
     runtime_generation: Optional[int] = None
     runtime_recovery: Optional[SupervisorRecoveryAssessment] = None
+    runtime_recovery_decision: Optional[
+        SupervisorRecoveryDecision
+    ] = None
 
 
 class BoundedSupervisorServiceRunner:
@@ -391,6 +408,9 @@ class BoundedSupervisorServiceRunner:
         leases: dict[str, SupervisorOwnershipLease] = {}
         runtime_checkpoint: Optional[SupervisorRuntimeCheckpoint] = None
         runtime_recovery: Optional[SupervisorRecoveryAssessment] = None
+        runtime_recovery_decision: Optional[
+            SupervisorRecoveryDecision
+        ] = None
 
         def report(
             final_observations: tuple[ProcessObservation, ...],
@@ -415,6 +435,7 @@ class BoundedSupervisorServiceRunner:
                     else runtime_checkpoint.generation
                 ),
                 runtime_recovery=runtime_recovery,
+                runtime_recovery_decision=runtime_recovery_decision,
             )
 
         def persist_snapshot(
@@ -468,6 +489,32 @@ class BoundedSupervisorServiceRunner:
                 )
                 runtime_checkpoint = started.checkpoint
                 runtime_recovery = started.recovery
+                runtime_recovery_decision = (
+                    self.runtime_checkpoint_configuration.recovery_policy.decide(
+                        runtime_recovery
+                    )
+                )
+                if (
+                    runtime_recovery_decision
+                    is SupervisorRecoveryDecision.HOLD
+                ):
+                    hold_snapshot = self.contract.mark_failed(
+                        SupervisorStopReason.RECOVERY_HOLD
+                    )
+                    persist_snapshot(
+                        hold_snapshot,
+                        updated_at=self.now_provider(),
+                    )
+                    final_observations = self._terminate_all()
+                    if self.lease_configuration is not None and leases:
+                        try:
+                            self._release_leases(
+                                leases,
+                                now=self.now_provider(),
+                            )
+                        except Exception:
+                            pass
+                    return report(final_observations)
 
             for worker in self.workers:
                 observation = worker.controller.observe()
