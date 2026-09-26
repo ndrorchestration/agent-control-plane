@@ -514,3 +514,39 @@ Pause/continue controls fail closed because ACP has no accepted pause/resume lif
 The runner composition tests prove STOP and PRESHUTDOWN reach the existing typed lifecycle and terminate managed workers cleanly.
 
 This remains a pure adapter layer. No Windows service is installed or registered, no `ServiceMain`/HandlerEx callback is hosted, and Windows service-account/reboot semantics remain unestablished.
+
+
+## Windows SCM ServiceMain / HandlerEx host-contract candidate
+
+ACP now has a pure Windows-service host contract above the accepted SCM control translator.
+
+`WindowsScmServiceHostContract` models the callback-facing state that a future native ServiceMain/HandlerEx adapter must report:
+
+- `STOPPED`;
+- `START_PENDING`;
+- `RUNNING`;
+- `STOP_PENDING`;
+- terminal `STOPPED`.
+
+It also models:
+
+- accepted control flags for STOP / SHUTDOWN / PRESHUTDOWN only while running;
+- checkpoint and wait-hint values for pending states;
+- status-only INTERROGATE handling;
+- first-stop-event latching;
+- Win32 and service-specific terminal exit codes;
+- a `stop_reason_provider` compatible with the existing ACP supervisor runner.
+
+Composition tests prove an SCM STOP arriving between bounded supervisor cycles is translated into the existing typed `service_stop` lifecycle reason before further monitor work, and managed workers shut down through the existing supervisor path.
+
+This remains a pure host contract. It does **not**:
+- call StartServiceCtrlDispatcher;
+- register a ServiceMain callback;
+- register HandlerEx with Windows SCM;
+- install/create/delete a Windows service;
+- configure recovery actions;
+- establish reboot persistence;
+- define service-account/ACL behavior;
+- prove behavior on a real Windows SCM host.
+
+Until exact-head CI passes, this remains candidate evidence.
