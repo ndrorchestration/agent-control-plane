@@ -345,3 +345,18 @@ ACP now has a caller-invoked monitoring tick that composes the accepted process 
 Tests use real short-lived Python children and verify persisted failure state survives store reopen and repeated crashes reach `give_up`.
 
 This remains one-shot and caller-driven. There is no continuous polling loop, clock scheduler, daemon lifecycle, watchdog service, service-manager integration, or external health signal ingestion.
+
+
+## Persisted process-monitor cadence
+
+ACP now has a scheduler-neutral cadence contract around the accepted one-shot process monitor.
+
+`DurableProcessMonitorCadenceStore` persists each managed process's last monitor-tick timestamp.
+
+`ProcessMonitorCadencePolicy` defines a minimum interval and computes:
+- whether a monitor tick is due;
+- the next due timestamp after a completed tick.
+
+`ScheduledProcessMonitor.run_if_due(now=...)` invokes the accepted `ProcessMonitorTick` only when due, records the completed tick time, and returns either a ran result with the next due time or a deferred result with no monitor action.
+
+This does not sleep, loop, spawn a scheduler thread, register an OS timer, or run continuously. It establishes persisted due-time semantics only. Continuous daemon execution, jitter policy, clock-skew handling across hosts, service-manager scheduling, and production watchdog behavior remain unestablished.
