@@ -320,3 +320,25 @@ Fail-closed cases include:
 A HOLD with no valid authorization does not mutate the prior runtime checkpoint and starts no worker.
 
 The `authorized_by` field is an audit label supplied by the caller; this slice does not authenticate a human operator, implement RBAC/MFA, provide an approval UI, or establish cryptographic operator signatures.
+
+
+## Shutdown race / kill-fallback evidence candidate
+
+A focused shutdown-invariants candidate adds direct evidence for two remaining graceful-shutdown requirements.
+
+### Stop-request restart suppression
+
+The test uses a worker that exits independently between monitor cycles. The next cycle receives a stop request **before** any monitor work. Acceptance requires:
+
+- the service records the stop reason;
+- no crash monitor runs against the exited worker;
+- no restart is attempted;
+- the durable failure counter remains unchanged;
+- shutdown completes in `STOPPED`;
+- the original worker exit code is preserved.
+
+### Bounded kill fallback
+
+A real child process deliberately ignores `SIGTERM`. Acceptance requires the managed-process controller to wait only for the configured timeout, then use its kill fallback and return a terminal non-running observation.
+
+Until exact-head CI is green, these remain candidate evidence.
