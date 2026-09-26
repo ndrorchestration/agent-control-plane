@@ -3,7 +3,10 @@ from pathlib import Path
 import pytest
 
 from agent_control_plane.authority import AuthorityValidationError
-from agent_control_plane.relay_forward_queue import DurableRelayForwardQueue
+from agent_control_plane.relay_forward_queue import (
+    DurableRelayForwardQueue,
+    RelayQueueCapacityExceeded,
+)
 
 
 def queue(tmp_path):
@@ -133,3 +136,133 @@ def test_manifest_exposes_hashes_not_payload_bytes(tmp_path):
     manifest = q.manifest()
     assert manifest["pending_count"] == 1
     assert "secret-ish-payload" not in str(manifest)
+
+
+
+def test_pending_item_capacity_fails_closed(tmp_path):
+    q = DurableRelayForwardQueue(
+        tmp_path / "queue.sqlite3",
+        max_pending_items=1,
+    )
+    q.enqueue(
+        relay_id="relay-a",
+        downstream_id="relay-b",
+        payload=b"one",
+        item_id="item-1",
+    )
+    with pytest.raises(
+        RelayQueueCapacityExceeded,
+        match="pending-item capacity",
+    ):
+        q.enqueue(
+            relay_id="relay-a",
+            downstream_id="relay-b",
+            payload=b"two",
+            item_id="item-2",
+        )
+
+
+def test_pending_byte_capacity_fails_closed(tmp_path):
+    q = DurableRelayForwardQueue(
+        tmp_path / "queue.sqlite3",
+        max_pending_bytes=5,
+    )
+    q.enqueue(
+        relay_id="relay-a",
+        downstream_id="relay-b",
+        payload=b"123",
+        item_id="item-1",
+    )
+    with pytest.raises(
+        RelayQueueCapacityExceeded,
+        match="pending-byte capacity",
+    ):
+        q.enqueue(
+            relay_id="relay-a",
+            downstream_id="relay-b",
+            payload=b"456",
+            item_id="item-2",
+        )
+
+
+def test_idempotent_existing_item_is_allowed_at_capacity(tmp_path):
+    q = DurableRelayForwardQueue(
+        tmp_path / "queue.sqlite3",
+        max_pending_items=1,
+        max_pending_bytes=3,
+    )
+    first = q.enqueue(
+        relay_id="relay-a",
+        downstream_id="relay-b",
+        payload=b"abc",
+        item_id="item-1",
+    )
+    second = q.enqueue(
+        relay_id="relay-a",
+        downstream_id="relay-b",
+        payload=b"abc",
+        item_id="item-1",
+    )
+    assert first == second
+    assert q.usage()["pending_items"] == 1
+    assert q.usage()["pending_bytes"] == 3
+
+
+def test_acknowledgement_releases_capacity(tmp_path):
+    q = DurableRelayForwardQueue(
+        tmp_path / "queue.sqlite3",
+        max_pending_items=1,
+    )
+    q.enqueue(
+        relay_id="relay-a",
+        downstream_id="relay-b",
+        payload=b"one",
+        item_id="item-1",
+    )
+    q.acknowledge("item-1")
+    q.enqueue(
+        relay_id="relay-a",
+        downstream_id="relay-b",
+        payload=b"two",
+        item_id="item-2",
+    )
+    assert tuple(item.item_id for item in q.pending()) == ("item-2",)
+
+
+def test_usage_and_manifest_report_capacity_without_payload(tmp_path):
+    q = DurableRelayForwardQueue(
+        tmp_path / "queue.sqlite3",
+        max_pending_items=3,
+        max_pending_bytes=100,
+    )
+    q.enqueue(
+        relay_id="relay-a",
+        downstream_id="relay-b",
+        payload=b"abcde",
+        item_id="item-1",
+    )
+    usage = q.usage()
+    assert usage == {
+        "pending_items": 1,
+        "pending_bytes": 5,
+        "max_pending_items": 3,
+        "max_pending_bytes": 100,
+    }
+    manifest = q.manifest()
+    assert manifest["pending_bytes"] == 5
+    assert manifest["max_pending_items"] == 3
+    assert manifest["max_pending_bytes"] == 100
+    assert "abcde" not in str(manifest)
+
+
+def test_capacity_configuration_validation(tmp_path):
+    with pytest.raises(AuthorityValidationError):
+        DurableRelayForwardQueue(
+            tmp_path / "queue.sqlite3",
+            max_pending_items=0,
+        )
+    with pytest.raises(AuthorityValidationError):
+        DurableRelayForwardQueue(
+            tmp_path / "queue.sqlite3",
+            max_pending_bytes=0,
+        )
