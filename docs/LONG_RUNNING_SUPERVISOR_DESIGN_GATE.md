@@ -676,3 +676,27 @@ This still does **not**:
 - enable reboot persistence;
 - configure failure/recovery actions;
 - authorize production installation.
+
+
+## On-disk Windows service binary verification candidate
+
+ACP now has a candidate verifier for the registration manifest's declared service binary identity.
+
+`WindowsScmBinaryVerifier`:
+
+- requires Windows for real file verification;
+- requires the manifest to carry `binary_sha256`;
+- requires the path to exist and be a regular file;
+- hashes the actual file bytes with SHA-256;
+- records actual size and modification timestamp;
+- compares pre/post file metadata to detect a file changing during verification;
+- fails closed on missing files, non-files, concurrent change, size inconsistency, or digest mismatch.
+
+`WindowsScmServiceRegistrationAdmission` composes:
+1. the accepted registration-intent policy;
+2. exact manifest identity;
+3. actual on-disk binary verification.
+
+Operator-local Windows corroboration on the connected Windows 11 build 26200 / Python 3.14.5 machine produced `6 passed, 1 expected skip` for the binary-verification test file.
+
+This is still not code signing, Authenticode verification, publisher identity, protected deployment, anti-tamper storage, or an SCM mutation. A file that matches the configured SHA-256 is byte-identical to the admitted artifact; no broader trust claim is implied.
