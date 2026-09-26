@@ -737,3 +737,38 @@ A Windows-native capability probe verifies availability of:
 Operator-local Windows corroboration on the connected Windows 11 build 26200 / Python 3.14.5 machine produced `6 passed, 1 expected skip`, and all four required registration exports were present.
 
 This slice remains non-mutating. It does not open SCM handles, create a service, resolve credentials, configure recovery actions, start a service, or establish reboot persistence.
+
+
+## Exact Windows service installation authorization candidate
+
+Before any privileged SCM mutation is added, ACP now has a candidate exact authorization layer.
+
+`WindowsScmInstallationTarget` binds:
+
+- service name;
+- admitted registration-manifest SHA-256;
+- verified actual binary SHA-256;
+- compiled registration-plan SHA-256.
+
+`build_windows_scm_installation_target(...)` fails closed if the manifest identity, binary identity, plan identity, or service name disagree.
+
+`WindowsScmInstallationAuthorizationStore` persists an authorization with:
+
+- authorization ID;
+- exact target identities above;
+- operator audit label (`authorized_by`);
+- issue time;
+- expiry time;
+- single-use consumption time.
+
+Consumption occurs under a SQLite `BEGIN IMMEDIATE` transaction and fails closed for:
+
+- missing authorization;
+- expiry;
+- replay/already-consumed authorization;
+- service-name drift;
+- manifest drift;
+- binary drift;
+- registration-plan drift.
+
+This is an authorization record, not authentication of the human named in `authorized_by`. It does not provide RBAC, MFA, cryptographic operator signatures, credential resolution, or SCM mutation. A future mutating installer must consume this exact authorization before privileged calls are permitted.
