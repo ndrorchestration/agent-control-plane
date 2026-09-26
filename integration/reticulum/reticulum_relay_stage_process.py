@@ -218,7 +218,7 @@ def main() -> None:
     drained = endpoint.drain_pending()
     inbound.announce()
     Path(args.ready_file).write_text(
-        args.relay_id,
+        f"{args.relay_id}:{len(drained)}",
         encoding="utf-8",
     )
 
