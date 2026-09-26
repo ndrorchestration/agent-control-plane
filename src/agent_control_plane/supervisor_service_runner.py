@@ -21,6 +21,9 @@ from .supervisor_recovery import (
     SupervisorRecoveryAdmissionPolicy,
     SupervisorRecoveryDecision,
 )
+from .supervisor_recovery_authorization import (
+    SupervisorRecoveryAuthorizationStore,
+)
 from .supervisor_runtime_checkpoint import (
     DurableSupervisorRuntimeCheckpointStore,
     SupervisorRecoveryAssessment,
@@ -111,6 +114,9 @@ class SupervisorRuntimeCheckpointConfiguration:
     recovery_policy: SupervisorRecoveryAdmissionPolicy = (
         SupervisorRecoveryAdmissionPolicy()
     )
+    recovery_authorization: Optional[
+        SupervisorRecoveryAuthorizationConfiguration
+    ] = None
 
     def __post_init__(self) -> None:
         if not isinstance(
@@ -126,6 +132,44 @@ class SupervisorRuntimeCheckpointConfiguration:
         ):
             raise AuthorityValidationError(
                 "recovery_policy must be SupervisorRecoveryAdmissionPolicy"
+            )
+        if (
+            self.recovery_authorization is not None
+            and not isinstance(
+                self.recovery_authorization,
+                SupervisorRecoveryAuthorizationConfiguration,
+            )
+        ):
+            raise AuthorityValidationError(
+                "recovery_authorization must be "
+                "SupervisorRecoveryAuthorizationConfiguration or None"
+            )
+
+
+@dataclass(frozen=True)
+class SupervisorRecoveryAuthorizationConfiguration:
+    store: SupervisorRecoveryAuthorizationStore
+    authorization_id: str
+    allow_terminal_give_up: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.store,
+            SupervisorRecoveryAuthorizationStore,
+        ):
+            raise AuthorityValidationError(
+                "store must be SupervisorRecoveryAuthorizationStore"
+            )
+        if (
+            not isinstance(self.authorization_id, str)
+            or not self.authorization_id.strip()
+        ):
+            raise AuthorityValidationError(
+                "authorization_id must not be blank"
+            )
+        if not isinstance(self.allow_terminal_give_up, bool):
+            raise AuthorityValidationError(
+                "allow_terminal_give_up must be bool"
             )
 
 
@@ -150,6 +194,7 @@ class BoundedSupervisorServiceReport:
     runtime_recovery_decision: Optional[
         SupervisorRecoveryDecision
     ] = None
+    runtime_recovery_authorization_id: Optional[str] = None
 
 
 class BoundedSupervisorServiceRunner:
@@ -411,6 +456,7 @@ class BoundedSupervisorServiceRunner:
         runtime_recovery_decision: Optional[
             SupervisorRecoveryDecision
         ] = None
+        runtime_recovery_authorization_id: Optional[str] = None
 
         def report(
             final_observations: tuple[ProcessObservation, ...],
@@ -436,6 +482,9 @@ class BoundedSupervisorServiceRunner:
                 ),
                 runtime_recovery=runtime_recovery,
                 runtime_recovery_decision=runtime_recovery_decision,
+                runtime_recovery_authorization_id=(
+                    runtime_recovery_authorization_id
+                ),
             )
 
         def persist_snapshot(
@@ -479,31 +528,53 @@ class BoundedSupervisorServiceRunner:
                     raise AuthorityValidationError(
                         "service ownership lease missing"
                     )
-                started = (
-                    self.runtime_checkpoint_configuration.store.begin_run(
+                runtime_recovery = (
+                    self.runtime_checkpoint_configuration.store.assess_previous(
                         service_id=self.contract.service_id,
                         owner_id=self.lease_configuration.owner_id,
                         fencing_token=service_lease.fencing_token,
-                        started_at=startup_now,
                     )
                 )
-                runtime_checkpoint = started.checkpoint
-                runtime_recovery = started.recovery
                 runtime_recovery_decision = (
                     self.runtime_checkpoint_configuration.recovery_policy.decide(
                         runtime_recovery
                     )
                 )
+
+                if (
+                    runtime_recovery_decision
+                    is SupervisorRecoveryDecision.HOLD
+                    and self.runtime_checkpoint_configuration
+                    .recovery_authorization is not None
+                ):
+                    authorization = (
+                        self.runtime_checkpoint_configuration
+                        .recovery_authorization
+                    )
+                    try:
+                        authorization.store.consume(
+                            authorization.authorization_id,
+                            assessment=runtime_recovery,
+                            now=startup_now,
+                            allow_terminal_give_up=(
+                                authorization.allow_terminal_give_up
+                            ),
+                        )
+                        runtime_recovery_decision = (
+                            SupervisorRecoveryDecision.ALLOW
+                        )
+                        runtime_recovery_authorization_id = (
+                            authorization.authorization_id
+                        )
+                    except AuthorityValidationError:
+                        pass
+
                 if (
                     runtime_recovery_decision
                     is SupervisorRecoveryDecision.HOLD
                 ):
-                    hold_snapshot = self.contract.mark_failed(
+                    self.contract.mark_failed(
                         SupervisorStopReason.RECOVERY_HOLD
-                    )
-                    persist_snapshot(
-                        hold_snapshot,
-                        updated_at=self.now_provider(),
                     )
                     final_observations = self._terminate_all()
                     if self.lease_configuration is not None and leases:
@@ -515,6 +586,20 @@ class BoundedSupervisorServiceRunner:
                         except Exception:
                             pass
                     return report(final_observations)
+
+                started = (
+                    self.runtime_checkpoint_configuration.store.begin_run(
+                        service_id=self.contract.service_id,
+                        owner_id=self.lease_configuration.owner_id,
+                        fencing_token=service_lease.fencing_token,
+                        started_at=startup_now,
+                    )
+                )
+                runtime_checkpoint = started.checkpoint
+                if started.recovery != runtime_recovery:
+                    raise AuthorityValidationError(
+                        "supervisor recovery assessment changed during admission"
+                    )
 
             for worker in self.workers:
                 observation = worker.controller.observe()
