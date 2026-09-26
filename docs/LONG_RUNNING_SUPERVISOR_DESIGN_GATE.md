@@ -839,3 +839,38 @@ This does **not** yet establish:
 - service-account ACL correctness;
 - reboot persistence;
 - production installation.
+
+
+## Crash-safe Windows installation mutation journal candidate
+
+ACP now has an append-only SQLite journal for the authorized Windows service installation transaction.
+
+The journal records exact target identity and ordered durable states including:
+
+- prepared;
+- authorization consumed;
+- SCM opened;
+- create intent recorded;
+- service created;
+- configure intent recorded;
+- delayed auto-start configured;
+- rollback delete intent recorded;
+- completed / failed / rolled back / rollback failed.
+
+The transaction persists intent **before** each irreversible service mutation:
+
+- create intent before `CreateServiceW`;
+- configure intent before `ChangeServiceConfig2W`;
+- rollback-delete intent before `DeleteService`.
+
+Abrupt process death therefore cannot be reported as a false clean result. Recovery assessment is deliberately fail-closed:
+
+- pre-mutation states classify as safe/no-service-mutation;
+- completed installs classify clean-installed;
+- completed rollback classifies clean-rolled-back;
+- create/configure/delete ambiguity becomes `HOLD_POSSIBLE_INSTALLED_SERVICE`;
+- rollback failure becomes `HOLD_ROLLBACK_FAILED`.
+
+Tests explicitly use abrupt `SystemExit` during create/configure so normal exception rollback does not run, then reopen the SQLite journal and require the ambiguous HOLD classification.
+
+This establishes durable mutation intent and recovery classification only. It does **not** yet inspect live SCM state to resolve an ambiguous hold, automatically resume configuration, automatically delete a possibly-created service, or authorize recovery mutation.

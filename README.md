@@ -226,3 +226,8 @@ This is control-code translation only. It does not establish Windows SCM service
 ### Native Windows SCM installation backend
 
 A `WindowsScmNativeInstallationBackend` candidate now implements the already-authorized installation transaction against the native Windows SCM API surface: `OpenSCManagerW`, `CreateServiceW`, `ChangeServiceConfig2W`, `DeleteService`, and `CloseServiceHandle`. The backend is gated by the existing exact single-use authorization and transaction orchestration; it does not independently authorize installation.
+
+
+### Crash-safe Windows installation journal
+
+A `WindowsScmInstallationJournal` candidate now records append-only durable install phases and recovery classifications. The install transaction records create/configure/delete intent **before** those irreversible SCM calls. Interrupted transactions therefore reopen into explicit recovery states rather than being assumed successful.
