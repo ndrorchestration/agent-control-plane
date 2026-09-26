@@ -111,9 +111,10 @@ class RemoteExecutionReceipt:
         if not isinstance(data, Mapping):
             raise ContractValidationError("remote execution receipt must be a mapping")
         try:
+            device_id = data["device_id"] if "device_id" in data else data["device"]
             receipt = cls(
                 request_id=data["request_id"],
-                device_id=data["device"],
+                device_id=device_id,
                 device_identity_fingerprint=data["device_identity_fingerprint"],
                 device_attestation_level=data["device_attestation_level"],
                 execution_profile=data["execution_profile"],
