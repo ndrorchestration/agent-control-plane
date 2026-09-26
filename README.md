@@ -196,3 +196,13 @@ Accepted protected main `a7f98d5aadbae12cc745f5d70b13d892aed4746e` establishes t
 `EXPERIMENTAL_LONG_RUNNING_SUPERVISOR=ESTABLISHED_BOUNDED_LOCAL_LINUX`
 
 This is not a production/unattended deployment claim. Systemd/Windows SCM/launchd integration, reboot persistence, distributed ownership, privilege dropping/sandboxing, and production watchdog guarantees remain unestablished.
+
+
+### Service-host event boundary
+
+A platform-neutral `SupervisorServiceHostEventLatch` candidate translates external service-manager-style events into typed ACP stop reasons:
+
+- `STOP -> service_stop`
+- `SHUTDOWN -> service_shutdown`
+
+The supervisor runner accepts these typed reasons separately from POSIX signal input. This keeps platform/service-manager adapters from redefining ACP lifecycle semantics or pretending every service stop is a Unix signal.
