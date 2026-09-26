@@ -208,3 +208,22 @@ The origin-facing link and remaining relay processes are then torn down, and rel
 - exact replay after recovery to return `DUPLICATE`.
 
 This is explicit restart/reconnect recovery, not automatic self-healing. A green run does not establish transparent link re-establishment, process supervision, retry orchestration, partition healing, durable relay queues, or delivery guarantees.
+
+
+## Durable pending relay-forward queue candidate
+
+Each autonomous relay stage can now use a local SQLite-backed pending-forward queue.
+
+The forwarding sequence is intentionally fail-safe:
+
+1. verify the incoming signed prefix and append exactly one signed hop;
+2. persist the resulting canonical relay-chain bytes and SHA-256 identity locally;
+3. record the downstream send attempt;
+4. perform the downstream exchange;
+5. delete the pending record only after a byte response is returned.
+
+If downstream exchange fails, the pending record remains in SQLite with its attempt count. Reopening the queue after process restart reconstructs the pending set, and the relay stage can drain those records through its configured downstream exchange before advertising readiness for new inbound work.
+
+The queue manifest exposes identifiers, hashes, timestamps and attempt counts, but not queued payload bytes.
+
+This establishes local durable pending-forward state and explicit replay mechanics only. It does not establish exactly-once delivery, globally unique delivery, transactional coupling to Reticulum, crash safety at every filesystem boundary, guaranteed delivery, bounded retry/backoff, dead-letter handling, remote acknowledgement durability, or production message-queue semantics.
