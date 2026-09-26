@@ -874,3 +874,43 @@ Abrupt process death therefore cannot be reported as a false clean result. Recov
 Tests explicitly use abrupt `SystemExit` during create/configure so normal exception rollback does not run, then reopen the SQLite journal and require the ambiguous HOLD classification.
 
 This establishes durable mutation intent and recovery classification only. It does **not** yet inspect live SCM state to resolve an ambiguous hold, automatically resume configuration, automatically delete a possibly-created service, or authorize recovery mutation.
+
+
+## Read-only live Windows SCM recovery inspection candidate
+
+ACP can now narrow ambiguous install-journal HOLD states using live **read-only** SCM evidence.
+
+The native reader uses only query surfaces:
+
+- `OpenSCManagerW` with connect access;
+- `OpenServiceW` with `SERVICE_QUERY_CONFIG`;
+- `QueryServiceConfigW`;
+- `QueryServiceConfig2W(SERVICE_CONFIG_DELAYED_AUTO_START_INFO)`;
+- `CloseServiceHandle`.
+
+The recovery inspector compares live SCM state against the exact registration plan:
+
+- service type;
+- start type;
+- error control;
+- binary command;
+- dependencies;
+- service account;
+- display name;
+- delayed auto-start.
+
+Possible observation outcomes are:
+
+- `SERVICE_ABSENT`;
+- `INSTALLED_MATCH`;
+- `HOLD_LIVE_CONFIG_MISMATCH`;
+- `HOLD_LIVE_QUERY_ERROR`;
+- `NOT_REQUIRED` for already non-ambiguous journal states.
+
+These are observations only. An exact installed match does not retroactively rewrite the journal, and service absence does not authorize a new installation attempt.
+
+Operator-local Windows corroboration on the connected Windows 11 build 26200 host:
+- recovery-inspector tests: 9/9 PASS;
+- native read of the existing `EventLog` service succeeded without elevation or SCM mutation.
+
+This does **not** authorize or perform repair, deletion, reconfiguration, reinstallation, or recovery mutation.
