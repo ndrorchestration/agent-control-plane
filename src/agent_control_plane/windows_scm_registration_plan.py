@@ -34,9 +34,9 @@ _REQUIRED_REGISTRATION_EXPORTS = (
 
 _PASSWORDLESS_ACCOUNTS = {
     "localsystem",
-    "nt authority\system",
-    "nt authority\localservice",
-    "nt authority\networkservice",
+    r"nt authority\system",
+    r"nt authority\localservice",
+    r"nt authority\networkservice",
     "localservice",
     "networkservice",
 }
@@ -46,7 +46,7 @@ def _account_requires_secret(account_name: str) -> bool:
     normalized = account_name.strip().lower()
     if normalized in _PASSWORDLESS_ACCOUNTS:
         return False
-    if normalized.startswith("nt service\"):
+    if normalized.startswith(r"nt service\"):
         return False
     return True
 
