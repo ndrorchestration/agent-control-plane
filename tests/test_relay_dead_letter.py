@@ -1,8 +1,12 @@
 import pytest
 
 from agent_control_plane.authority import AuthorityValidationError
-from agent_control_plane.relay_dead_letter import DurableRelayDeadLetterStore
+from agent_control_plane.relay_dead_letter import (
+    DurableRelayDeadLetterStore,
+    dead_letter_exhausted,
+)
 from agent_control_plane.relay_forward_queue import DurableRelayForwardQueue
+from agent_control_plane.relay_retry_policy import BoundedRelayRetryPolicy
 
 
 def exhausted_item(tmp_path):
@@ -109,3 +113,38 @@ def test_manifest_omits_payload_bytes(tmp_path):
     manifest = store.manifest()
     assert manifest["dead_letter_count"] == 1
     assert "signed-chain" not in str(manifest)
+
+
+
+def test_only_policy_exhausted_items_are_moved(tmp_path):
+    queue = DurableRelayForwardQueue(tmp_path / "pending.sqlite3")
+    store = DurableRelayDeadLetterStore(tmp_path / "dead.sqlite3")
+    policy = BoundedRelayRetryPolicy(max_attempts=2)
+
+    exhausted = queue.enqueue(
+        relay_id="relay-a",
+        downstream_id="relay-b",
+        payload=b"exhausted",
+        item_id="exhausted",
+    )
+    queue.mark_attempt(exhausted.item_id, attempted_at="2026-09-25T20:00:00Z")
+    queue.mark_attempt(exhausted.item_id, attempted_at="2026-09-25T20:00:01Z")
+
+    retryable = queue.enqueue(
+        relay_id="relay-a",
+        downstream_id="relay-b",
+        payload=b"retryable",
+        item_id="retryable",
+    )
+    queue.mark_attempt(retryable.item_id, attempted_at="2026-09-25T20:00:00Z")
+
+    moved = dead_letter_exhausted(
+        queue=queue,
+        store=store,
+        policy=policy,
+        dead_lettered_at="2026-09-25T20:05:00Z",
+    )
+
+    assert moved == ("exhausted",)
+    assert tuple(item.item_id for item in queue.pending()) == ("retryable",)
+    assert store.get("exhausted").attempt_count == 2
