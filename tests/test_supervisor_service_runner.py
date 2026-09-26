@@ -15,6 +15,10 @@ from agent_control_plane.process_runtime import (
     ManagedProcessSpec,
 )
 from agent_control_plane.process_supervision import ProcessSupervisionPolicy
+from agent_control_plane.windows_scm_adapter import (
+    WindowsScmControlAdapter,
+    WindowsScmControlCode,
+)
 from agent_control_plane.supervisor_service_host import (
     SupervisorServiceHostEvent,
     SupervisorServiceHostEventLatch,
@@ -1184,3 +1188,69 @@ def test_typed_service_host_stop_requests_clean_shutdown(tmp_path):
         is SupervisorStopReason.SERVICE_STOP
     )
     assert report.final_observations[0].running is False
+
+
+
+def test_windows_scm_stop_composes_into_clean_supervisor_shutdown(tmp_path):
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+    latch = SupervisorServiceHostEventLatch()
+    adapter = WindowsScmControlAdapter()
+
+    def stop_reason_provider(index):
+        if index != 1:
+            return None
+        translated = adapter.translate(WindowsScmControlCode.STOP)
+        assert translated.host_event is SupervisorServiceHostEvent.STOP
+        return latch.request(translated.host_event).stop_reason
+
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        max_cycles=3,
+        interval_seconds=0,
+        now_provider=lambda: "2026-09-26T02:30:00Z",
+        sleep_fn=lambda seconds: None,
+        stop_reason_provider=stop_reason_provider,
+        terminate_timeout_seconds=2,
+    )
+    report = runner.run()
+
+    assert report.cycles_completed == 1
+    assert report.final_snapshot.state is SupervisorServiceState.STOPPED
+    assert (
+        report.final_snapshot.stop_reason
+        is SupervisorStopReason.SERVICE_STOP
+    )
+    assert report.final_observations[0].running is False
+
+
+def test_windows_scm_preshutdown_composes_into_distinct_stop_reason(tmp_path):
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+    latch = SupervisorServiceHostEventLatch()
+    adapter = WindowsScmControlAdapter()
+
+    translated = adapter.translate(WindowsScmControlCode.PRESHUTDOWN)
+    latch.request(translated.host_event)
+
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        max_cycles=2,
+        interval_seconds=0,
+        now_provider=lambda: "2026-09-26T02:31:00Z",
+        sleep_fn=lambda seconds: None,
+        stop_reason_provider=lambda index: latch.stop_reason()
+        if index == 0
+        else None,
+        terminate_timeout_seconds=2,
+    )
+    report = runner.run()
+
+    assert report.cycles_completed == 0
+    assert report.final_snapshot.state is SupervisorServiceState.STOPPED
+    assert (
+        report.final_snapshot.stop_reason
+        is SupervisorStopReason.SERVICE_PRESHUTDOWN
+    )
