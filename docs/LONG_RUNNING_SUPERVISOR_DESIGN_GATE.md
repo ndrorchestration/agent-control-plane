@@ -633,3 +633,46 @@ Operator-local corroboration on Windows 11 build 26200 produced `ERRNO=1063`.
 The dedicated Windows CI gate must reproduce the same condition before this evidence is accepted.
 
 This proves only the negative console-launch boundary. It does not prove successful SCM-launched dispatch, service installation, reboot persistence, or service-account behavior.
+
+
+## Windows service registration manifest candidate
+
+ACP now has a fail-closed, non-mutating Windows service registration manifest and admission policy.
+
+`WindowsScmServiceRegistrationManifest` records:
+
+- service name and display name;
+- canonical absolute Windows binary path;
+- explicit service account;
+- start type;
+- description;
+- dependency set;
+- delayed-auto-start intent;
+- opaque credential reference instead of plaintext credentials;
+- optional binary SHA-256;
+- canonical manifest SHA-256 identity.
+
+`WindowsScmServiceRegistrationPolicy` can require:
+
+- exact admitted binary paths;
+- exact admitted service accounts;
+- admitted start types;
+- optional exact manifest hashes;
+- explicit LocalSystem permission;
+- explicit delayed-auto-start permission;
+- presence of a binary SHA-256.
+
+Default policy accepts demand-start only. LocalSystem and auto-start are fail-closed unless explicitly admitted.
+
+This is intent admission only. The supplied `binary_sha256` is an identity claim in the manifest; this slice does not read or independently hash the binary on disk.
+
+Operator-local corroboration on the connected Windows 11 build 26200 / Python 3.14.5 environment produced `14 passed` for the registration-manifest test set.
+
+This still does **not**:
+- call CreateServiceW or ChangeServiceConfig2W;
+- create, modify, start, stop, or delete any Windows service;
+- store or retrieve actual credentials;
+- establish service-account ACLs;
+- enable reboot persistence;
+- configure failure/recovery actions;
+- authorize production installation.
