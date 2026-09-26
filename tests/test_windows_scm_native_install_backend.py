@@ -14,6 +14,14 @@ from agent_control_plane.windows_scm_native_install_backend import (
 from agent_control_plane.windows_scm_registration_plan import (
     WindowsScmServiceRegistrationPlan,
 )
+from agent_control_plane.windows_scm_install_authorization import (
+    WindowsScmInstallationAuthorizationStore,
+    WindowsScmInstallationTarget,
+    windows_scm_registration_plan_sha256,
+)
+from agent_control_plane.windows_scm_install_transaction import (
+    WindowsScmServiceInstallationTransaction,
+)
 
 
 def plan(
@@ -241,3 +249,50 @@ def test_native_install_api_fails_closed_off_windows():
         match="requires Windows",
     ):
         WindowsScmNativeInstallApi()
+
+
+
+def test_native_backend_composes_with_authorized_transaction(tmp_path):
+    item = plan()
+    target = WindowsScmInstallationTarget(
+        service_name=item.service_name,
+        manifest_sha256=item.manifest_sha256,
+        binary_sha256="b" * 64,
+        registration_plan_sha256=windows_scm_registration_plan_sha256(item),
+    )
+    store = WindowsScmInstallationAuthorizationStore(
+        tmp_path / "install.sqlite3"
+    )
+    store.issue(
+        authorization_id="native-install-1",
+        target=target,
+        authorized_by="operator-test",
+        issued_at="2026-09-26T09:30:00Z",
+        expires_at="2026-09-26T10:30:00Z",
+    )
+
+    api = FakeApi()
+    backend = WindowsScmNativeInstallationBackend(api=api)
+    tx = WindowsScmServiceInstallationTransaction(
+        authorization_store=store,
+        backend=backend,
+    )
+    result = tx.install(
+        authorization_id="native-install-1",
+        target=target,
+        plan=item,
+        now="2026-09-26T09:31:00Z",
+    )
+
+    assert result.mutation_steps == (
+        "authorization_consumed",
+        "scm_opened",
+        "service_created",
+    )
+    assert api.calls[0] == ("open_scm", None, None, item.desired_scm_access)
+    assert api.calls[1][0] == "create_service"
+    assert api.calls[-2:] == [
+        ("close_service_handle", 202),
+        ("close_service_handle", 101),
+    ]
+    assert store.get("native-install-1").consumed_at is not None
