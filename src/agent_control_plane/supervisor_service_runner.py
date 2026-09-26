@@ -13,6 +13,10 @@ from .process_monitor_cadence import (
 )
 from .process_runtime import ManagedProcessController, ProcessObservation
 from .process_supervision import ProcessSupervisionDecision
+from .supervisor_ownership import (
+    SupervisorOwnershipLease,
+    SupervisorOwnershipLeaseStore,
+)
 from .supervisor_service import (
     SupervisorServiceContract,
     SupervisorServiceSnapshot,
@@ -51,6 +55,36 @@ class SupervisorWorkerRuntime:
             )
 
 
+
+@dataclass(frozen=True)
+class SupervisorLeaseConfiguration:
+    store: SupervisorOwnershipLeaseStore
+    owner_id: str
+    instance_token: str
+    ttl_seconds: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.store, SupervisorOwnershipLeaseStore):
+            raise AuthorityValidationError(
+                "store must be SupervisorOwnershipLeaseStore"
+            )
+        if not isinstance(self.owner_id, str) or not self.owner_id.strip():
+            raise AuthorityValidationError("owner_id must not be blank")
+        if (
+            not isinstance(self.instance_token, str)
+            or not self.instance_token.strip()
+        ):
+            raise AuthorityValidationError(
+                "instance_token must not be blank"
+            )
+        if (
+            isinstance(self.ttl_seconds, bool)
+            or not isinstance(self.ttl_seconds, (int, float))
+            or self.ttl_seconds <= 0
+        ):
+            raise AuthorityValidationError("ttl_seconds must be > 0")
+
+
 @dataclass(frozen=True)
 class SupervisorCycleRecord:
     cycle_index: int
@@ -65,6 +99,7 @@ class BoundedSupervisorServiceReport:
     cycles_completed: int
     cycle_records: tuple[SupervisorCycleRecord, ...]
     final_observations: tuple[ProcessObservation, ...]
+    lease_fencing_tokens: tuple[tuple[str, int], ...] = ()
 
 
 class BoundedSupervisorServiceRunner:
@@ -81,6 +116,7 @@ class BoundedSupervisorServiceRunner:
         sleep_fn: Callable[[float], None] = time.sleep,
         signal_provider: Optional[Callable[[int], Optional[str]]] = None,
         terminate_timeout_seconds: float = 5.0,
+        lease_configuration: Optional[SupervisorLeaseConfiguration] = None,
     ) -> None:
         if not isinstance(contract, SupervisorServiceContract):
             raise AuthorityValidationError(
@@ -127,6 +163,16 @@ class BoundedSupervisorServiceRunner:
             raise AuthorityValidationError(
                 "terminate_timeout_seconds must be > 0"
             )
+        if (
+            lease_configuration is not None
+            and not isinstance(
+                lease_configuration,
+                SupervisorLeaseConfiguration,
+            )
+        ):
+            raise AuthorityValidationError(
+                "lease_configuration must be SupervisorLeaseConfiguration or None"
+            )
 
         contract_worker_ids = tuple(
             registration.worker_id for registration in contract.workers
@@ -147,6 +193,86 @@ class BoundedSupervisorServiceRunner:
         self.sleep_fn = sleep_fn
         self.signal_provider = signal_provider
         self.terminate_timeout_seconds = terminate_timeout_seconds
+        self.lease_configuration = lease_configuration
+
+    def _lease_token_for(
+        self,
+        worker: SupervisorWorkerRuntime,
+    ) -> str:
+        assert self.lease_configuration is not None
+        return (
+            f"{self.lease_configuration.instance_token}:"
+            f"{worker.registration.ownership_token}"
+        )
+
+    def _acquire_leases(
+        self,
+        *,
+        now: str,
+    ) -> dict[str, SupervisorOwnershipLease]:
+        if self.lease_configuration is None:
+            return {}
+        acquired: dict[str, SupervisorOwnershipLease] = {}
+        try:
+            for worker in self.workers:
+                resource_id = worker.registration.process_id
+                acquired[resource_id] = (
+                    self.lease_configuration.store.acquire(
+                        resource_id=resource_id,
+                        owner_id=self.lease_configuration.owner_id,
+                        ownership_token=self._lease_token_for(worker),
+                        now=now,
+                        ttl_seconds=self.lease_configuration.ttl_seconds,
+                    )
+                )
+        except Exception:
+            for lease in acquired.values():
+                try:
+                    self.lease_configuration.store.release(
+                        lease,
+                        released_at=now,
+                    )
+                except Exception:
+                    pass
+            raise
+        return acquired
+
+    def _renew_leases(
+        self,
+        leases: dict[str, SupervisorOwnershipLease],
+        *,
+        now: str,
+    ) -> dict[str, SupervisorOwnershipLease]:
+        if self.lease_configuration is None:
+            return leases
+        renewed: dict[str, SupervisorOwnershipLease] = {}
+        for resource_id, lease in leases.items():
+            self.lease_configuration.store.assert_current(
+                lease,
+                now=now,
+            )
+            renewed[resource_id] = (
+                self.lease_configuration.store.renew(
+                    lease,
+                    now=now,
+                    ttl_seconds=self.lease_configuration.ttl_seconds,
+                )
+            )
+        return renewed
+
+    def _release_leases(
+        self,
+        leases: dict[str, SupervisorOwnershipLease],
+        *,
+        now: str,
+    ) -> None:
+        if self.lease_configuration is None:
+            return
+        for lease in leases.values():
+            self.lease_configuration.store.release(
+                lease,
+                released_at=now,
+            )
 
     def _terminate_all(self) -> tuple[ProcessObservation, ...]:
         observations: list[ProcessObservation] = []
@@ -161,9 +287,12 @@ class BoundedSupervisorServiceRunner:
 
     def run(self) -> BoundedSupervisorServiceReport:
         cycle_records: list[SupervisorCycleRecord] = []
+        leases: dict[str, SupervisorOwnershipLease] = {}
 
         self.contract.begin_startup()
         try:
+            if self.lease_configuration is not None:
+                leases = self._acquire_leases(now=self.now_provider())
             for worker in self.workers:
                 observation = worker.controller.observe()
                 if not observation.running:
@@ -178,6 +307,10 @@ class BoundedSupervisorServiceRunner:
                 cycles_completed=0,
                 cycle_records=(),
                 final_observations=final_observations,
+                lease_fencing_tokens=tuple(
+                    (resource_id, lease.fencing_token)
+                    for resource_id, lease in leases.items()
+                ),
             )
 
         self.contract.mark_running()
@@ -196,6 +329,17 @@ class BoundedSupervisorServiceRunner:
                 tuple[str, ScheduledProcessMonitorResult]
             ] = []
             now = self.now_provider()
+            if self.lease_configuration is not None:
+                try:
+                    leases = self._renew_leases(
+                        leases,
+                        now=now,
+                    )
+                except Exception:
+                    self.contract.request_stop(
+                        SupervisorStopReason.INTERNAL_ERROR
+                    )
+                    break
             for worker in self.workers:
                 if self.contract.state is not SupervisorServiceState.RUNNING:
                     break
@@ -238,6 +382,17 @@ class BoundedSupervisorServiceRunner:
 
         final_observations = self._terminate_all()
 
+        if self.lease_configuration is not None and leases:
+            try:
+                self._release_leases(
+                    leases,
+                    now=self.now_provider(),
+                )
+            except Exception:
+                self.contract.mark_failed(
+                    SupervisorStopReason.INTERNAL_ERROR
+                )
+
         if self.contract.state is SupervisorServiceState.STOPPING:
             self.contract.mark_stopped()
 
@@ -246,4 +401,8 @@ class BoundedSupervisorServiceRunner:
             cycles_completed=len(cycle_records),
             cycle_records=tuple(cycle_records),
             final_observations=final_observations,
+            lease_fencing_tokens=tuple(
+                (resource_id, lease.fencing_token)
+                for resource_id, lease in leases.items()
+            ),
         )

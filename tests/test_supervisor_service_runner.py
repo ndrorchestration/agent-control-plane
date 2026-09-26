@@ -20,8 +20,12 @@ from agent_control_plane.supervisor_service import (
     SupervisorStopReason,
     SupervisorWorkerRegistration,
 )
+from agent_control_plane.supervisor_ownership import (
+    SupervisorOwnershipLeaseStore,
+)
 from agent_control_plane.supervisor_service_runner import (
     BoundedSupervisorServiceRunner,
+    SupervisorLeaseConfiguration,
     SupervisorWorkerRuntime,
 )
 
@@ -192,3 +196,135 @@ def test_worker_runtime_order_must_match_contract(tmp_path):
             now_provider=lambda: "2026-09-25T22:00:00Z",
             sleep_fn=lambda seconds: None,
         )
+
+
+
+def test_lease_enforced_run_acquires_renews_and_releases(tmp_path):
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+    store = SupervisorOwnershipLeaseStore(
+        tmp_path / "ownership.sqlite3"
+    )
+    times = iter([
+        "2026-09-25T22:00:00Z",
+        "2026-09-25T22:00:01Z",
+        "2026-09-25T22:00:02Z",
+    ])
+
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        max_cycles=1,
+        interval_seconds=0,
+        now_provider=lambda: next(times),
+        sleep_fn=lambda seconds: None,
+        terminate_timeout_seconds=2,
+        lease_configuration=SupervisorLeaseConfiguration(
+            store=store,
+            owner_id="acp-supervisor",
+            instance_token="instance-1",
+            ttl_seconds=10,
+        ),
+    )
+    report = runner.run()
+
+    lease = store.get("relay-a-process")
+    assert lease is not None
+    assert lease.released_at == "2026-09-25T22:00:02Z"
+    assert report.lease_fencing_tokens == (
+        ("relay-a-process", 1),
+    )
+    assert report.final_snapshot.state is SupervisorServiceState.STOPPED
+
+
+def test_competing_active_lease_blocks_worker_startup(tmp_path):
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+    store = SupervisorOwnershipLeaseStore(
+        tmp_path / "ownership.sqlite3"
+    )
+    store.acquire(
+        resource_id="relay-a-process",
+        owner_id="other-supervisor",
+        ownership_token="other-instance:owner-relay-a",
+        now="2026-09-25T22:00:00Z",
+        ttl_seconds=30,
+    )
+
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        max_cycles=1,
+        interval_seconds=0,
+        now_provider=lambda: "2026-09-25T22:00:01Z",
+        sleep_fn=lambda seconds: None,
+        terminate_timeout_seconds=2,
+        lease_configuration=SupervisorLeaseConfiguration(
+            store=store,
+            owner_id="acp-supervisor",
+            instance_token="instance-1",
+            ttl_seconds=10,
+        ),
+    )
+    report = runner.run()
+
+    assert report.final_snapshot.state is SupervisorServiceState.FAILED
+    assert (
+        report.final_snapshot.stop_reason
+        is SupervisorStopReason.STARTUP_FAILURE
+    )
+    assert report.cycles_completed == 0
+    assert report.final_observations[0].pid is None
+    assert report.final_observations[0].running is False
+
+
+def test_stale_fence_stops_service_before_next_monitor_cycle(tmp_path):
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+    store = SupervisorOwnershipLeaseStore(
+        tmp_path / "ownership.sqlite3"
+    )
+    times = iter([
+        "2026-09-25T22:00:00Z",
+        "2026-09-25T22:00:00Z",
+        "2026-09-25T22:00:02Z",
+        "2026-09-25T22:00:03Z",
+    ])
+
+    def takeover(_seconds):
+        store.acquire(
+            resource_id="relay-a-process",
+            owner_id="other-supervisor",
+            ownership_token="other-instance:owner-relay-a",
+            now="2026-09-25T22:00:02Z",
+            ttl_seconds=10,
+        )
+
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        max_cycles=2,
+        interval_seconds=0,
+        now_provider=lambda: next(times),
+        sleep_fn=takeover,
+        terminate_timeout_seconds=2,
+        lease_configuration=SupervisorLeaseConfiguration(
+            store=store,
+            owner_id="acp-supervisor",
+            instance_token="instance-1",
+            ttl_seconds=1,
+        ),
+    )
+    report = runner.run()
+
+    assert report.cycles_completed == 1
+    assert report.final_snapshot.state is SupervisorServiceState.FAILED
+    assert (
+        report.final_snapshot.stop_reason
+        is SupervisorStopReason.INTERNAL_ERROR
+    )
+    assert report.final_observations[0].running is False
+    current = store.get("relay-a-process")
+    assert current is not None
+    assert current.owner_id == "other-supervisor"
+    assert current.fencing_token == 2

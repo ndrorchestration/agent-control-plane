@@ -200,3 +200,20 @@ Acquisition occurs under a SQLite write lock. A competing owner is rejected whil
 Renew and release operations must match the current owner ID, ownership token and fencing token. A stale supervisor instance therefore cannot renew or release a lease after takeover. Expired leases cannot be renewed; they must be reacquired and receive a new fencing token.
 
 This closes only the local durable ownership/fencing primitive. The bounded supervisor runner does not yet require a lease before worker control, and no cross-host distributed lease/consensus claim is established.
+
+
+## Lease-enforced bounded supervisor runner candidate
+
+The bounded multi-worker supervisor can now optionally enforce the durable fenced ownership lease primitive.
+
+When lease enforcement is configured:
+
+1. every worker resource lease is acquired before any child process starts;
+2. competing active ownership fails startup closed;
+3. each lease is asserted current and renewed before any new monitor-cycle work;
+4. a stale, expired, or taken-over fence requests service stop before another worker monitor executes;
+5. workers are terminated before lease release;
+6. stale lease release failure is treated as an internal service failure rather than silently clearing another owner's lease;
+7. the report records the fencing token used for each worker resource.
+
+This materially narrows local split-brain risk for the tested SQLite-backed single-host model. It does not establish distributed consensus, cross-host clock correctness, partition-safe leases, or fencing enforcement by external resources themselves.
