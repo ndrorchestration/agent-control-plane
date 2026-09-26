@@ -149,6 +149,14 @@ class SupervisorServiceContract:
             raise AuthorityValidationError(
                 "reason must be SupervisorStopReason"
             )
+        if self._state in (
+            SupervisorServiceState.STOP_REQUESTED,
+            SupervisorServiceState.STOPPING,
+            SupervisorServiceState.STOPPED,
+        ):
+            # First accepted stop reason is latched. Repeated stop requests
+            # are teardown-idempotent and cannot replace the original reason.
+            return self.snapshot()
         if self._state not in (
             SupervisorServiceState.STARTING,
             SupervisorServiceState.RUNNING,
