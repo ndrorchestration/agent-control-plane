@@ -616,3 +616,20 @@ This still does **not**:
 - establish reboot persistence;
 - define service-account/ACL behavior;
 - authorize production Windows-service operation.
+
+
+## Windows SCM dispatcher fail-closed candidate
+
+The native dispatcher wrapper is now explicitly tested from a normal Windows console process.
+
+Expected behavior:
+
+- `StartServiceCtrlDispatcherW` must fail when the process was not launched by SCM;
+- ACP surfaces Windows error `1063` (`ERROR_FAILED_SERVICE_CONTROLLER_CONNECT`);
+- ServiceMain logic must therefore not run merely because a user starts the executable interactively.
+
+Operator-local corroboration on Windows 11 build 26200 produced `ERRNO=1063`.
+
+The dedicated Windows CI gate must reproduce the same condition before this evidence is accepted.
+
+This proves only the negative console-launch boundary. It does not prove successful SCM-launched dispatch, service installation, reboot persistence, or service-account behavior.

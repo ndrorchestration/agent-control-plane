@@ -5,6 +5,7 @@ import pytest
 
 from agent_control_plane.authority import AuthorityValidationError
 from agent_control_plane.windows_scm_native import (
+    ERROR_FAILED_SERVICE_CONTROLLER_CONNECT,
     ERROR_SERVICE_SPECIFIC_ERROR,
     SERVICE_WIN32_OWN_PROCESS,
     WindowsScmNativeBindings,
@@ -86,3 +87,17 @@ def test_native_bindings_fail_closed_off_windows():
 def test_native_status_requires_typed_status():
     with pytest.raises(AuthorityValidationError):
         native_service_status(object())
+
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-only dispatcher behavior")
+def test_dispatcher_fails_closed_when_not_started_by_scm():
+    bindings = WindowsScmNativeBindings()
+    callback = bindings.make_service_main_callback(
+        lambda argc, argv: None
+    )
+
+    with pytest.raises(OSError) as exc_info:
+        bindings.dispatch("ACP-Console-Probe", callback)
+
+    assert exc_info.value.errno == ERROR_FAILED_SERVICE_CONTROLLER_CONNECT
