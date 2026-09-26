@@ -1,6 +1,6 @@
 # Long-Running Supervisor Design Gate
 
-Status: **DESIGN CONTRACT — UNBOUNDED DAEMON NOT AUTHORIZED**
+Status: **DESIGN PREREQUISITES SATISFIED — UNBOUNDED DAEMON IMPLEMENTATION NOT YET ESTABLISHED**
 
 This gate separates accepted bounded supervision primitives from any future continuously running ACP supervisor.
 
@@ -126,22 +126,24 @@ A platform adapter must not redefine ACP lifecycle semantics. It may translate e
 
 At minimum:
 
-- [ ] lifecycle state machine tests PASS;
-- [ ] SIGTERM graceful-shutdown test PASS;
-- [ ] SIGINT graceful-shutdown test PASS;
-- [ ] repeated-signal idempotence test PASS;
-- [ ] child crash during shutdown test PASS;
-- [ ] multi-worker ownership-conflict tests PASS;
-- [ ] restart forbidden after stop-request test PASS;
-- [ ] persistent ownership/restart state defined and tested;
-- [ ] bounded concurrency semantics defined;
-- [ ] executable/privilege policy defined;
-- [ ] finite integration test proves startup -> run -> signal -> clean stop;
-- [ ] exact evidence boundary documented.
+- [x] lifecycle state machine tests PASS — #57;
+- [x] SIGTERM graceful-shutdown test PASS — #59;
+- [x] SIGINT graceful-shutdown test PASS — #59;
+- [x] repeated-signal idempotence test PASS — #58 / #59;
+- [x] child crash during shutdown test PASS — #67;
+- [x] multi-worker ownership-conflict tests PASS — #57 / #60 / #61;
+- [x] restart forbidden after stop-request test PASS — #58 / #67;
+- [x] persistent ownership/restart state defined and tested — #60–#65;
+- [x] bounded concurrency semantics defined — #69 (`max_in_flight_workers=1`, contract-order serial);
+- [x] executable/privilege policy defined — #68 (pre-spawn executable/CWD/environment/spec/UID admission; no sandbox claim);
+- [x] finite integration test proves startup -> run -> signal -> clean stop — #59;
+- [x] exact evidence boundary documented — #57–#69.
 
-Until those gates are satisfied:
+These prerequisite gates are now satisfied for the bounded local evidence model.
 
-**LONG_RUNNING_SUPERVISOR = NOT AUTHORIZED**
+**LONG_RUNNING_SUPERVISOR_IMPLEMENTATION = ADMISSIBLE_AS_EXPERIMENTAL_CANDIDATE**
+
+This does **not** mean a daemon is established, production-ready, or authorized for unattended deployment. Any unbounded implementation must still pass its own exact-head integration evidence, preserve the accepted lifecycle/ownership/recovery/admission boundaries, and remain fail-closed on unsupported platform/service-manager behavior.
 
 
 ## Bounded service-runner candidate
@@ -388,3 +390,29 @@ Candidate semantics:
 This satisfies bounded-concurrency semantics by making the current single-in-flight model explicit rather than implying unsupported parallel execution. It does **not** establish concurrent worker monitoring, thread/process pools, fairness under parallel scheduling, or parallel failure isolation.
 
 Until exact-head CI passes, this remains candidate evidence.
+
+
+## 2026-09-26 gate reconciliation
+
+Accepted protected main after #69: `6757f6c06465fa899b2620a76eea3259362e6483`.
+
+The original prerequisite list is now fully evidenced under the current bounded local model.
+
+Notably:
+- #59 established real finite SIGTERM/SIGINT handling;
+- #60–#61 established durable local ownership leases and runner fencing;
+- #62–#65 established persisted runtime generations, fail-closed recovery admission, and exact one-time recovery authorization;
+- #67 closed shutdown-race restart suppression and bounded kill-fallback evidence;
+- #68 added fail-closed pre-spawn process execution admission;
+- #69 made the current concurrency model explicit: contract-order serial with one in-flight worker action.
+
+The next valid engineering step is an **experimental unbounded supervisor runtime candidate**. It must reuse—not bypass—the accepted lifecycle contract, ownership fences, checkpoint/recovery policy, execution admission, signal handling, and serial concurrency contract.
+
+Still outside the evidence boundary:
+- systemd / Windows SCM / launchd installation;
+- reboot persistence;
+- cross-host lease correctness or consensus;
+- Windows service-account semantics;
+- privilege dropping or sandbox isolation;
+- production watchdog/SLA claims;
+- unattended production authorization.
