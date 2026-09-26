@@ -288,3 +288,16 @@ A `RelaySupervisorCycle.run(now=...)` call:
    - `blocked`: an item exhausted and was dead-lettered.
 
 The cycle does not schedule itself, sleep, restart relay processes, supervise OS PIDs, or create background workers. It is orchestration logic for a future supervisor, not evidence of an automatic supervisory runtime.
+
+
+## Bounded process-supervision decision policy
+
+ACP now has a scheduler-neutral process-failure policy that maps explicit failure state to one of three decisions:
+
+- `restart`: failure count is within the configured restart budget and restart spacing is satisfied;
+- `hold`: a restart is still within the configured minimum interval;
+- `give_up`: the failure count exceeds the configured restart budget.
+
+The policy consumes explicit `ProcessFailureState` containing process ID, failure count, failure time, and optional last-restart time. It does not inspect OS processes, spawn subprocesses, terminate workers, sleep, persist process state, or restart anything itself.
+
+This establishes deterministic restart-decision semantics only. Actual process supervision, PID tracking, executable configuration, restart execution, backoff scheduling, and crash-loop recovery remain unestablished.
