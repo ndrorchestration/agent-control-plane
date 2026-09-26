@@ -839,3 +839,36 @@ This does **not** yet establish:
 - service-account ACL correctness;
 - reboot persistence;
 - production installation.
+
+
+## Crash-safe Windows SCM installation journal candidate
+
+ACP now has an append-only SQLite mutation journal around the accepted authorized installation transaction.
+
+Journal events are written at the mutation boundaries:
+
+- authorization consumed;
+- SCM open intent / completion;
+- CreateService intent / completion;
+- delayed-auto-start configuration intent / completion;
+- rollback delete intent / completion / failure;
+- install committed.
+
+Writing intent **before** native mutation is important because process death can otherwise make a completed native call indistinguishable from a call that never occurred.
+
+The journal classifies durable recovery state as:
+
+- `pre_create`: no create mutation was attempted;
+- `create_outcome_ambiguous`: create intent exists without a durable create-completion record;
+- `service_exists_uncommitted`: service creation was recorded but installation never committed or rolled back;
+- `rollback_outcome_ambiguous`: delete intent exists without durable delete completion;
+- `rolled_back`: rollback delete completed;
+- `committed`: install reached terminal commit.
+
+Target identity is bound on the first journal record and any later manifest/binary/plan drift for the same authorization ID fails closed.
+
+### Recovery boundary
+
+This journal does not itself inspect SCM or perform recovery mutation. In particular, `create_outcome_ambiguous` and `rollback_outcome_ambiguous` must **not** be auto-resolved by assumption. They require an explicit recovery/inspection layer that queries the real SCM state and binds any cleanup action to exact target identity.
+
+Until exact-head CI is green, this remains candidate evidence.
