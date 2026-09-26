@@ -914,3 +914,52 @@ Operator-local Windows corroboration on the connected Windows 11 build 26200 hos
 - native read of the existing `EventLog` service succeeded without elevation or SCM mutation.
 
 This does **not** authorize or perform repair, deletion, reconfiguration, reinstallation, or recovery mutation.
+
+
+## Exact Windows SCM recovery authorization candidate
+
+ACP now has a candidate durable authorization layer for recovery deletion after an ambiguous or failed installation.
+
+A recovery target is constructible only when:
+
+- the journal assessment is `hold_possible_installed_service` or `hold_rollback_failed`;
+- the read-only recovery inspection resolution is exactly `installed_match`;
+- live service evidence is present;
+- the journal transaction ID and inspection disposition agree.
+
+The recovery target binds:
+
+- journal transaction ID;
+- service name;
+- manifest SHA-256;
+- binary SHA-256 from the original installation target;
+- registration-plan SHA-256;
+- current journal state;
+- journal recovery disposition;
+- live inspection resolution;
+- canonical SHA-256 of the observed live SCM configuration;
+- exact action `delete_exact_service`.
+
+`WindowsScmRecoveryAuthorizationStore` persists:
+
+- authorization ID;
+- operator audit label;
+- issue time;
+- expiry time;
+- one exact recovery target;
+- single-use consumed time.
+
+Consumption is transactional and fails closed on expiry, replay, or any target drift. A changed live configuration therefore invalidates an earlier recovery authorization.
+
+### Boundary
+
+Issuing or consuming recovery authorization performs **no SCM mutation**. It does not call `DeleteServiceW`, modify the installation journal, or mark recovery complete.
+
+This establishes authorization semantics only. A separate recovery transaction must:
+1. re-inspect the exact live target;
+2. consume the exact authorization;
+3. journal recovery intent;
+4. perform the native deletion;
+5. journal the observed outcome.
+
+Until exact-head CI is green, this remains candidate evidence.
