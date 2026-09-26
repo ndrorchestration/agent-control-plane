@@ -874,3 +874,52 @@ Abrupt process death therefore cannot be reported as a false clean result. Recov
 Tests explicitly use abrupt `SystemExit` during create/configure so normal exception rollback does not run, then reopen the SQLite journal and require the ambiguous HOLD classification.
 
 This establishes durable mutation intent and recovery classification only. It does **not** yet inspect live SCM state to resolve an ambiguous hold, automatically resume configuration, automatically delete a possibly-created service, or authorize recovery mutation.
+
+
+## Read-only Windows SCM recovery inspection candidate
+
+ACP now has a candidate reconciliation layer above the accepted crash-safe installation journal.
+
+`WindowsScmInstallRecoveryInspector` compares live service state to the exact admitted installation target and registration plan. An observed service is an exact match only when all of the following match:
+
+- service name;
+- display name;
+- binary command;
+- service type;
+- start type;
+- error control;
+- dependency MULTI_SZ;
+- account name;
+- actual on-disk binary SHA-256.
+
+The configured binary path is extracted from the observed service command and re-hashed during inspection. If hashing fails, inspection is a mismatch rather than a presumed match.
+
+`WindowsScmNativeReadOnlyInspector` uses only:
+- `OpenSCManagerW`;
+- `OpenServiceW`;
+- `QueryServiceConfigW`;
+- `CloseServiceHandle`.
+
+Windows error 1060 is interpreted as service absence; other native errors are surfaced.
+
+The recovery resolver combines journal disposition + live inspection into bounded decisions such as:
+
+- clean installed;
+- clean rolled back;
+- new install authorization required;
+- hold exact service present;
+- hold identity conflict;
+- hold expected service missing.
+
+Every resolution sets `cleanup_mutation_authorized = false`. This layer never deletes, modifies, starts, or stops a Windows service.
+
+### Boundary
+
+This establishes read-only recovery reconciliation only. It does **not** establish:
+- cleanup/recovery authorization;
+- recovery deletion or repair;
+- automatic resolution of ambiguous CreateService/DeleteService outcomes;
+- service-account ACL correctness;
+- production installation recovery.
+
+Until exact-head CI is green, this remains candidate evidence.
