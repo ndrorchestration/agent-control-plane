@@ -245,3 +245,25 @@ The assessment separately marks whether the prior owner/fence differs from the n
 Checkpoint updates are generation- and fence-bound. Once a newer run begins, an older supervisor instance cannot overwrite the persisted lifecycle state.
 
 This closes durable recovery classification only. The bounded supervisor runner does not yet write its lifecycle transitions into this store, and no automatic recovery decision is inferred from the classification.
+
+
+## Checkpoint-enforced bounded supervisor runner candidate
+
+The bounded supervisor can now combine service-level fenced ownership with the durable runtime checkpoint.
+
+When runtime checkpointing is configured:
+
+1. a dedicated service ownership lease is acquired before worker leases/process start;
+2. `begin_run` persists a new generation in `STARTING` bound to that service fence;
+3. successful child startup persists `RUNNING`;
+4. signal/operator/worker-give-up/internal stop requests persist `STOP_REQUESTED`;
+5. `STOPPING` is persisted before child termination;
+6. children terminate before lease release;
+7. lease release occurs before a clean terminal `STOPPED` checkpoint;
+8. terminal `STOPPED` is persisted before the in-memory contract claims clean stop;
+9. startup failure persists `FAILED / startup_failure` and releases acquired leases;
+10. a newer runtime generation prevents stale-generation lifecycle writes.
+
+The runner report exposes the service fencing token, runtime generation and previous-run recovery assessment separately from worker fencing tokens.
+
+This closes bounded local lifecycle persistence ordering and recovery classification. It does not authorize automatic recovery action from an unclean prior generation, unbounded daemon operation, distributed ownership, or service-manager reboot recovery.
