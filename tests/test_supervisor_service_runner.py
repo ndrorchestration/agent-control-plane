@@ -1,4 +1,5 @@
 import sys
+import time
 
 from agent_control_plane.process_monitor import (
     DurableProcessFailureStore,
@@ -978,3 +979,94 @@ def test_startup_failure_is_persisted_and_leases_are_released(tmp_path):
     )
     assert lease_store.get("service:broken-supervisor").released_at is not None
     assert lease_store.get("broken-process").released_at is not None
+
+
+
+def test_worker_exit_before_stop_does_not_restart_after_stop_request(tmp_path):
+    class CountingController(ManagedProcessController):
+        def __init__(self, spec):
+            super().__init__(spec)
+            self.start_calls = 0
+            self.restart_calls = 0
+
+        def start(self):
+            self.start_calls += 1
+            return super().start()
+
+        def restart(self, *, timeout_seconds=5.0):
+            self.restart_calls += 1
+            return super().restart(timeout_seconds=timeout_seconds)
+
+    process_id = "crash-before-stop-process"
+    controller = CountingController(
+        ManagedProcessSpec(
+            process_id=process_id,
+            argv=(
+                sys.executable,
+                "-c",
+                "import time; time.sleep(0.05); raise SystemExit(7)",
+            ),
+        )
+    )
+    failure_store = DurableProcessFailureStore(
+        tmp_path / "crash-before-stop-failure.sqlite3"
+    )
+    monitor = ProcessMonitorTick(
+        controller=controller,
+        policy=ProcessSupervisionPolicy(
+            max_restarts=3,
+            min_restart_interval_seconds=0,
+        ),
+        failure_store=failure_store,
+    )
+    scheduler = ScheduledProcessMonitor(
+        monitor_tick=monitor,
+        cadence_store=DurableProcessMonitorCadenceStore(
+            tmp_path / "crash-before-stop-cadence.sqlite3"
+        ),
+        cadence_policy=ProcessMonitorCadencePolicy(
+            min_interval_seconds=0.01,
+        ),
+    )
+    registration = SupervisorWorkerRegistration(
+        worker_id="crash-before-stop",
+        process_id=process_id,
+        ownership_token="owner-crash-before-stop",
+    )
+    runtime = SupervisorWorkerRuntime(
+        registration=registration,
+        controller=controller,
+        scheduler=scheduler,
+    )
+    contract = SupervisorServiceContract(
+        service_id="shutdown-race-supervisor",
+        workers=(registration,),
+    )
+    times = iter([
+        "2026-09-26T00:00:00Z",
+        "2026-09-26T00:00:01Z",
+    ])
+
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=(runtime,),
+        max_cycles=3,
+        interval_seconds=0.1,
+        now_provider=lambda: next(times),
+        sleep_fn=time.sleep,
+        signal_provider=lambda index: "SIGTERM" if index == 1 else None,
+        terminate_timeout_seconds=1,
+    )
+    report = runner.run()
+
+    assert report.cycles_completed == 1
+    assert (
+        report.final_snapshot.stop_reason
+        is SupervisorStopReason.SIGNAL_TERM
+    )
+    assert report.final_snapshot.state is SupervisorServiceState.STOPPED
+    assert controller.start_calls == 1
+    assert controller.restart_calls == 0
+    assert failure_store.get(process_id) is None
+    assert report.final_observations[0].running is False
+    assert report.final_observations[0].returncode == 7
