@@ -17,6 +17,10 @@ from .windows_scm_install_authorization import (
 from .windows_scm_registration_plan import (
     WindowsScmServiceRegistrationPlan,
 )
+from .windows_scm_install_journal import (
+    WindowsScmInstallationJournal,
+    WindowsScmInstallJournalState,
+)
 
 
 @runtime_checkable
@@ -74,6 +78,7 @@ class WindowsScmServiceInstallationTransaction:
         authorization_store: WindowsScmInstallationAuthorizationStore,
         backend: WindowsScmInstallationBackend,
         credential_resolver: Optional[Callable[[str], str]] = None,
+        journal: Optional[WindowsScmInstallationJournal] = None,
     ) -> None:
         if not isinstance(
             authorization_store,
@@ -94,9 +99,17 @@ class WindowsScmServiceInstallationTransaction:
             raise AuthorityValidationError(
                 "credential_resolver must be callable or None"
             )
+        if journal is not None and not isinstance(
+            journal,
+            WindowsScmInstallationJournal,
+        ):
+            raise AuthorityValidationError(
+                "journal must be WindowsScmInstallationJournal or None"
+            )
         self.authorization_store = authorization_store
         self.backend = backend
         self.credential_resolver = credential_resolver
+        self.journal = journal
 
     def _validate_exact_target(
         self,
@@ -144,8 +157,18 @@ class WindowsScmServiceInstallationTransaction:
         target: WindowsScmInstallationTarget,
         plan: WindowsScmServiceRegistrationPlan,
         now: str,
+        transaction_id: Optional[str] = None,
     ) -> WindowsScmInstallTransactionResult:
         self._validate_exact_target(target=target, plan=plan)
+        journal_id = transaction_id or authorization_id
+
+        if self.journal is not None:
+            self.journal.begin(
+                transaction_id=journal_id,
+                authorization_id=authorization_id,
+                target=target,
+                created_at=now,
+            )
 
         # Exact single-use authorization is consumed before any backend call.
         consumed = self.authorization_store.consume(
@@ -153,6 +176,12 @@ class WindowsScmServiceInstallationTransaction:
             target=target,
             now=now,
         )
+        if self.journal is not None:
+            self.journal.append(
+                journal_id,
+                state=WindowsScmInstallJournalState.AUTHORIZATION_CONSUMED,
+                occurred_at=now,
+            )
 
         credential_secret: Optional[str] = None
         if plan.requires_credential_resolution:
@@ -180,6 +209,19 @@ class WindowsScmServiceInstallationTransaction:
                 plan.desired_scm_access
             )
             steps.append("scm_opened")
+            if self.journal is not None:
+                self.journal.append(
+                    journal_id,
+                    state=WindowsScmInstallJournalState.SCM_OPENED,
+                    occurred_at=now,
+                )
+                self.journal.append(
+                    journal_id,
+                    state=(
+                        WindowsScmInstallJournalState.CREATE_INTENT_RECORDED
+                    ),
+                    occurred_at=now,
+                )
 
             service_handle = self.backend.create_service(
                 scm_handle,
@@ -187,16 +229,47 @@ class WindowsScmServiceInstallationTransaction:
                 credential_secret,
             )
             steps.append("service_created")
+            if self.journal is not None:
+                self.journal.append(
+                    journal_id,
+                    state=WindowsScmInstallJournalState.SERVICE_CREATED,
+                    occurred_at=now,
+                )
 
             # Drop the reference immediately after the native create call.
             credential_secret = None
 
             if plan.delayed_auto_start:
+                if self.journal is not None:
+                    self.journal.append(
+                        journal_id,
+                        state=(
+                            WindowsScmInstallJournalState
+                            .CONFIGURE_INTENT_RECORDED
+                        ),
+                        occurred_at=now,
+                    )
                 self.backend.configure_delayed_auto_start(
                     service_handle,
                     True,
                 )
                 steps.append("delayed_auto_start_configured")
+                if self.journal is not None:
+                    self.journal.append(
+                        journal_id,
+                        state=(
+                            WindowsScmInstallJournalState
+                            .DELAYED_AUTO_START_CONFIGURED
+                        ),
+                        occurred_at=now,
+                    )
+
+            if self.journal is not None:
+                self.journal.append(
+                    journal_id,
+                    state=WindowsScmInstallJournalState.COMPLETED,
+                    occurred_at=now,
+                )
 
             return WindowsScmInstallTransactionResult(
                 authorization_id=consumed.authorization_id,
@@ -213,15 +286,63 @@ class WindowsScmServiceInstallationTransaction:
         except Exception as exc:
             credential_secret = None
             if service_handle is not None:
+                if self.journal is not None:
+                    try:
+                        self.journal.append(
+                            journal_id,
+                            state=(
+                                WindowsScmInstallJournalState
+                                .ROLLBACK_DELETE_INTENT_RECORDED
+                            ),
+                            occurred_at=now,
+                            error=f"{type(exc).__name__}: {exc}",
+                        )
+                    except Exception:
+                        # Preserve rollback as the highest-value action.
+                        # The prior non-terminal journal state remains
+                        # fail-closed/ambiguous for recovery.
+                        pass
                 try:
                     self.backend.delete_service(service_handle)
                     steps.append("service_deleted_rollback")
                     rollback_performed = True
+                    if self.journal is not None:
+                        try:
+                            self.journal.append(
+                                journal_id,
+                                state=WindowsScmInstallJournalState.ROLLED_BACK,
+                                occurred_at=now,
+                            )
+                        except Exception:
+                            pass
                 except Exception as rollback_exc:
                     rollback_error = (
                         f"{type(rollback_exc).__name__}: {rollback_exc}"
                     )
                     steps.append("service_delete_rollback_failed")
+                    if self.journal is not None:
+                        try:
+                            self.journal.append(
+                                journal_id,
+                                state=(
+                                    WindowsScmInstallJournalState
+                                    .ROLLBACK_FAILED
+                                ),
+                                occurred_at=now,
+                                error=rollback_error,
+                            )
+                        except Exception:
+                            pass
+            elif self.journal is not None:
+                try:
+                    self.journal.append(
+                        journal_id,
+                        state=WindowsScmInstallJournalState.FAILED,
+                        occurred_at=now,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                except Exception:
+                    pass
             raise WindowsScmInstallationTransactionError(
                 f"{type(exc).__name__}: {exc}",
                 mutation_steps=tuple(steps),
