@@ -50,8 +50,11 @@ class WindowsScmInstallJournalState(str, Enum):
     PREPARED = "prepared"
     AUTHORIZATION_CONSUMED = "authorization_consumed"
     SCM_OPENED = "scm_opened"
+    CREATE_INTENT_RECORDED = "create_intent_recorded"
     SERVICE_CREATED = "service_created"
+    CONFIGURE_INTENT_RECORDED = "configure_intent_recorded"
     DELAYED_AUTO_START_CONFIGURED = "delayed_auto_start_configured"
+    ROLLBACK_DELETE_INTENT_RECORDED = "rollback_delete_intent_recorded"
     COMPLETED = "completed"
     FAILED = "failed"
     ROLLED_BACK = "rolled_back"
@@ -75,17 +78,28 @@ _ALLOWED_TRANSITIONS = {
         WindowsScmInstallJournalState.FAILED,
     },
     WindowsScmInstallJournalState.SCM_OPENED: {
+        WindowsScmInstallJournalState.CREATE_INTENT_RECORDED,
+        WindowsScmInstallJournalState.FAILED,
+    },
+    WindowsScmInstallJournalState.CREATE_INTENT_RECORDED: {
         WindowsScmInstallJournalState.SERVICE_CREATED,
         WindowsScmInstallJournalState.FAILED,
     },
     WindowsScmInstallJournalState.SERVICE_CREATED: {
-        WindowsScmInstallJournalState.DELAYED_AUTO_START_CONFIGURED,
+        WindowsScmInstallJournalState.CONFIGURE_INTENT_RECORDED,
         WindowsScmInstallJournalState.COMPLETED,
-        WindowsScmInstallJournalState.ROLLED_BACK,
-        WindowsScmInstallJournalState.ROLLBACK_FAILED,
+        WindowsScmInstallJournalState.ROLLBACK_DELETE_INTENT_RECORDED,
+    },
+    WindowsScmInstallJournalState.CONFIGURE_INTENT_RECORDED: {
+        WindowsScmInstallJournalState.DELAYED_AUTO_START_CONFIGURED,
+        WindowsScmInstallJournalState.ROLLBACK_DELETE_INTENT_RECORDED,
     },
     WindowsScmInstallJournalState.DELAYED_AUTO_START_CONFIGURED: {
         WindowsScmInstallJournalState.COMPLETED,
+    },
+    WindowsScmInstallJournalState.ROLLBACK_DELETE_INTENT_RECORDED: {
+        WindowsScmInstallJournalState.ROLLED_BACK,
+        WindowsScmInstallJournalState.ROLLBACK_FAILED,
     },
 }
 
@@ -413,10 +427,15 @@ class WindowsScmInstallationJournal:
             )
         state = record.current_state
         states = {event.state for event in record.events}
-        service_created = (
-            WindowsScmInstallJournalState.SERVICE_CREATED in states
-            or WindowsScmInstallJournalState.DELAYED_AUTO_START_CONFIGURED
-            in states
+        mutation_intent_seen = any(
+            candidate in states
+            for candidate in (
+                WindowsScmInstallJournalState.CREATE_INTENT_RECORDED,
+                WindowsScmInstallJournalState.SERVICE_CREATED,
+                WindowsScmInstallJournalState.CONFIGURE_INTENT_RECORDED,
+                WindowsScmInstallJournalState.DELAYED_AUTO_START_CONFIGURED,
+                WindowsScmInstallJournalState.ROLLBACK_DELETE_INTENT_RECORDED,
+            )
         )
 
         if state is WindowsScmInstallJournalState.PREPARED:
@@ -449,7 +468,7 @@ class WindowsScmInstallationJournal:
             )
             may_exist = True
         elif state is WindowsScmInstallJournalState.FAILED:
-            if service_created:
+            if mutation_intent_seen:
                 disposition = (
                     WindowsScmInstallRecoveryDisposition
                     .HOLD_POSSIBLE_INSTALLED_SERVICE
