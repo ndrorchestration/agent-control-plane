@@ -359,7 +359,15 @@ def main() -> None:
                 relay_c,
                 args.timeout,
             )
-            wait_for_file(relay_c_ready, relay_c, args.timeout)
+            relay_c_ready_value = wait_for_file(
+                relay_c_ready,
+                relay_c,
+                args.timeout,
+            )
+            if relay_c_ready_value != "relay-c:0":
+                raise RuntimeError(
+                    f"unexpected initial relay-c drain state: {relay_c_ready_value}"
+                )
 
             relay_b_hash_file = root / "relay-b.hash"
             relay_b_ready = root / "relay-b.ready"
@@ -385,7 +393,15 @@ def main() -> None:
                 relay_b,
                 args.timeout,
             )
-            wait_for_file(relay_b_ready, relay_b, args.timeout)
+            relay_b_ready_value = wait_for_file(
+                relay_b_ready,
+                relay_b,
+                args.timeout,
+            )
+            if relay_b_ready_value != "relay-b:0":
+                raise RuntimeError(
+                    f"unexpected initial relay-b drain state: {relay_b_ready_value}"
+                )
 
             relay_a_hash_file = root / "relay-a.hash"
             relay_a_ready = root / "relay-a.ready"
@@ -411,7 +427,15 @@ def main() -> None:
                 relay_a,
                 args.timeout,
             )
-            wait_for_file(relay_a_ready, relay_a, args.timeout)
+            relay_a_ready_value = wait_for_file(
+                relay_a_ready,
+                relay_a,
+                args.timeout,
+            )
+            if relay_a_ready_value != "relay-a:0":
+                raise RuntimeError(
+                    f"unexpected initial relay-a drain state: {relay_a_ready_value}"
+                )
 
             RNS.Reticulum(configdir=str(origin_config))
             relay_a_hash = bytes.fromhex(relay_a_hex)
@@ -509,7 +533,16 @@ def main() -> None:
                 relay_c,
                 args.timeout,
             )
-            wait_for_file(relay_c_ready, relay_c, args.timeout)
+            recovered_relay_c_ready = wait_for_file(
+                relay_c_ready,
+                relay_c,
+                args.timeout,
+            )
+            if recovered_relay_c_ready != "relay-c:0":
+                raise RuntimeError(
+                    "unexpected recovered relay-c drain state: "
+                    f"{recovered_relay_c_ready}"
+                )
 
             relay_b = start_relay(
                 script=relay_script,
@@ -533,7 +566,16 @@ def main() -> None:
                 relay_b,
                 args.timeout,
             )
-            wait_for_file(relay_b_ready, relay_b, args.timeout)
+            recovered_relay_b_ready = wait_for_file(
+                relay_b_ready,
+                relay_b,
+                args.timeout,
+            )
+            if recovered_relay_b_ready != "relay-b:0":
+                raise RuntimeError(
+                    "unexpected recovered relay-b drain state: "
+                    f"{recovered_relay_b_ready}"
+                )
 
             relay_a = start_relay(
                 script=relay_script,
@@ -557,7 +599,16 @@ def main() -> None:
                 relay_a,
                 args.timeout,
             )
-            wait_for_file(relay_a_ready, relay_a, args.timeout)
+            recovered_relay_a_ready = wait_for_file(
+                relay_a_ready,
+                relay_a,
+                args.timeout,
+            )
+            if recovered_relay_a_ready != "relay-a:1":
+                raise RuntimeError(
+                    "recovered relay-a did not drain exactly one pending "
+                    f"forward: {recovered_relay_a_ready}"
+                )
 
             if recovered_relay_a_hex != relay_a_hex:
                 raise RuntimeError("relay-a destination identity changed")
@@ -600,9 +651,10 @@ def main() -> None:
                     recovery_payload,
                 )
             )
-            if recovery_ack.disposition is not WatermarkDisposition.APPLIED:
+            if recovery_ack.disposition is not WatermarkDisposition.DUPLICATE:
                 raise RuntimeError(
-                    f"recovered relay chain not applied: {recovery_ack}"
+                    "recovered relay-chain resend was not duplicate after "
+                    f"startup drain: {recovery_ack}"
                 )
 
             recovery_duplicate = (
@@ -628,7 +680,8 @@ def main() -> None:
             print(f"ACK={acknowledgement.disposition.value}")
             print(f"REPLAY_ACK={duplicate.disposition.value}")
             print("OUTAGE_FAIL_CLOSED=PASS")
-            print(f"RECOVERY_ACK={recovery_ack.disposition.value}")
+            print("RECOVERY_DRAINED_PENDING=1")
+            print(f"RECOVERY_RESEND_ACK={recovery_ack.disposition.value}")
             print(
                 "RECOVERY_REPLAY_ACK="
                 f"{recovery_duplicate.disposition.value}"
