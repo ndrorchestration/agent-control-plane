@@ -126,9 +126,23 @@ class WindowsScmNativeCallbackRuntime:
         )
 
     def service_main(self, argc=0, argv=None) -> None:
-        # Exceptions are contained within run_service_main so no Python
-        # exception crosses the native callback boundary.
-        self.run_service_main()
+        # Never allow a Python exception to cross the native callback boundary.
+        try:
+            self.run_service_main()
+        except Exception as exc:
+            self.service_error = f"{type(exc).__name__}: {exc}"
+            if self.status_handle is not None:
+                try:
+                    stopped = self.host.mark_stopped(
+                        win32_exit_code=ERROR_SERVICE_SPECIFIC_ERROR,
+                        service_specific_exit_code=1,
+                    )
+                    self.bindings.publish_status(
+                        self.status_handle,
+                        stopped,
+                    )
+                except Exception:
+                    pass
 
     def dispatch(self) -> WindowsScmNativeRuntimeResult:
         self._service_main_callback = (
