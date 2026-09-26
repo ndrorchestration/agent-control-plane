@@ -12,6 +12,7 @@ from typing import Any, Mapping, Tuple
 from .contract.model import ContractValidationError
 
 REMOTE_EXECUTION_SCHEMA_VERSION = "agent-control-plane.remote-execution.v0-candidate"
+LEGACY_SIGNED_COMMAND_REQUESTS_DEPRECATED = True
 REMOTE_EXECUTION_MAX_TTL_SECONDS = 300
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -244,13 +245,13 @@ class RemoteExecutionReplayGuard:
 
     def consume(
         self,
-        request: RemoteExecutionRequest,
+        request: RemoteExecutionRequest | TypedRemoteExecutionRequest,
         freshness: RemoteExecutionFreshness,
         *,
         now_epoch_seconds: int,
     ) -> None:
-        if not isinstance(request, RemoteExecutionRequest):
-            raise ContractValidationError("request must be RemoteExecutionRequest")
+        if not isinstance(request, (RemoteExecutionRequest, TypedRemoteExecutionRequest)):
+            raise ContractValidationError("request must be a remote execution request")
         if not isinstance(freshness, RemoteExecutionFreshness):
             raise ContractValidationError("freshness must be RemoteExecutionFreshness")
         freshness.assert_fresh(now_epoch_seconds=now_epoch_seconds)
@@ -300,13 +301,13 @@ class DurableRemoteExecutionReplayGuard:
 
     def consume(
         self,
-        request: RemoteExecutionRequest,
+        request: RemoteExecutionRequest | TypedRemoteExecutionRequest,
         freshness: RemoteExecutionFreshness,
         *,
         now_epoch_seconds: int,
     ) -> None:
-        if not isinstance(request, RemoteExecutionRequest):
-            raise ContractValidationError("request must be RemoteExecutionRequest")
+        if not isinstance(request, (RemoteExecutionRequest, TypedRemoteExecutionRequest)):
+            raise ContractValidationError("request must be a remote execution request")
         if not isinstance(freshness, RemoteExecutionFreshness):
             raise ContractValidationError("freshness must be RemoteExecutionFreshness")
         freshness.assert_fresh(now_epoch_seconds=now_epoch_seconds)
@@ -357,7 +358,12 @@ def sign_request_hmac_sha256(
     freshness: RemoteExecutionFreshness,
     *,
     key: bytes,
+    allow_legacy: bool = False,
 ) -> str:
+    if not allow_legacy:
+        raise ContractValidationError(
+            "legacy shell-text request signing is disabled; use typed remote execution"
+        )
     if not isinstance(key, (bytes, bytearray)) or len(key) < 32:
         raise ContractValidationError("signing key must be at least 32 bytes")
     import hmac
@@ -373,7 +379,9 @@ def verify_request_hmac_sha256(
 ) -> None:
     import hmac
     _sha256(signature, "signature")
-    expected = sign_request_hmac_sha256(request, freshness, key=key)
+    expected = sign_request_hmac_sha256(
+        request, freshness, key=key, allow_legacy=True
+    )
     if not hmac.compare_digest(expected, signature):
         raise ContractValidationError("remote execution request signature mismatch")
 
@@ -519,3 +527,25 @@ def verify_receipt_chain_link(
         raise ContractValidationError("previous receipt hash link mismatch")
     if current.sequence_number != previous.sequence_number + 1:
         raise ContractValidationError("receipt sequence is not contiguous")
+
+# Temporary compatibility re-exports for callers that imported the v2 API
+# from remote_execution_adapter during the candidate phase.
+from .typed_remote_execution import (
+    READ_ONLY_OPERATION_SPECS,
+    REMOTE_EXECUTION_MAX_OUTPUT_BYTES,
+    REMOTE_EXECUTION_MAX_RUNTIME_SECONDS,
+    TYPED_REMOTE_EXECUTION_SCHEMA_VERSION,
+    TYPED_REQUEST_ENVELOPE_SCHEMA_VERSION,
+    ReadOnlyOperationSpec,
+    TypedRemoteExecutionRequest,
+    TypedRemoteExecutionResult,
+    canonical_typed_request_bytes,
+    execute_read_only_operation_bounded,
+    operation_sha256,
+    render_read_only_operation_argv,
+    resolve_authorized_working_directory,
+    sign_typed_request_hmac_sha256,
+    typed_request_envelope_from_mapping,
+    typed_request_envelope_mapping,
+    verify_typed_request_hmac_sha256,
+)

@@ -192,7 +192,7 @@ def test_request_hmac_binds_action_and_freshness():
         expires_at_epoch_seconds=110,
     )
     key = b"test-only-key-that-is-long-enough-32"
-    signature = sign_request_hmac_sha256(req, freshness, key=key)
+    signature = sign_request_hmac_sha256(req, freshness, key=key, allow_legacy=True)
     verify_request_hmac_sha256(req, freshness, key=key, signature=signature)
     changed = request(command="git clean -fd")
     with pytest.raises(ContractValidationError, match="signature mismatch"):
@@ -212,7 +212,7 @@ def test_request_hmac_rejects_freshness_drift():
         expires_at_epoch_seconds=111,
     )
     key = b"test-only-key-that-is-long-enough-32"
-    signature = sign_request_hmac_sha256(req, first, key=key)
+    signature = sign_request_hmac_sha256(req, first, key=key, allow_legacy=True)
     with pytest.raises(ContractValidationError, match="signature mismatch"):
         verify_request_hmac_sha256(req, second, key=key, signature=signature)
 
@@ -409,7 +409,7 @@ def test_hmac_helpers_reject_short_keys():
         expires_at_epoch_seconds=110,
     )
     with pytest.raises(ContractValidationError, match="at least 32 bytes"):
-        sign_request_hmac_sha256(req, freshness, key=b"short")
+        sign_request_hmac_sha256(req, freshness, key=b"short", allow_legacy=True)
     receipt = RemoteExecutionReceipt.from_mapping(receipt_data())
     with pytest.raises(ContractValidationError, match="at least 32 bytes"):
         sign_receipt_hmac_sha256(receipt, key=b"short")
@@ -461,3 +461,21 @@ def test_receipt_accepts_canonical_device_id_field():
 def test_receipt_legacy_device_alias_remains_supported():
     receipt = RemoteExecutionReceipt.from_mapping(receipt_data())
     assert receipt.device_id == "test-device"
+
+
+def test_legacy_shell_text_request_signing_is_disabled_by_default():
+    req = request()
+    fresh = RemoteExecutionFreshness(
+        nonce="legacy-disabled",
+        issued_at_epoch_seconds=100,
+        expires_at_epoch_seconds=110,
+    )
+    with pytest.raises(
+        ContractValidationError,
+        match="legacy shell-text request signing is disabled",
+    ):
+        sign_request_hmac_sha256(
+            req,
+            fresh,
+            key=b"test-only-key-that-is-long-enough-32",
+        )

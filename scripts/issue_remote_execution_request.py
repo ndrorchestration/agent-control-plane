@@ -8,28 +8,44 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from agent_control_plane.remote_execution_adapter import (
-    RemoteExecutionFreshness,
-    RemoteExecutionRequest,
-    action_sha256,
-    sign_request_hmac_sha256,
+from agent_control_plane.remote_execution_adapter import RemoteExecutionFreshness
+from agent_control_plane.typed_remote_execution import (
+    TypedRemoteExecutionRequest,
+    operation_sha256,
+    sign_typed_request_hmac_sha256,
+    typed_request_envelope_mapping,
 )
 
 p = argparse.ArgumentParser()
 p.add_argument("--device", required=True)
 p.add_argument("--device-fingerprint", required=True)
 p.add_argument("--device-attestation-level", required=True)
-p.add_argument("--profile", required=True)
-p.add_argument("--side-effect-class", required=True)
+p.add_argument("--profile", default="READ_ONLY_DISCOVERY")
+p.add_argument("--side-effect-class", default="READ_ONLY")
 p.add_argument("--cwd", required=True)
-p.add_argument("--command", required=True)
+p.add_argument("--operation-id", required=True)
+parameter_group = p.add_mutually_exclusive_group()
+parameter_group.add_argument("--parameters-json")
+parameter_group.add_argument("--parameters-file")
 p.add_argument("--ttl", type=int, default=60)
 p.add_argument("--key", required=True)
 p.add_argument("--output", required=True)
 args = p.parse_args()
 
+try:
+    if args.parameters_file:
+        parameters = json.loads(Path(args.parameters_file).read_text(encoding="utf-8"))
+    elif args.parameters_json is not None:
+        parameters = json.loads(args.parameters_json)
+    else:
+        parameters = {}
+except (json.JSONDecodeError, OSError) as exc:
+    raise SystemExit(f"invalid operation parameters: {exc}") from exc
+if not isinstance(parameters, dict):
+    raise SystemExit("operation parameters must decode to an object")
+
 now = int(time.time())
-request = RemoteExecutionRequest(
+request = TypedRemoteExecutionRequest(
     request_id=str(uuid.uuid4()),
     device_id=args.device,
     expected_device_identity_fingerprint=args.device_fingerprint,
@@ -37,8 +53,9 @@ request = RemoteExecutionRequest(
     execution_profile=args.profile,
     expected_side_effect_class=args.side_effect_class,
     working_directory=args.cwd,
-    command_or_action=args.command,
-    action_sha256=action_sha256(args.command),
+    operation_id=args.operation_id,
+    operation_parameters=parameters,
+    operation_sha256=operation_sha256(args.operation_id, parameters),
 )
 freshness = RemoteExecutionFreshness(
     nonce=secrets.token_hex(16),
@@ -46,28 +63,9 @@ freshness = RemoteExecutionFreshness(
     expires_at_epoch_seconds=now + args.ttl,
 )
 key = Path(args.key).read_bytes()
-signature = sign_request_hmac_sha256(request, freshness, key=key)
-payload = {
-    "schema_version": "ndr.remote-execution-request.v1",
-    "request": {
-        "request_id": request.request_id,
-        "device_id": request.device_id,
-        "expected_device_identity_fingerprint": request.expected_device_identity_fingerprint,
-        "expected_device_attestation_level": request.expected_device_attestation_level,
-        "execution_profile": request.execution_profile,
-        "expected_side_effect_class": request.expected_side_effect_class,
-        "working_directory": request.working_directory,
-        "command_or_action": request.command_or_action,
-        "action_sha256": request.action_sha256,
-    },
-    "freshness": {
-        "nonce": freshness.nonce,
-        "issued_at_epoch_seconds": freshness.issued_at_epoch_seconds,
-        "expires_at_epoch_seconds": freshness.expires_at_epoch_seconds,
-    },
-    "signature": signature,
-}
+signature = sign_typed_request_hmac_sha256(request, freshness, key=key)
+payload = typed_request_envelope_mapping(request, freshness, signature)
 out = Path(args.output)
 out.parent.mkdir(parents=True, exist_ok=True)
-out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 print(out)

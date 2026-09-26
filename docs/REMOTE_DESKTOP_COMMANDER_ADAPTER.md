@@ -134,3 +134,11 @@ This is intentionally narrow. Expanding the signed execution surface requires ad
 ## Public schema / portability cleanup — 2026-09-26
 
 Public fixtures use synthetic device identities and fingerprints; deployment-specific hostnames, account names, key IDs, and stable machine fingerprints are intentionally excluded from repository examples. `device_id` is the canonical ACP field for both requests and receipts. Receipt parsing retains the legacy executor field `device` as a backward-compatible alias for existing evidence packets.
+
+## Typed v2 execution contract — 2026-09-26
+
+New signed execution requests now use the typed v2 contract documented in `docs/TYPED_REMOTE_EXECUTION.md`.
+
+The active issuance path carries an operation ID plus operation-specific structured parameters rather than `command_or_action`. ACP derives fixed argv from an immutable registry, resolves the requested working directory against executor-configured allowed roots, consumes replay only after deterministic admission checks, and executes with `shell=False` under bounded runtime/output limits.
+
+The v1 shell-text request format is retained only for historical evidence compatibility. New legacy request signing is disabled by default; historical signature verification uses an explicit internal compatibility override. Remote mutation remains outside this contract.

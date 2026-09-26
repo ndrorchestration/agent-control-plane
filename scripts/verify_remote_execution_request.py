@@ -6,13 +6,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from agent_control_plane.remote_execution_adapter import (
-    ContractValidationError,
-    DurableRemoteExecutionReplayGuard,
-    assert_read_only_command_allowed,
-    RemoteExecutionFreshness,
-    RemoteExecutionRequest,
-    verify_request_hmac_sha256,
+from agent_control_plane.contract.model import ContractValidationError
+from agent_control_plane.remote_execution_adapter import DurableRemoteExecutionReplayGuard
+from agent_control_plane.typed_remote_execution import (
+    render_read_only_operation_argv,
+    resolve_authorized_working_directory,
+    typed_request_envelope_from_mapping,
+    verify_typed_request_hmac_sha256,
 )
 
 p = argparse.ArgumentParser()
@@ -20,54 +20,52 @@ p.add_argument("request_file")
 p.add_argument("--key", required=True)
 p.add_argument("--device-identity", required=True)
 p.add_argument("--replay-db", required=True)
+p.add_argument("--allowed-root", action="append", required=True)
 args = p.parse_args()
 
 payload = json.loads(Path(args.request_file).read_text(encoding="utf-8"))
-if payload.get("schema_version") != "ndr.remote-execution-request.v1":
+if payload.get("schema_version") != "ndr.remote-execution-request.v2":
     raise SystemExit("REMOTE_REQUEST_FAIL: unsupported schema")
-r = payload["request"]
-f = payload["freshness"]
-request = RemoteExecutionRequest(
-    request_id=r["request_id"],
-    device_id=r["device_id"],
-    expected_device_identity_fingerprint=r["expected_device_identity_fingerprint"],
-    expected_device_attestation_level=r["expected_device_attestation_level"],
-    execution_profile=r["execution_profile"],
-    expected_side_effect_class=r["expected_side_effect_class"],
-    working_directory=r["working_directory"],
-    command_or_action=r["command_or_action"],
-    action_sha256=r["action_sha256"],
-)
-freshness = RemoteExecutionFreshness(
-    nonce=f["nonce"],
-    issued_at_epoch_seconds=f["issued_at_epoch_seconds"],
-    expires_at_epoch_seconds=f["expires_at_epoch_seconds"],
-)
-identity = json.loads(Path(args.device_identity).read_text(encoding="utf-8"))
-if request.device_id != identity["device_name"]:
-    raise SystemExit("REMOTE_REQUEST_FAIL: device name mismatch")
-if request.expected_device_identity_fingerprint != identity["fingerprint_sha256"]:
-    raise SystemExit("REMOTE_REQUEST_FAIL: device fingerprint mismatch")
-if request.expected_device_attestation_level != identity["attestation_level"]:
-    raise SystemExit("REMOTE_REQUEST_FAIL: attestation level mismatch")
-if request.execution_profile != "READ_ONLY_DISCOVERY":
-    raise SystemExit("REMOTE_REQUEST_FAIL: only READ_ONLY_DISCOVERY is admissible")
-if request.expected_side_effect_class != "READ_ONLY":
-    raise SystemExit("REMOTE_REQUEST_FAIL: only READ_ONLY side effects are admissible")
 try:
-    assert_read_only_command_allowed(request.command_or_action)
-    verify_request_hmac_sha256(
+    request, freshness, signature = typed_request_envelope_from_mapping(payload)
+    identity = json.loads(Path(args.device_identity).read_text(encoding="utf-8"))
+    if request.device_id != identity["device_name"]:
+        raise ContractValidationError("device name mismatch")
+    if request.expected_device_identity_fingerprint != identity["fingerprint_sha256"]:
+        raise ContractValidationError("device fingerprint mismatch")
+    if request.expected_device_attestation_level != identity["attestation_level"]:
+        raise ContractValidationError("attestation level mismatch")
+    verify_typed_request_hmac_sha256(
         request,
         freshness,
         key=Path(args.key).read_bytes(),
-        signature=payload["signature"],
+        signature=signature,
+    )
+    freshness.assert_fresh(now_epoch_seconds=int(time.time()))
+    argv = render_read_only_operation_argv(
+        request.operation_id,
+        request.operation_parameters,
+    )
+    resolved_cwd = resolve_authorized_working_directory(
+        request.working_directory,
+        args.allowed_root,
     )
     DurableRemoteExecutionReplayGuard(args.replay_db).consume(
         request, freshness, now_epoch_seconds=int(time.time())
     )
-except ContractValidationError as exc:
+except (ContractValidationError, KeyError, TypeError, ValueError) as exc:
     print(f"REMOTE_REQUEST_FAIL: {exc}")
     raise SystemExit(2)
 
 print("REMOTE_REQUEST=PASS")
-print(json.dumps(r, separators=(",", ":")))
+print(json.dumps({
+    "request_id": request.request_id,
+    "device_id": request.device_id,
+    "execution_profile": request.execution_profile,
+    "expected_side_effect_class": request.expected_side_effect_class,
+    "working_directory": str(resolved_cwd),
+    "operation_id": request.operation_id,
+    "operation_parameters": dict(request.operation_parameters),
+    "operation_sha256": request.operation_sha256,
+    "argv": list(argv),
+}, sort_keys=True, separators=(",", ":")))
