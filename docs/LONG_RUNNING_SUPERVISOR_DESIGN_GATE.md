@@ -809,3 +809,33 @@ Failure behavior:
 Operator-local Windows corroboration on the connected Windows 11 / Python 3.14.5 machine produced `8/8 PASS`.
 
 This slice still does not implement a native SCM mutation backend. Therefore no service was created, changed, deleted, started, or installed by this candidate.
+
+
+## Native Windows SCM installation backend candidate
+
+ACP now has a concrete native backend for the already-accepted authorized Windows installation transaction.
+
+The backend maps the transaction protocol to:
+
+- `OpenSCManagerW` with the exact compiled SCM access mask;
+- `CreateServiceW` with the exact compiled service name, display name, access mask, service type, start type, error control, binary command, dependencies, account, and optional resolved credential;
+- `ChangeServiceConfig2W(SERVICE_CONFIG_DELAYED_AUTO_START_INFO)` when delayed auto-start is explicitly present in the admitted plan;
+- `DeleteService` for transaction rollback after post-create configuration failure;
+- `CloseServiceHandle` for both service and SCM handles.
+
+It preserves the accepted transaction ordering: exact authorization is consumed before the first native backend call, resolved credential material is not returned in transaction results, and rollback/handle cleanup remain owned by the transaction layer.
+
+The native backend itself does not issue authorization and does not bypass manifest, binary-identity, plan, or authorization checks.
+
+### Evidence boundary
+
+Tests use an injected API object for mutation-call sequencing. Windows CI and operator-local Windows runs verify the native exports and ctypes ABI only; they do not create or modify a service.
+
+This does **not** yet establish:
+- a successful real `CreateServiceW` mutation;
+- crash-safe mutation journaling;
+- recovery from process death between create/configure/rollback;
+- real credential retrieval;
+- service-account ACL correctness;
+- reboot persistence;
+- production installation.
