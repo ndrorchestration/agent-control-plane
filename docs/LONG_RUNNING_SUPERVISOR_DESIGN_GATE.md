@@ -581,3 +581,38 @@ The module fails closed off Windows when native bindings are requested.
 - operator-local corroboration on a non-elevated Windows 11 build 26200 / Python 3.14.5 environment produced `5 passed, 1 skipped` for the native test file.
 
 This still does **not** call the dispatcher, register callbacks with SCM, create/install a service, mutate SCM configuration, require elevation, establish reboot persistence, or prove service-account behavior.
+
+
+## Native Windows SCM callback-runtime candidate
+
+ACP now has a candidate runtime that composes the accepted Windows SCM host contract with the dependency-free native bindings.
+
+The runtime:
+
+- creates native ServiceMain and HandlerEx callback objects;
+- registers HandlerEx through `RegisterServiceCtrlHandlerExW`;
+- publishes `START_PENDING` immediately after handler registration;
+- publishes `RUNNING` before service work begins;
+- translates native controls through the accepted `WindowsScmServiceHostContract`;
+- republishes status for INTERROGATE;
+- publishes `STOP_PENDING` for accepted stop/shutdown/preshutdown controls;
+- returns `ERROR_CALL_NOT_IMPLEMENTED` for controls ACP does not admit;
+- contains Python exceptions at the native callback boundary;
+- publishes terminal `STOPPED`, using service-specific error reporting when the service callable fails;
+- can invoke `StartServiceCtrlDispatcherW` through the accepted native binding wrapper.
+
+### Evidence boundary
+
+Cross-platform tests use an injected fake native backend to verify exact callback/status sequencing without pretending to be SCM.
+
+The Windows-specific gate validates the callback ABI and native exports on `windows-latest`.
+
+Operator-local corroboration on the connected Windows 11 build 26200 / Python 3.14.5 machine produced `11 passed, 1 expected skip` for the native binding + callback-runtime test set.
+
+This still does **not**:
+- install/create/delete a Windows service;
+- prove ServiceMain execution under an actual SCM-launched service process;
+- configure SCM recovery actions;
+- establish reboot persistence;
+- define service-account/ACL behavior;
+- authorize production Windows-service operation.
