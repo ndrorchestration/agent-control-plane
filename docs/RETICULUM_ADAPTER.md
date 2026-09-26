@@ -228,3 +228,19 @@ If downstream exchange fails, the pending record remains in SQLite with its atte
 The queue manifest exposes identifiers, hashes, timestamps and attempt counts, but not queued payload bytes.
 
 This establishes local durable pending-forward state and explicit replay mechanics only. It does not establish exactly-once delivery, globally unique delivery, transactional coupling to Reticulum, crash safety at every filesystem boundary, guaranteed delivery, bounded retry/backoff, dead-letter handling, remote acknowledgement durability, or production message-queue semantics.
+
+
+## Deterministic bounded relay retry policy
+
+ACP now has a scheduler-neutral retry primitive for durable pending relay forwards.
+
+`BoundedRelayRetryPolicy` defines:
+- maximum attempts;
+- base delay;
+- exponential multiplier;
+- maximum delay cap;
+- due-time calculation from the durable queue's last-attempt timestamp.
+
+`RetryingRelayForwarder.sweep(now=...)` performs at most one retry decision per pending item and returns explicit outcomes: `delivered`, `deferred`, `failed`, or `exhausted`. Failed attempts remain pending. Exhausted items remain pending rather than being silently dropped.
+
+The policy does not sleep, spawn workers, schedule future work, or move exhausted records into a dead-letter store. A caller or future supervisor must invoke sweeps. Therefore this establishes deterministic retry/backoff semantics only—not automatic retries, process supervision, guaranteed delivery, dead-letter handling, or production queue orchestration.
