@@ -455,8 +455,28 @@ For both SIGTERM and SIGINT the parent harness requires:
 - runtime generation is recorded;
 - service ownership lease is released.
 
-Until that exact-head integration gate is green and merged:
+Accepted exact-head evidence on protected main `a7f98d5aadbae12cc745f5d70b13d892aed4746e` establishes:
 
-**EXPERIMENTAL_LONG_RUNNING_SUPERVISOR = NOT ESTABLISHED**
+**EXPERIMENTAL_LONG_RUNNING_SUPERVISOR = ESTABLISHED_BOUNDED_LOCAL_LINUX**
 
 Even after a green merge this remains experimental local Linux evidence. It does not establish service installation, reboot persistence, Windows SCM/launchd/systemd semantics, distributed ownership, privilege dropping, production watchdog availability, or unattended production authorization.
+
+
+## 2026-09-26 experimental long-running establishment
+
+PR #71 merged as protected main `a7f98d5aadbae12cc745f5d70b13d892aed4746e`.
+
+Exact-head evidence:
+- Python 3.10–3.14 PASS;
+- existing finite OS-signal supervisor regression PASS;
+- dedicated experimental long-running supervisor gate PASS;
+- real SIGTERM case PASS;
+- real SIGINT case PASS;
+- final lifecycle `STOPPED`;
+- signal-specific stop reason preserved;
+- managed child stopped;
+- durable runtime checkpoint reached `STOPPED`;
+- runtime generation recorded;
+- service ownership lease released.
+
+This establishes the experimental unbounded-cycle supervisor only within the tested local Linux model. Platform service installation, reboot persistence, distributed ownership, privilege dropping/sandboxing, and production unattended operation remain outside the evidence boundary.
