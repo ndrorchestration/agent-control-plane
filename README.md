@@ -187,3 +187,12 @@ A framework/runtime adapter may populate the ACP execution contract, but adapter
 ## Provenance
 
 Maintained by Ndr / Ender Hensel (`ndrorchestration`).
+
+
+### Experimental long-running supervisor status
+
+Accepted protected main `a7f98d5aadbae12cc745f5d70b13d892aed4746e` establishes the experimental unbounded-cycle supervisor under the bounded local Linux evidence model:
+
+`EXPERIMENTAL_LONG_RUNNING_SUPERVISOR=ESTABLISHED_BOUNDED_LOCAL_LINUX`
+
+This is not a production/unattended deployment claim. Systemd/Windows SCM/launchd integration, reboot persistence, distributed ownership, privilege dropping/sandboxing, and production watchdog guarantees remain unestablished.
