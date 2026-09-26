@@ -15,6 +15,10 @@ from agent_control_plane.process_runtime import (
     ManagedProcessSpec,
 )
 from agent_control_plane.process_supervision import ProcessSupervisionPolicy
+from agent_control_plane.supervisor_service_host import (
+    SupervisorServiceHostEvent,
+    SupervisorServiceHostEventLatch,
+)
 from agent_control_plane.supervisor_service import (
     SupervisorServiceContract,
     SupervisorServiceState,
@@ -1148,4 +1152,35 @@ def test_experimental_long_running_runner_stops_only_on_signal(tmp_path):
     )
     assert report.max_in_flight_workers == 1
     assert report.worker_scheduling_mode == "contract_order_serial"
+    assert report.final_observations[0].running is False
+
+
+
+def test_typed_service_host_stop_requests_clean_shutdown(tmp_path):
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+    latch = SupervisorServiceHostEventLatch()
+
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        max_cycles=3,
+        interval_seconds=0,
+        now_provider=lambda: "2026-09-26T02:00:00Z",
+        sleep_fn=lambda seconds: None,
+        stop_reason_provider=lambda index: (
+            latch.request(SupervisorServiceHostEvent.STOP).stop_reason
+            if index == 1
+            else None
+        ),
+        terminate_timeout_seconds=2,
+    )
+    report = runner.run()
+
+    assert report.cycles_completed == 1
+    assert report.final_snapshot.state is SupervisorServiceState.STOPPED
+    assert (
+        report.final_snapshot.stop_reason
+        is SupervisorStopReason.SERVICE_STOP
+    )
     assert report.final_observations[0].running is False
