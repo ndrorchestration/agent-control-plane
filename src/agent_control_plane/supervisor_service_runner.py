@@ -17,6 +17,11 @@ from .supervisor_ownership import (
     SupervisorOwnershipLease,
     SupervisorOwnershipLeaseStore,
 )
+from .supervisor_runtime_checkpoint import (
+    DurableSupervisorRuntimeCheckpointStore,
+    SupervisorRecoveryAssessment,
+    SupervisorRuntimeCheckpoint,
+)
 from .supervisor_service import (
     SupervisorServiceContract,
     SupervisorServiceSnapshot,
@@ -62,6 +67,7 @@ class SupervisorLeaseConfiguration:
     owner_id: str
     instance_token: str
     ttl_seconds: float
+    service_resource_id: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.store, SupervisorOwnershipLeaseStore):
@@ -83,6 +89,30 @@ class SupervisorLeaseConfiguration:
             or self.ttl_seconds <= 0
         ):
             raise AuthorityValidationError("ttl_seconds must be > 0")
+        if (
+            self.service_resource_id is not None
+            and (
+                not isinstance(self.service_resource_id, str)
+                or not self.service_resource_id.strip()
+            )
+        ):
+            raise AuthorityValidationError(
+                "service_resource_id must be non-blank or None"
+            )
+
+
+@dataclass(frozen=True)
+class SupervisorRuntimeCheckpointConfiguration:
+    store: DurableSupervisorRuntimeCheckpointStore
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.store,
+            DurableSupervisorRuntimeCheckpointStore,
+        ):
+            raise AuthorityValidationError(
+                "store must be DurableSupervisorRuntimeCheckpointStore"
+            )
 
 
 @dataclass(frozen=True)
@@ -100,6 +130,9 @@ class BoundedSupervisorServiceReport:
     cycle_records: tuple[SupervisorCycleRecord, ...]
     final_observations: tuple[ProcessObservation, ...]
     lease_fencing_tokens: tuple[tuple[str, int], ...] = ()
+    service_lease_fencing_token: Optional[int] = None
+    runtime_generation: Optional[int] = None
+    runtime_recovery: Optional[SupervisorRecoveryAssessment] = None
 
 
 class BoundedSupervisorServiceRunner:
@@ -117,6 +150,9 @@ class BoundedSupervisorServiceRunner:
         signal_provider: Optional[Callable[[int], Optional[str]]] = None,
         terminate_timeout_seconds: float = 5.0,
         lease_configuration: Optional[SupervisorLeaseConfiguration] = None,
+        runtime_checkpoint_configuration: Optional[
+            SupervisorRuntimeCheckpointConfiguration
+        ] = None,
     ) -> None:
         if not isinstance(contract, SupervisorServiceContract):
             raise AuthorityValidationError(
@@ -173,6 +209,24 @@ class BoundedSupervisorServiceRunner:
             raise AuthorityValidationError(
                 "lease_configuration must be SupervisorLeaseConfiguration or None"
             )
+        if (
+            runtime_checkpoint_configuration is not None
+            and not isinstance(
+                runtime_checkpoint_configuration,
+                SupervisorRuntimeCheckpointConfiguration,
+            )
+        ):
+            raise AuthorityValidationError(
+                "runtime_checkpoint_configuration must be "
+                "SupervisorRuntimeCheckpointConfiguration or None"
+            )
+        if (
+            runtime_checkpoint_configuration is not None
+            and lease_configuration is None
+        ):
+            raise AuthorityValidationError(
+                "runtime checkpoint persistence requires lease configuration"
+            )
 
         contract_worker_ids = tuple(
             registration.worker_id for registration in contract.workers
@@ -194,6 +248,20 @@ class BoundedSupervisorServiceRunner:
         self.signal_provider = signal_provider
         self.terminate_timeout_seconds = terminate_timeout_seconds
         self.lease_configuration = lease_configuration
+        self.runtime_checkpoint_configuration = (
+            runtime_checkpoint_configuration
+        )
+
+    def _service_resource_id(self) -> str:
+        assert self.lease_configuration is not None
+        return (
+            self.lease_configuration.service_resource_id
+            or f"service:{self.contract.service_id}"
+        )
+
+    def _service_lease_token(self) -> str:
+        assert self.lease_configuration is not None
+        return f"{self.lease_configuration.instance_token}:service"
 
     def _lease_token_for(
         self,
@@ -214,6 +282,16 @@ class BoundedSupervisorServiceRunner:
             return {}
         acquired: dict[str, SupervisorOwnershipLease] = {}
         try:
+            service_resource = self._service_resource_id()
+            acquired[service_resource] = (
+                self.lease_configuration.store.acquire(
+                    resource_id=service_resource,
+                    owner_id=self.lease_configuration.owner_id,
+                    ownership_token=self._service_lease_token(),
+                    now=now,
+                    ttl_seconds=self.lease_configuration.ttl_seconds,
+                )
+            )
             for worker in self.workers:
                 resource_id = worker.registration.process_id
                 acquired[resource_id] = (
@@ -273,6 +351,29 @@ class BoundedSupervisorServiceRunner:
                 lease,
                 released_at=now,
             )
+
+    def _worker_lease_fencing_tokens(
+        self,
+        leases: dict[str, SupervisorOwnershipLease],
+    ) -> tuple[tuple[str, int], ...]:
+        service_resource = (
+            self._service_resource_id()
+            if self.lease_configuration is not None
+            else None
+        )
+        return tuple(
+            (resource_id, lease.fencing_token)
+            for resource_id, lease in leases.items()
+            if resource_id != service_resource
+        )
+
+    def _service_lease(
+        self,
+        leases: dict[str, SupervisorOwnershipLease],
+    ) -> Optional[SupervisorOwnershipLease]:
+        if self.lease_configuration is None:
+            return None
+        return leases.get(self._service_resource_id())
 
     def _terminate_all(self) -> tuple[ProcessObservation, ...]:
         observations: list[ProcessObservation] = []
