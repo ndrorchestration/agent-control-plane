@@ -360,3 +360,18 @@ ACP now has a scheduler-neutral cadence contract around the accepted one-shot pr
 `ScheduledProcessMonitor.run_if_due(now=...)` invokes the accepted `ProcessMonitorTick` only when due, records the completed tick time, and returns either a ran result with the next due time or a deferred result with no monitor action.
 
 This does not sleep, loop, spawn a scheduler thread, register an OS timer, or run continuously. It establishes persisted due-time semantics only. Continuous daemon execution, jitter policy, clock-skew handling across hosts, service-manager scheduling, and production watchdog behavior remain unestablished.
+
+
+## Finite scheduled process-monitor runner
+
+ACP now has a caller-started finite runner around the accepted persisted monitor cadence.
+
+`FiniteProcessMonitorRunner` requires:
+- an accepted `ScheduledProcessMonitor`;
+- an explicit inter-cycle interval;
+- an explicit maximum cycle count;
+- optional injected clock and sleep callables for deterministic testing.
+
+The runner performs exactly the configured number of scheduler checks, sleeps only between those checks, and returns a structured report containing every scheduled-monitor result.
+
+This proves bounded repeated scheduling behavior only. It does not run indefinitely, detach, register as a service, self-start after reboot, handle signals as a daemon, supervise multiple workers concurrently, or establish production watchdog availability.
