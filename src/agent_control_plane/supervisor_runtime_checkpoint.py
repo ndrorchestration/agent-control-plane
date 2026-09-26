@@ -257,6 +257,29 @@ class DurableSupervisorRuntimeCheckpointStore:
             stale_owner=stale_owner,
         )
 
+    def assess_previous(
+        self,
+        *,
+        service_id: str,
+        owner_id: str,
+        fencing_token: int,
+    ) -> SupervisorRecoveryAssessment:
+        service = _required(service_id, "service_id")
+        owner = _required(owner_id, "owner_id")
+        if (
+            isinstance(fencing_token, bool)
+            or not isinstance(fencing_token, int)
+            or fencing_token < 1
+        ):
+            raise AuthorityValidationError(
+                "fencing_token must be an integer >= 1"
+            )
+        return self._assess(
+            self.get(service),
+            owner_id=owner,
+            fencing_token=fencing_token,
+        )
+
     def begin_run(
         self,
         *,
