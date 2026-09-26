@@ -809,3 +809,38 @@ Failure behavior:
 Operator-local Windows corroboration on the connected Windows 11 / Python 3.14.5 machine produced `8/8 PASS`.
 
 This slice still does not implement a native SCM mutation backend. Therefore no service was created, changed, deleted, started, or installed by this candidate.
+
+
+## Crash-safe Windows installation mutation journal candidate
+
+ACP now has an append-only SQLite journal for the authorized Windows service installation transaction.
+
+The journal records exact target identity and ordered durable states including:
+
+- prepared;
+- authorization consumed;
+- SCM opened;
+- create intent recorded;
+- service created;
+- configure intent recorded;
+- delayed auto-start configured;
+- rollback delete intent recorded;
+- completed / failed / rolled back / rollback failed.
+
+The transaction persists intent **before** each irreversible service mutation:
+
+- create intent before `CreateServiceW`;
+- configure intent before `ChangeServiceConfig2W`;
+- rollback-delete intent before `DeleteService`.
+
+This means abrupt process death does not produce a false clean result. Recovery assessment is deliberately fail-closed:
+
+- pre-mutation states can be classified as safe/no-service-mutation;
+- completed installs are clean-installed;
+- completed rollback is clean-rolled-back;
+- create/configure/delete ambiguity becomes `HOLD_POSSIBLE_INSTALLED_SERVICE`;
+- rollback failure becomes `HOLD_ROLLBACK_FAILED`.
+
+Tests explicitly use abrupt `SystemExit` during create/configure so normal exception rollback does not run, then reopen the SQLite journal and require the ambiguous HOLD classification.
+
+This establishes durable mutation intent and recovery classification only. It does **not** yet inspect live SCM state to resolve an ambiguous hold, automatically resume configuration, automatically delete a possibly-created service, or authorize recovery mutation.
