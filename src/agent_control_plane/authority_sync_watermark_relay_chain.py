@@ -20,6 +20,7 @@ from .authority_sync_watermark_ed25519 import (
     Ed25519AuthoritySyncWatermarkVerifier,
     decode_ed25519_authority_sync_watermark,
 )
+from .relay_forward_queue import DurableRelayForwardQueue
 from .authority_sync_watermark_keys import (
     WatermarkAuthenticationKeyRegistry,
     WatermarkKeyStatus,
@@ -786,3 +787,56 @@ class Ed25519ForwardingRelayStageEndpoint(Ed25519RelayAppenderEndpoint):
                 "downstream_exchange must return bytes"
             )
         return response
+
+
+class DurableEd25519ForwardingRelayStageEndpoint(
+    Ed25519ForwardingRelayStageEndpoint
+):
+    """Persist an updated signed chain before forwarding it downstream."""
+
+    def __init__(
+        self,
+        *,
+        appender: Ed25519RelayChainAppender,
+        relayed_at_provider,
+        downstream_exchange,
+        forward_queue: DurableRelayForwardQueue,
+        downstream_id: str,
+    ) -> None:
+        super().__init__(
+            appender=appender,
+            relayed_at_provider=relayed_at_provider,
+            downstream_exchange=downstream_exchange,
+        )
+        if not isinstance(forward_queue, DurableRelayForwardQueue):
+            raise AuthorityValidationError(
+                "forward_queue must be DurableRelayForwardQueue"
+            )
+        self.forward_queue = forward_queue
+        self.downstream_id = _required(
+            downstream_id,
+            "downstream_id",
+        )
+
+    def receive(self, payload: bytes) -> bytes:
+        updated_payload = Ed25519RelayAppenderEndpoint.receive(
+            self,
+            payload,
+        )
+        return self.forward_queue.forward(
+            relay_id=self.relay_id,
+            downstream_id=self.downstream_id,
+            payload=updated_payload,
+            exchange=self.downstream_exchange,
+        )
+
+    def drain_pending(self) -> tuple[str, ...]:
+        return self.forward_queue.drain(
+            exchange_for=lambda downstream_id: self.downstream_exchange
+            if downstream_id == self.downstream_id
+            else (_ for _ in ()).throw(
+                AuthorityValidationError(
+                    "pending relay forward downstream mismatch"
+                )
+            )
+        )
