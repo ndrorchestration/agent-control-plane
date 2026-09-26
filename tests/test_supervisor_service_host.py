@@ -33,3 +33,13 @@ def test_unknown_host_event_fails_closed():
     latch = SupervisorServiceHostEventLatch()
     with pytest.raises(AuthorityValidationError):
         latch.request("pause")
+
+
+
+def test_service_preshutdown_maps_to_distinct_stop_reason():
+    latch = SupervisorServiceHostEventLatch()
+    snapshot = latch.request(SupervisorServiceHostEvent.PRESHUTDOWN)
+    assert (
+        snapshot.stop_reason
+        is SupervisorStopReason.SERVICE_PRESHUTDOWN
+    )
