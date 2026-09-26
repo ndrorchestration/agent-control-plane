@@ -38,6 +38,13 @@ class NativeServiceStatus(ctypes.Structure):
     ]
 
 
+class NativeServiceTableEntry(ctypes.Structure):
+    _fields_ = [
+        ("lpServiceName", wintypes.LPWSTR),
+        ("lpServiceProc", ctypes.c_void_p),
+    ]
+
+
 @dataclass(frozen=True)
 class WindowsScmNativeApiProbe:
     is_windows: bool
@@ -176,4 +183,82 @@ class WindowsScmNativeBindings:
             raise OSError(
                 error,
                 "SetServiceStatus failed",
+            )
+
+
+    def make_service_main_callback(self, callback: Callable):
+        if not callable(callback):
+            raise AuthorityValidationError(
+                "service main callback must be callable"
+            )
+        return self.service_main_callback_type()(callback)
+
+    def make_handler_ex_callback(self, callback: Callable):
+        if not callable(callback):
+            raise AuthorityValidationError(
+                "handler callback must be callable"
+            )
+        return self.handler_ex_callback_type()(callback)
+
+    def register_handler(
+        self,
+        service_name: str,
+        handler_callback,
+    ):
+        if not isinstance(service_name, str) or not service_name.strip():
+            raise AuthorityValidationError(
+                "service_name must not be blank"
+            )
+        if handler_callback is None:
+            raise AuthorityValidationError(
+                "handler_callback must not be None"
+            )
+        handle = self.register_service_ctrl_handler_ex(
+            service_name.strip(),
+            ctypes.cast(handler_callback, ctypes.c_void_p),
+            None,
+        )
+        if not handle:
+            error = ctypes.get_last_error()
+            raise OSError(
+                error,
+                "RegisterServiceCtrlHandlerExW failed",
+            )
+        return handle
+
+    def dispatch(
+        self,
+        service_name: str,
+        service_main_callback,
+    ) -> None:
+        if not isinstance(service_name, str) or not service_name.strip():
+            raise AuthorityValidationError(
+                "service_name must not be blank"
+            )
+        if service_main_callback is None:
+            raise AuthorityValidationError(
+                "service_main_callback must not be None"
+            )
+        table_type = NativeServiceTableEntry * 2
+        table = table_type(
+            NativeServiceTableEntry(
+                lpServiceName=service_name.strip(),
+                lpServiceProc=ctypes.cast(
+                    service_main_callback,
+                    ctypes.c_void_p,
+                ),
+            ),
+            NativeServiceTableEntry(
+                lpServiceName=None,
+                lpServiceProc=None,
+            ),
+        )
+        ok = self.start_service_ctrl_dispatcher(
+            ctypes.cast(table, ctypes.c_void_p),
+        )
+        if not ok:
+            error = ctypes.get_last_error()
+            raise OSError(
+                error,
+                "StartServiceCtrlDispatcherW failed",
             )
