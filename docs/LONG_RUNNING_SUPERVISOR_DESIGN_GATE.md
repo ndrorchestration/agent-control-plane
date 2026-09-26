@@ -480,3 +480,19 @@ Exact-head evidence:
 - service ownership lease released.
 
 This establishes the experimental unbounded-cycle supervisor only within the tested local Linux model. Platform service installation, reboot persistence, distributed ownership, privilege dropping/sandboxing, and production unattended operation remain outside the evidence boundary.
+
+
+## Platform-neutral service-host event candidate
+
+ACP now has a candidate adapter boundary for service managers that do not communicate through POSIX signals.
+
+`SupervisorServiceHostEventLatch` latches the first supported external host event and maps it to a typed ACP stop reason:
+
+- `stop` -> `service_stop`;
+- `shutdown` -> `service_shutdown`.
+
+The supervisor runner consumes these typed stop reasons through a dedicated provider that is separate from the existing SIGTERM/SIGINT provider. Unsupported or non-enum host events fail closed.
+
+This preserves the OS/service-manager boundary: systemd, Windows SCM, launchd, containers, and other hosts may translate their native events into this contract, but they may not redefine ACP lifecycle, ownership, recovery, or process-control semantics.
+
+This slice does not yet implement any concrete systemd, Windows SCM, or launchd service registration.
