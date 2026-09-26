@@ -208,7 +208,7 @@ class BoundedSupervisorServiceRunner:
         *,
         contract: SupervisorServiceContract,
         workers: tuple[SupervisorWorkerRuntime, ...],
-        max_cycles: int,
+        max_cycles: Optional[int],
         interval_seconds: float,
         now_provider: Callable[[], str],
         sleep_fn: Callable[[float], None] = time.sleep,
@@ -221,6 +221,7 @@ class BoundedSupervisorServiceRunner:
         concurrency_policy: SupervisorConcurrencyPolicy = (
             SupervisorConcurrencyPolicy()
         ),
+        allow_unbounded_cycles: bool = False,
     ) -> None:
         if not isinstance(contract, SupervisorServiceContract):
             raise AuthorityValidationError(
@@ -237,13 +238,22 @@ class BoundedSupervisorServiceRunner:
             raise AuthorityValidationError(
                 "workers must be a non-empty tuple of SupervisorWorkerRuntime"
             )
-        if (
+        if not isinstance(allow_unbounded_cycles, bool):
+            raise AuthorityValidationError(
+                "allow_unbounded_cycles must be bool"
+            )
+        if max_cycles is None:
+            if not allow_unbounded_cycles:
+                raise AuthorityValidationError(
+                    "unbounded supervisor cycles require explicit experimental admission"
+                )
+        elif (
             isinstance(max_cycles, bool)
             or not isinstance(max_cycles, int)
             or max_cycles < 1
         ):
             raise AuthorityValidationError(
-                "max_cycles must be an integer >= 1"
+                "max_cycles must be an integer >= 1 or admitted None"
             )
         if (
             isinstance(interval_seconds, bool)
@@ -314,6 +324,7 @@ class BoundedSupervisorServiceRunner:
         self.contract = contract
         self.workers = workers
         self.max_cycles = max_cycles
+        self.allow_unbounded_cycles = allow_unbounded_cycles
         self.interval_seconds = float(interval_seconds)
         self.now_provider = now_provider
         self.sleep_fn = sleep_fn
@@ -656,7 +667,8 @@ class BoundedSupervisorServiceRunner:
                     pass
             return report(final_observations)
 
-        for cycle_index in range(self.max_cycles):
+        cycle_index = 0
+        while self.max_cycles is None or cycle_index < self.max_cycles:
             if self.contract.state is not SupervisorServiceState.RUNNING:
                 break
 
@@ -729,10 +741,14 @@ class BoundedSupervisorServiceRunner:
 
             if self.contract.state is not SupervisorServiceState.RUNNING:
                 break
-            if cycle_index + 1 < self.max_cycles:
+            cycle_index += 1
+            if self.max_cycles is None or cycle_index < self.max_cycles:
                 self.sleep_fn(self.interval_seconds)
 
-        if self.contract.state is SupervisorServiceState.RUNNING:
+        if (
+            self.max_cycles is not None
+            and self.contract.state is SupervisorServiceState.RUNNING
+        ):
             stop_snapshot = self.contract.request_stop(
                 SupervisorStopReason.OPERATOR_REQUEST
             )
@@ -802,3 +818,48 @@ class BoundedSupervisorServiceRunner:
 
         return report(final_observations)
 
+
+
+
+class ExperimentalLongRunningSupervisorServiceRunner(
+    BoundedSupervisorServiceRunner
+):
+    """Experimental unbounded-cycle runner reusing the accepted service core.
+
+    This class removes only the finite cycle ceiling. All lifecycle, ownership,
+    recovery, execution-admission-through-worker-controller, signal, and
+    concurrency semantics remain those of BoundedSupervisorServiceRunner.
+    """
+
+    def __init__(
+        self,
+        *,
+        contract: SupervisorServiceContract,
+        workers: tuple[SupervisorWorkerRuntime, ...],
+        interval_seconds: float,
+        now_provider: Callable[[], str],
+        sleep_fn: Callable[[float], None] = time.sleep,
+        signal_provider: Optional[Callable[[int], Optional[str]]] = None,
+        terminate_timeout_seconds: float = 5.0,
+        lease_configuration: Optional[SupervisorLeaseConfiguration] = None,
+        runtime_checkpoint_configuration: Optional[
+            SupervisorRuntimeCheckpointConfiguration
+        ] = None,
+        concurrency_policy: SupervisorConcurrencyPolicy = (
+            SupervisorConcurrencyPolicy()
+        ),
+    ) -> None:
+        super().__init__(
+            contract=contract,
+            workers=workers,
+            max_cycles=None,
+            interval_seconds=interval_seconds,
+            now_provider=now_provider,
+            sleep_fn=sleep_fn,
+            signal_provider=signal_provider,
+            terminate_timeout_seconds=terminate_timeout_seconds,
+            lease_configuration=lease_configuration,
+            runtime_checkpoint_configuration=runtime_checkpoint_configuration,
+            concurrency_policy=concurrency_policy,
+            allow_unbounded_cycles=True,
+        )

@@ -416,3 +416,47 @@ Still outside the evidence boundary:
 - privilege dropping or sandbox isolation;
 - production watchdog/SLA claims;
 - unattended production authorization.
+
+
+## Experimental unbounded-cycle supervisor candidate
+
+The prerequisite gate is now satisfied, so ACP has an experimental candidate that removes only the finite cycle ceiling from the accepted supervisor runner core.
+
+`ExperimentalLongRunningSupervisorServiceRunner` reuses the same implementation for:
+
+- typed service lifecycle;
+- worker/service fenced ownership leases;
+- generation-fenced runtime checkpoints;
+- fail-closed recovery admission and exact one-time recovery authorization;
+- process execution admission supplied by worker controllers;
+- real SIGTERM/SIGINT signal translation;
+- serial contract-order concurrency with one in-flight worker monitor action;
+- bounded child termination and kill fallback.
+
+The bounded runner still rejects `max_cycles=None`. Unbounded cycles require the separately named experimental runner.
+
+### Dedicated integration gate
+
+The `experimental-long-running-supervisor` CI workflow launches the experimental runner as a real process with:
+
+- an admitted worker executable/spec/environment/CWD;
+- service and worker ownership leases;
+- durable runtime checkpointing;
+- real OS signal registration.
+
+For both SIGTERM and SIGINT the parent harness requires:
+
+- supervisor reaches the running cycle;
+- actual OS signal is delivered;
+- final service lifecycle is `STOPPED`;
+- typed stop reason matches the signal;
+- child worker is stopped;
+- durable runtime checkpoint reaches `STOPPED`;
+- runtime generation is recorded;
+- service ownership lease is released.
+
+Until that exact-head integration gate is green and merged:
+
+**EXPERIMENTAL_LONG_RUNNING_SUPERVISOR = NOT ESTABLISHED**
+
+Even after a green merge this remains experimental local Linux evidence. It does not establish service installation, reboot persistence, Windows SCM/launchd/systemd semantics, distributed ownership, privilege dropping, production watchdog availability, or unattended production authorization.
