@@ -322,3 +322,26 @@ ACP now has an explicit process-control runtime for one configured child process
 Tests include real Python child processes for start, termination and restart behavior.
 
 This remains caller-driven. There is no monitoring loop, crash detector, persistent failure counter, executable allow-list, privilege sandbox, service manager integration, or autonomous restart scheduler. The runtime proves bounded subprocess control semantics only.
+
+
+## Durable one-shot process monitor
+
+ACP now has a caller-invoked monitoring tick that composes the accepted process controller and supervision policy with durable crash/restart state.
+
+`DurableProcessFailureStore` persists per-process:
+- failure count;
+- last failure timestamp;
+- last restart timestamp.
+
+`ProcessMonitorTick.run(now=...)`:
+1. observes the configured child process;
+2. treats an actively running child as a no-op;
+3. distinguishes a never-started controller from an exited child;
+4. records a durable failure for an exited child;
+5. derives `restart / hold / give_up` from the accepted process-supervision policy;
+6. executes the accepted bounded subprocess action;
+7. records restart time when a restart occurs.
+
+Tests use real short-lived Python children and verify persisted failure state survives store reopen and repeated crashes reach `give_up`.
+
+This remains one-shot and caller-driven. There is no continuous polling loop, clock scheduler, daemon lifecycle, watchdog service, service-manager integration, or external health signal ingestion.
