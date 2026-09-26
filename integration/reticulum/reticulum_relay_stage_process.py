@@ -18,10 +18,11 @@ from agent_control_plane.authority_sync_watermark_keys import (
     WatermarkAuthenticationKeyRegistry,
 )
 from agent_control_plane.authority_sync_watermark_relay_chain import (
-    Ed25519ForwardingRelayStageEndpoint,
+    DurableEd25519ForwardingRelayStageEndpoint,
     Ed25519RelayChainAppender,
     Ed25519RelayChainVerifier,
 )
+from agent_control_plane.relay_forward_queue import DurableRelayForwardQueue
 from agent_control_plane.reticulum_adapter import (
     ReticulumRelayStageServer,
     ReticulumRelayStageTransport,
@@ -119,6 +120,7 @@ def main() -> None:
     parser.add_argument("--identity-file", required=True)
     parser.add_argument("--destination-hash-file", required=True)
     parser.add_argument("--ready-file", required=True)
+    parser.add_argument("--queue-db", required=True)
     parser.add_argument("--relay-id", required=True, choices=sorted(RELAY_PRIVATE))
     parser.add_argument("--upstream-id", required=True)
     parser.add_argument("--upstream-identity-hash", required=True)
@@ -194,10 +196,13 @@ def main() -> None:
         origin_verifier=origin_verifier(),
         prefix_verifier=prefix_verifier(),
     )
-    endpoint = Ed25519ForwardingRelayStageEndpoint(
+    forward_queue = DurableRelayForwardQueue(args.queue_db)
+    endpoint = DurableEd25519ForwardingRelayStageEndpoint(
         appender=appender,
         relayed_at_provider=lambda: args.relayed_at,
         downstream_exchange=lambda payload: transport.exchange("next", payload),
+        forward_queue=forward_queue,
+        downstream_id=args.next_receiver_id,
     )
     upstream_hash = bytes.fromhex(args.upstream_identity_hash)
     server = ReticulumRelayStageServer(
@@ -209,6 +214,8 @@ def main() -> None:
         allow=RNS.Destination.ALLOW_LIST,
         allowed_list=[upstream_hash],
     )
+
+    drained = endpoint.drain_pending()
     inbound.announce()
     Path(args.ready_file).write_text(
         args.relay_id,
@@ -218,6 +225,10 @@ def main() -> None:
     print(
         f"RELAY_STAGE_READY={args.relay_id}:"
         f"{identity.hash.hex()}:{inbound.hash.hex()}",
+        flush=True,
+    )
+    print(
+        f"RELAY_STAGE_DRAINED={args.relay_id}:{len(drained)}",
         flush=True,
     )
 
