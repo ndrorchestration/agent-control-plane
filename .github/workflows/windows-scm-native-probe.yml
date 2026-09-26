@@ -15,6 +15,7 @@ on:
       - "src/agent_control_plane/windows_scm_adapter.py"
       - "src/agent_control_plane/windows_scm_service_host.py"
       - "src/agent_control_plane/windows_scm_native.py"
+      - "src/agent_control_plane/windows_scm_native_runtime.py"
       - "tests/test_windows_scm_native.py"
       - "tests/test_windows_scm_native_runtime.py"
       - ".github/workflows/windows-scm-native-probe.yml"
