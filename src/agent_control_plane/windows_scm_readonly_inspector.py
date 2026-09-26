@@ -150,6 +150,10 @@ class WindowsScmReadOnlyNativeApi:
         self.close_service_handle.argtypes = [wintypes.HANDLE]
         self.close_service_handle.restype = wintypes.BOOL
 
+    @staticmethod
+    def last_error() -> int:
+        return int(ctypes.get_last_error())
+
     def read_config(
         self,
         service_handle,
@@ -222,17 +226,16 @@ class WindowsScmNativeReadOnlyInspector:
                 SC_MANAGER_CONNECT,
             )
             if not scm_handle:
-                error = ctypes.get_last_error()
+                error = int(self.api.last_error())
                 raise OSError(error, "OpenSCManagerW failed")
 
-            ctypes.set_last_error(0)
             service_handle = self.api.open_service(
                 scm_handle,
                 name,
                 SERVICE_QUERY_CONFIG,
             )
             if not service_handle:
-                error = ctypes.get_last_error()
+                error = int(self.api.last_error())
                 if error == ERROR_SERVICE_DOES_NOT_EXIST:
                     return None
                 raise OSError(error, "OpenServiceW failed")
