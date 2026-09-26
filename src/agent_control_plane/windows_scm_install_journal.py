@@ -83,6 +83,7 @@ _ALLOWED_TRANSITIONS = {
     },
     WindowsScmInstallJournalState.CREATE_INTENT_RECORDED: {
         WindowsScmInstallJournalState.SERVICE_CREATED,
+        WindowsScmInstallJournalState.ROLLBACK_DELETE_INTENT_RECORDED,
         WindowsScmInstallJournalState.FAILED,
     },
     WindowsScmInstallJournalState.SERVICE_CREATED: {
@@ -96,6 +97,7 @@ _ALLOWED_TRANSITIONS = {
     },
     WindowsScmInstallJournalState.DELAYED_AUTO_START_CONFIGURED: {
         WindowsScmInstallJournalState.COMPLETED,
+        WindowsScmInstallJournalState.ROLLBACK_DELETE_INTENT_RECORDED,
     },
     WindowsScmInstallJournalState.ROLLBACK_DELETE_INTENT_RECORDED: {
         WindowsScmInstallJournalState.ROLLED_BACK,
