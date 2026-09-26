@@ -213,6 +213,9 @@ class BoundedSupervisorServiceRunner:
         now_provider: Callable[[], str],
         sleep_fn: Callable[[float], None] = time.sleep,
         signal_provider: Optional[Callable[[int], Optional[str]]] = None,
+        stop_reason_provider: Optional[
+            Callable[[int], Optional[SupervisorStopReason]]
+        ] = None,
         terminate_timeout_seconds: float = 5.0,
         lease_configuration: Optional[SupervisorLeaseConfiguration] = None,
         runtime_checkpoint_configuration: Optional[
@@ -273,6 +276,12 @@ class BoundedSupervisorServiceRunner:
             raise AuthorityValidationError(
                 "signal_provider must be callable or None"
             )
+        if stop_reason_provider is not None and not callable(
+            stop_reason_provider
+        ):
+            raise AuthorityValidationError(
+                "stop_reason_provider must be callable or None"
+            )
         if terminate_timeout_seconds <= 0:
             raise AuthorityValidationError(
                 "terminate_timeout_seconds must be > 0"
@@ -329,6 +338,7 @@ class BoundedSupervisorServiceRunner:
         self.now_provider = now_provider
         self.sleep_fn = sleep_fn
         self.signal_provider = signal_provider
+        self.stop_reason_provider = stop_reason_provider
         self.terminate_timeout_seconds = terminate_timeout_seconds
         self.lease_configuration = lease_configuration
         self.runtime_checkpoint_configuration = (
@@ -672,6 +682,25 @@ class BoundedSupervisorServiceRunner:
             if self.contract.state is not SupervisorServiceState.RUNNING:
                 break
 
+            if self.stop_reason_provider is not None:
+                stop_reason = self.stop_reason_provider(cycle_index)
+                if stop_reason is not None:
+                    if not isinstance(stop_reason, SupervisorStopReason):
+                        self.contract.mark_failed(
+                            SupervisorStopReason.INTERNAL_ERROR
+                        )
+                        break
+                    stop_snapshot = self.contract.request_stop(stop_reason)
+                    if self.runtime_checkpoint_configuration is not None:
+                        if not persist_snapshot(
+                            stop_snapshot,
+                            updated_at=self.now_provider(),
+                        ):
+                            self.contract.mark_failed(
+                                SupervisorStopReason.INTERNAL_ERROR
+                            )
+                    break
+
             if self.signal_provider is not None:
                 signal_name = self.signal_provider(cycle_index)
                 if signal_name is not None:
@@ -840,6 +869,9 @@ class ExperimentalLongRunningSupervisorServiceRunner(
         now_provider: Callable[[], str],
         sleep_fn: Callable[[float], None] = time.sleep,
         signal_provider: Optional[Callable[[int], Optional[str]]] = None,
+        stop_reason_provider: Optional[
+            Callable[[int], Optional[SupervisorStopReason]]
+        ] = None,
         terminate_timeout_seconds: float = 5.0,
         lease_configuration: Optional[SupervisorLeaseConfiguration] = None,
         runtime_checkpoint_configuration: Optional[
@@ -857,6 +889,7 @@ class ExperimentalLongRunningSupervisorServiceRunner(
             now_provider=now_provider,
             sleep_fn=sleep_fn,
             signal_provider=signal_provider,
+            stop_reason_provider=stop_reason_provider,
             terminate_timeout_seconds=terminate_timeout_seconds,
             lease_configuration=lease_configuration,
             runtime_checkpoint_configuration=runtime_checkpoint_configuration,
