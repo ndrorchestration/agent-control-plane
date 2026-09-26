@@ -244,3 +244,19 @@ ACP now has a scheduler-neutral retry primitive for durable pending relay forwar
 `RetryingRelayForwarder.sweep(now=...)` performs at most one retry decision per pending item and returns explicit outcomes: `delivered`, `deferred`, `failed`, or `exhausted`. Failed attempts remain pending. Exhausted items remain pending rather than being silently dropped.
 
 The policy does not sleep, spawn workers, schedule future work, or move exhausted records into a dead-letter store. A caller or future supervisor must invoke sweeps. Therefore this establishes deterministic retry/backoff semantics only—not automatic retries, process supervision, guaranteed delivery, dead-letter handling, or production queue orchestration.
+
+
+## Durable relay dead-letter candidate
+
+Policy-exhausted pending relay forwards can now be moved into a separate SQLite-backed dead-letter store.
+
+Movement is intentionally evidence-preserving:
+1. read the pending record;
+2. persist its payload, payload hash, relay/downstream IDs, enqueue/attempt timestamps, terminal attempt count, and reason in the dead-letter store;
+3. only after successful dead-letter persistence, remove the pending record.
+
+The dead-letter ID is deterministic from the relay/downstream/payload/item identity, and repeat storage of the same terminal record is idempotent. Conflicting terminal records fail closed.
+
+`dead_letter_exhausted(...)` consults the accepted `BoundedRelayRetryPolicy` and moves only items whose durable attempt count has reached the configured maximum. Retryable records remain pending.
+
+This establishes terminal local storage semantics only. It does not establish operator notification, re-drive workflows, retention policy, deletion policy, queue quotas, external alerting, guaranteed delivery, or production dead-letter infrastructure.
