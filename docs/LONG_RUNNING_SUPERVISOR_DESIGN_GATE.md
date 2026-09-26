@@ -267,3 +267,22 @@ When runtime checkpointing is configured:
 The runner report exposes the service fencing token, runtime generation and previous-run recovery assessment separately from worker fencing tokens.
 
 This closes bounded local lifecycle persistence ordering and recovery classification. It does not authorize automatic recovery action from an unclean prior generation, unbounded daemon operation, distributed ownership, or service-manager reboot recovery.
+
+
+## Fail-closed recovery admission candidate
+
+The checkpoint-enforced supervisor now has an explicit startup admission policy over the previous runtime generation.
+
+Default admission:
+
+- `fresh` -> ALLOW;
+- `clean_stop` -> ALLOW;
+- `unclean_exit` -> HOLD;
+- `terminal_give_up` -> HOLD;
+- `prior_failure` -> HOLD.
+
+A HOLD occurs after the new service lease/runtime generation is established but **before any worker process starts**. The new generation is persisted as `FAILED / recovery_hold`, all acquired leases are released, and the report retains both the prior recovery assessment and the HOLD decision.
+
+A caller may explicitly widen the allowed disposition set. There is no implicit automatic recovery from unclean or failed prior state.
+
+This establishes local fail-closed recovery admission only. It does not establish remediation of the prior failure, operator authorization UX, distributed recovery, or service-manager restart policy.
