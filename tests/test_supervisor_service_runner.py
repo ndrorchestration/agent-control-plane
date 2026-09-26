@@ -23,6 +23,10 @@ from agent_control_plane.supervisor_service import (
 from agent_control_plane.supervisor_ownership import (
     SupervisorOwnershipLeaseStore,
 )
+from agent_control_plane.supervisor_recovery import (
+    SupervisorRecoveryAdmissionPolicy,
+    SupervisorRecoveryDecision,
+)
 from agent_control_plane.supervisor_runtime_checkpoint import (
     DurableSupervisorRuntimeCheckpointStore,
     SupervisorPreviousRunDisposition,
@@ -524,12 +528,97 @@ def test_next_checkpointed_run_classifies_prior_clean_stop(tmp_path):
     assert report.service_lease_fencing_token == 2
 
 
-def test_checkpointed_run_reports_unclean_prior_generation(tmp_path):
+def test_unclean_prior_generation_is_held_before_worker_start(tmp_path):
     lease_store = SupervisorOwnershipLeaseStore(
         tmp_path / "ownership-unclean.sqlite3"
     )
     runtime_store = DurableSupervisorRuntimeCheckpointStore(
         tmp_path / "runtime-unclean.sqlite3"
+    )
+    prior = runtime_store.begin_run(
+        service_id="acp-supervisor",
+        owner_id="old-supervisor",
+        fencing_token=9,
+        started_at="2026-09-25T22:00:00Z",
+    )
+    prior_contract = SupervisorServiceContract(
+        service_id="acp-supervisor",
+        workers=(
+            SupervisorWorkerRegistration(
+                worker_id="relay-a",
+                process_id="relay-a-process",
+                ownership_token="owner-relay-a",
+            ),
+        ),
+    )
+    prior_contract.begin_startup()
+    runtime_store.write_snapshot(
+        prior.checkpoint,
+        prior_contract.mark_running(),
+        updated_at="2026-09-25T22:00:01Z",
+    )
+
+    workers = (worker(tmp_path, "relay-a"),)
+    contract = service_for(workers)
+    times = iter([
+        "2026-09-25T23:00:00Z",  # acquire + begin generation
+        "2026-09-25T23:00:01Z",  # persist recovery hold
+        "2026-09-25T23:00:02Z",  # release leases
+    ])
+    runner = BoundedSupervisorServiceRunner(
+        contract=contract,
+        workers=workers,
+        max_cycles=1,
+        interval_seconds=0,
+        now_provider=lambda: next(times),
+        sleep_fn=lambda seconds: None,
+        terminate_timeout_seconds=2,
+        lease_configuration=SupervisorLeaseConfiguration(
+            store=lease_store,
+            owner_id="acp-supervisor",
+            instance_token="runtime-instance-new",
+            ttl_seconds=30,
+        ),
+        runtime_checkpoint_configuration=(
+            SupervisorRuntimeCheckpointConfiguration(
+                store=runtime_store,
+            )
+        ),
+    )
+    report = runner.run()
+
+    assert (
+        report.runtime_recovery.disposition
+        is SupervisorPreviousRunDisposition.UNCLEAN_EXIT
+    )
+    assert report.runtime_recovery.stale_owner is True
+    assert (
+        report.runtime_recovery_decision
+        is SupervisorRecoveryDecision.HOLD
+    )
+    assert report.final_snapshot.state is SupervisorServiceState.FAILED
+    assert (
+        report.final_snapshot.stop_reason
+        is SupervisorStopReason.RECOVERY_HOLD
+    )
+    assert report.cycles_completed == 0
+    assert report.final_observations[0].pid is None
+    assert report.final_observations[0].running is False
+    persisted = runtime_store.get("acp-supervisor")
+    assert persisted is not None
+    assert persisted.generation == 2
+    assert persisted.state is SupervisorServiceState.FAILED
+    assert persisted.stop_reason is SupervisorStopReason.RECOVERY_HOLD
+    assert lease_store.get("service:acp-supervisor").released_at is not None
+    assert lease_store.get("relay-a-process").released_at is not None
+
+
+def test_explicit_policy_can_admit_unclean_prior_generation(tmp_path):
+    lease_store = SupervisorOwnershipLeaseStore(
+        tmp_path / "ownership-unclean-override.sqlite3"
+    )
+    runtime_store = DurableSupervisorRuntimeCheckpointStore(
+        tmp_path / "runtime-unclean-override.sqlite3"
     )
     prior = runtime_store.begin_run(
         service_id="acp-supervisor",
@@ -576,12 +665,19 @@ def test_checkpointed_run_reports_unclean_prior_generation(tmp_path):
         lease_configuration=SupervisorLeaseConfiguration(
             store=lease_store,
             owner_id="acp-supervisor",
-            instance_token="runtime-instance-new",
+            instance_token="runtime-instance-override",
             ttl_seconds=30,
         ),
         runtime_checkpoint_configuration=(
             SupervisorRuntimeCheckpointConfiguration(
                 store=runtime_store,
+                recovery_policy=SupervisorRecoveryAdmissionPolicy(
+                    allowed_dispositions=(
+                        SupervisorPreviousRunDisposition.FRESH,
+                        SupervisorPreviousRunDisposition.CLEAN_STOP,
+                        SupervisorPreviousRunDisposition.UNCLEAN_EXIT,
+                    )
+                ),
             )
         ),
     )
@@ -591,7 +687,12 @@ def test_checkpointed_run_reports_unclean_prior_generation(tmp_path):
         report.runtime_recovery.disposition
         is SupervisorPreviousRunDisposition.UNCLEAN_EXIT
     )
-    assert report.runtime_recovery.stale_owner is True
+    assert (
+        report.runtime_recovery_decision
+        is SupervisorRecoveryDecision.ALLOW
+    )
+    assert report.final_snapshot.state is SupervisorServiceState.STOPPED
+    assert report.runtime_generation == 2
 
 
 def test_startup_failure_is_persisted_and_leases_are_released(tmp_path):
