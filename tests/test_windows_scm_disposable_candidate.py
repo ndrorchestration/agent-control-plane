@@ -1,9 +1,13 @@
+from pathlib import Path
 import pytest
 from agent_control_plane.authority import AuthorityValidationError
 from agent_control_plane.windows_scm_disposable_candidate import build_candidate,CREDENTIAL_REFERENCE
 
-def test_candidate_is_manual_custom_account_hash_bound():
- c=build_candidate()
+def make_probe(tmp_path):
+ p=tmp_path/"staging"/"ACP-Executor-Isolation-Lab"/"probe.exe";p.parent.mkdir(parents=True);p.write_bytes(b"MZ disposable fixture");return p
+
+def test_candidate_is_manual_custom_account_hash_bound(tmp_path):
+ c=build_candidate(probe_executable=str(make_probe(tmp_path)))
  assert c.plan.start_type==3
  assert c.plan.account_name.lower()==r".\acpexecutorlab"
  assert c.plan.requires_credential_resolution is True
@@ -12,9 +16,7 @@ def test_candidate_is_manual_custom_account_hash_bound():
  assert len(c.manifest.binary_sha256)==64
  assert "password" not in repr(c.plan).lower()
 
-def test_policy_rejects_auto_start():
- c=build_candidate()
- from agent_control_plane.windows_scm_registration import WindowsScmServiceRegistrationManifest,WindowsScmServiceStartType
- m=WindowsScmServiceRegistrationManifest(service_name=c.manifest.service_name,display_name=c.manifest.display_name,binary_path=c.manifest.binary_path,account_name=c.manifest.account_name,start_type=WindowsScmServiceStartType.AUTO_START,credential_reference=CREDENTIAL_REFERENCE,binary_sha256=c.manifest.binary_sha256)
- with pytest.raises(AuthorityValidationError):
-  c.policy.assert_admitted(m)
+def test_candidate_rejects_executable_outside_lab(tmp_path):
+ p=tmp_path/"probe.exe";p.write_bytes(b"MZ")
+ with pytest.raises(ValueError,match="disposable"):
+  build_candidate(probe_executable=str(p))

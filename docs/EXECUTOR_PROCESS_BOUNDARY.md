@@ -292,3 +292,33 @@ Credential resolution remains an explicit privileged operator action.
 Focused registration/admission/install-transaction suite: `42 passed, 2 skipped`.
 
 This candidate is still non-mutating. SCM registration has not occurred.
+
+
+## Candidate correction — standalone SCM service probe
+
+Pre-mutation review rejected the earlier interpreter-only candidate: its SCM
+binary path would have named bare `python.exe`, while the inert Python probe
+required arguments/source binding. Installing it would therefore have produced
+misleading identity evidence.
+
+The candidate was replaced before any SCM mutation. Windows includes the .NET
+Framework C# compiler at
+`%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe`, so a minimal
+standalone `ServiceBase` probe was compiled without adding a third-party
+packaging dependency.
+
+Disposable artifact:
+- `staging/ACP-Executor-Isolation-Lab/ACPExecutorLabProbe.exe`
+- size: 4096 bytes
+- SHA-256: `9215cd763d325abf43c4fcb1a2b4b222aa7ce9c27059103107bbea749974eab4`
+- service name: `ACPExecutorLabProbe`
+- account: `.\ACPExecutorLab`
+- start type: demand/manual only
+- manifest SHA-256: `3b1b8d9901263ad9ab814b454934b22b1b35bad42957d87224cfa148c54ad70c`
+
+The source contains only Windows ServiceBase lifecycle handling; it has no ACP
+executor import, repository path, mutation primitive, network behavior, or
+auto-start request.
+
+Revised candidate/admission suite: `28 passed, 2 skipped`.
+SCM remains unmodified at this point.
