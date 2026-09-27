@@ -14,17 +14,21 @@ Cross-runtime portability, production security, authenticated remote transport i
 
 ## Active development frontier
 
-Mutation-capable design is being decomposed into stacked, non-executing draft layers:
+Accepted main now also includes merged PR #97 bounded task-budget checkpoint/resume.
+
+The canonical remote-mutation design remains draft/non-executing and is stacked as:
 
 - PR #94 — exact mutation authority admission;
-- PR #95 — immutable mutation registry plus precondition/rollback transaction model;
+- PR #95 — immutable mutation registry plus transaction/precondition/rollback model;
 - PR #96 — exact authority/transaction-plan composition;
 - PR #98 — repository mutation path-safety gate;
-- PR #101 — rollback-material custody/read-back admission.
+- PR #101 — rollback-material custody/read-back admission;
+- PR #103 — read-only postcondition verification with exact root/resolved-target and rollback/custody identity binding;
+- PR #105 — durable mutation journal and fail-closed recovery classification;
+- PR #106 — external execution/result-evidence binding;
+- PR #108 — exact expiring single-use execution authorization plus terminal closure binding.
 
-All mutation layers remain non-executing. `execution_enabled=false` remains controlling, and transaction/downstream evidence retains `mutation_executed=false`.
-
-Independent draft PR #97 adds bounded task-budget checkpoint/resume semantics and is not part of the mutation dependency chain.
+All canonical exact heads are GitHub Actions SUCCESS. PR #104 and #107 are closed as superseded after their useful findings were reconciled into #103/#105. No live ACP/RDC mutation executor is established.
 
 See `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md` for exact heads, verification state, dependency ordering, and remaining gates.
 
@@ -38,7 +42,7 @@ See `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md` for exact heads, verificat
 
 ## Handoff rule for mutation work
 
-Do not wire a live mutation executor merely because #94/#95/#96/#98/#101 pass. Path safety and rollback-custody admission are now represented as non-executing draft gates; postcondition verification, crash/interruption recovery, execution-result evidence, and a separate explicit mutation-execution authorization gate remain prerequisites.
+Do not wire a live mutation executor merely because #94/#95/#96/#98/#101/#103/#105/#106/#108 pass. The non-executing control/evidence/authorization scaffold now reaches single-use exact-attempt authorization and closure. A live executor still requires a separately reviewed composition that authenticates the executor identity, consumes authorization before side effect, journals intent durably before effect, preserves fixed typed-operation/path/plan identity, verifies postconditions after effect, holds ambiguous interruptions, and separately authorizes rollback/recovery.
 
 ## Status
 

@@ -70,7 +70,8 @@ The source receipt recorded zero files changed. This establishes local contract 
 
 The earlier next step of adding signed/fresh envelopes, side-effect classes, durable replay handling, and unknown-outcome tests has been implemented and subsequently superseded by the accepted typed v2 read-only execution contract.
 
-The current bounded frontier is documented in `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`. The non-executing mutation stack now covers authority admission (#94), transaction planning (#95), exact plan composition (#96), repository path safety (#98), and rollback-material custody admission (#101). Postcondition verification, crash/interruption recovery, execution-result evidence, and a separate mutation-execution authorization gate remain required before any mutation-capable executor is considered. Independent PR #97 covers bounded task-budget checkpoint/resume and is not part of the mutation chain.
+The current bounded frontier is documented in `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`. Merged PR #97 now provides bounded task-budget checkpoint/resume. The canonical non-executing mutation stack extends through authority admission (#94), transaction planning (#95), exact plan composition (#96), repository path safety (#98), rollback custody (#101), read-only postcondition verification (#103), durable recovery journaling (#105), execution/result-evidence binding (#106), and single-use exact-attempt authorization/closure (#108). PR #104/#107 are closed as superseded. No live RDC mutation executor is established.
+
 ## Freshness, replay and unknown-outcome hardening — 2026-09-26
 
 The local candidate now includes a bounded freshness envelope, process-local single-use replay guard, and explicit remote outcome classification.
