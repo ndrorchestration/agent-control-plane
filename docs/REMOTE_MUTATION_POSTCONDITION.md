@@ -14,7 +14,7 @@ For repo.write_text_file, the target must exist as a regular non-symlink file an
 
 For repo.delete_file, the target must be absent.
 
-At observation time ACP re-resolves the repository root and target and rejects repository escapes or symlink drift. The repository .git marker must still be present.
+At observation time ACP re-resolves the repository root and target and rejects repository escapes or symlink drift. The repository .git marker must still be present. The observed repository root must match the pre-execution path-safety root, and the resolved target must match the pre-execution resolved target so a caller cannot substitute a different repository or path after admission. The resulting record also carries the exact rollback descriptor SHA-256 and custody reference forward for downstream recovery/evidence binding.
 
 ## Strong non-effects
 
