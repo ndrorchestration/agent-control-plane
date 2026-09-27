@@ -391,3 +391,23 @@ the final SCM state to be Stopped.
 Focused script contracts: `10 passed`.
 
 No service start was performed by RDC while preparing this gate.
+
+
+## First bounded start — blocked by missing service-logon right
+
+The first operator start attempt failed before process creation. Independent
+System-log inspection observed:
+- SCM Event 7041: `.\ACPExecutorLab` was denied because it lacks
+  `SeServiceLogonRight` ("Log on as a service");
+- SCM Event 7000: resulting service start failure;
+- service remained `Stopped`, PID 0.
+
+This is an account-right admission blocker, not evidence of a probe-runtime
+defect. `DEDICATED_SERVICE_PROCESS_IDENTITY_VERIFIED` remains false.
+
+A minimal operator-gated script now grants only `SeServiceLogonRight` to the
+exact local worker SID using Windows `secedit`, preserves existing principals
+on that right, re-exports policy, and verifies the exact SID is present. It
+does not add the worker to Administrators or grant other user rights.
+
+Focused right-grant + process-gate contracts: `9 passed`.
