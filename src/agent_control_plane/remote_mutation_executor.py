@@ -35,6 +35,8 @@ from .remote_mutation_journal import (
 )
 from .remote_mutation_path_safety import (
     MutationPathSafetyRecord,
+    _has_multiple_hardlinks,
+    _is_link_like,
     inspect_repository_mutation_path,
 )
 from .remote_mutation_postcondition import (
@@ -47,6 +49,7 @@ from .remote_mutation_rollback_custody import (
     RollbackMode,
 )
 from .remote_mutation_transaction import MutationPlan
+
 
 REPOSITORY_MUTATION_EXECUTOR_SCHEMA_VERSION = (
     "agent-control-plane.repository-mutation-executor.v0-candidate"
@@ -209,7 +212,9 @@ class AuthorizedRepositoryMutationExecutor:
                 "repository_root is not in executor allowlist"
             )
         if not (resolved / ".git").exists():
-            raise RepositoryMutationExecutorError("repository_root lacks .git marker")
+            raise RepositoryMutationExecutorError(
+                "repository_root lacks .git marker"
+            )
         return resolved
 
     @staticmethod
@@ -247,7 +252,9 @@ class AuthorizedRepositoryMutationExecutor:
                         "new-file rollback precondition no longer holds"
                     )
             else:
-                raise RepositoryMutationExecutorError("unsupported write rollback mode")
+                raise RepositoryMutationExecutorError(
+                    "unsupported write rollback mode"
+                )
         elif plan.operation_id == "repo.delete_file":
             if descriptor.mode is not RollbackMode.RESTORE_FILE_BYTES:
                 raise RepositoryMutationExecutorError(
@@ -271,7 +278,60 @@ class AuthorizedRepositoryMutationExecutor:
             )
 
     @staticmethod
-    def _write_atomic(target: Path, content: bytes) -> None:
+    def _primitive_path_guard(repository_root: Path, target: Path) -> None:
+        """Recheck path identity immediately inside the side-effect primitive.
+
+        This narrows, but cannot eliminate, TOCTOU against a hostile concurrent
+        filesystem actor. High-assurance object identity still requires an
+        OS-handle-bound design.
+        """
+        root = repository_root.resolve(strict=True)
+        try:
+            relative = target.relative_to(root)
+        except ValueError as exc:
+            raise RepositoryMutationExecutorError(
+                "primitive target is not lexically inside repository root"
+            ) from exc
+
+        cursor = root
+        ancestors = [root]
+        for part in relative.parts[:-1]:
+            cursor = cursor / part
+            ancestors.append(cursor)
+
+        if any(_is_link_like(path) for path in ancestors if path.exists()):
+            raise RepositoryMutationExecutorError(
+                "primitive guard rejected symlink/reparse ancestor"
+            )
+        if target.exists() and _is_link_like(target):
+            raise RepositoryMutationExecutorError(
+                "primitive guard rejected symlink/reparse target"
+            )
+
+        resolved_target = target.resolve(strict=False)
+        if (
+            resolved_target == root
+            or not resolved_target.is_relative_to(root)
+        ):
+            raise RepositoryMutationExecutorError(
+                "primitive guard rejected repository-boundary drift"
+            )
+
+        if _has_multiple_hardlinks(target):
+            raise RepositoryMutationExecutorError(
+                "primitive guard rejected multi-hardlink target"
+            )
+
+    @staticmethod
+    def _write_atomic(
+        repository_root: Path,
+        target: Path,
+        content: bytes,
+    ) -> None:
+        AuthorizedRepositoryMutationExecutor._primitive_path_guard(
+            repository_root,
+            target,
+        )
         fd, temp_name = tempfile.mkstemp(
             prefix=".acp-mutation-",
             suffix=".tmp",
@@ -283,6 +343,10 @@ class AuthorizedRepositoryMutationExecutor:
                 handle.write(content)
                 handle.flush()
                 os.fsync(handle.fileno())
+            AuthorizedRepositoryMutationExecutor._primitive_path_guard(
+                repository_root,
+                target,
+            )
             os.replace(temp, target)
         finally:
             if temp.exists():
@@ -317,6 +381,7 @@ class AuthorizedRepositoryMutationExecutor:
     @staticmethod
     def _perform_side_effect(
         plan: MutationPlan,
+        repository_root: Path,
         target: Path,
         *,
         content: bytes | None,
@@ -327,9 +392,17 @@ class AuthorizedRepositoryMutationExecutor:
         )
         if plan.operation_id == "repo.write_text_file":
             assert isinstance(content, bytes)
-            AuthorizedRepositoryMutationExecutor._write_atomic(target, content)
+            AuthorizedRepositoryMutationExecutor._write_atomic(
+                repository_root,
+                target,
+                content,
+            )
             return
         if plan.operation_id == "repo.delete_file":
+            AuthorizedRepositoryMutationExecutor._primitive_path_guard(
+                repository_root,
+                target,
+            )
             target.unlink()
             return
         raise RepositoryMutationExecutorError(
@@ -438,7 +511,12 @@ class AuthorizedRepositoryMutationExecutor:
                 label="target",
             )
 
-            self._perform_side_effect(plan, target, content=content)
+            self._perform_side_effect(
+                plan,
+                root,
+                target,
+                content=content,
+            )
 
             effect_payload = {
                 "execution_id": execution_id,
@@ -547,11 +625,15 @@ class AuthorizedRepositoryMutationExecutor:
             )
         except Exception as exc:
             latest = journal_store.get(journal_before.transaction_id)
-            if latest is not None and latest.current_state not in {
-                MutationJournalState.POSTCONDITION_VERIFIED,
-                MutationJournalState.ROLLBACK_VERIFIED,
-                MutationJournalState.FAILED,
-            }:
+            if (
+                latest is not None
+                and latest.current_state
+                not in {
+                    MutationJournalState.POSTCONDITION_VERIFIED,
+                    MutationJournalState.ROLLBACK_VERIFIED,
+                    MutationJournalState.FAILED,
+                }
+            ):
                 try:
                     journal_store.append(
                         journal_before.transaction_id,
