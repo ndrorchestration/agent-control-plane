@@ -199,9 +199,9 @@ The current adapter interface is a local synchronous candidate, not a claim that
 
 Accepted `main` now includes the typed read-only remote-execution contract merged through PR #93. New signed read-only requests express immutable operation IDs plus validated structured parameters rather than arbitrary shell text; the executor derives fixed argv, uses `shell=False`, applies executor-owned allowed-root and Git-metadata boundary checks, and binds typed result evidence to the exact request-envelope SHA-256.
 
-The mutation-capable design remains **non-executing** and is intentionally separate from the generic `AuthorityPolicy` because that policy does not infer resource/operation fit. Draft PRs #94/#95/#96 progressively add mutation-specific authority admission, transaction/precondition/rollback modeling, and exact admission/plan composition while retaining `execution_enabled=false` and `mutation_executed=false`.
+The mutation-capable design remains **non-executing** and is intentionally separate from the generic `AuthorityPolicy` because that policy does not infer resource/operation fit. The stacked draft path now covers mutation-specific authority admission (#94), transaction/precondition/rollback modeling (#95), exact admission/plan composition (#96), repository path safety (#98), and rollback-material custody/read-back admission (#101). Every layer remains incapable of executing a mutation. Independent draft PR #97 adds bounded task-budget checkpoint/resume semantics and is not part of this mutation chain.
 
-The authoritative current-facing development overlay is `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`. Draft mutation contracts are not accepted mainline behavior until separately reviewed and merged.
+The authoritative current-facing development overlay is `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`. Draft contracts are not accepted mainline behavior until separately reviewed and merged.
 
 ## Evidence boundary
 
