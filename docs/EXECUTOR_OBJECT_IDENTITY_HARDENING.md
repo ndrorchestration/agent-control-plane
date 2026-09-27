@@ -135,3 +135,51 @@ HANDLE_BOUND_MUTATION_EXECUTION=NOT_IMPLEMENTED
 FINAL_TOCTOU_ELIMINATION=NOT_ESTABLISHED
 HIGH_ASSURANCE=NOT_AUTHORIZED
 ```
+
+
+## Windows handle-mutation synthetic probe
+
+A second Windows-only synthetic probe verifies two concrete properties without
+touching any real project repository:
+
+1. opening an existing target without `FILE_SHARE_DELETE` prevents pathname
+   replacement while that handle remains open;
+2. `SetFileInformationByHandle(FileDispositionInfo)` can delete the exact
+   opened synthetic file by handle.
+
+Local Windows verification:
+
+- handle identity + synthetic handle mutation + executor/recovery tests:
+  36 PASS / 1 skipped.
+
+This materially reduces uncertainty for delete semantics.
+
+### Remaining write/replace problem
+
+Existing-file replacement is harder than deletion because ACP currently wants
+both:
+
+- object-bound protection against target substitution; and
+- atomic replacement semantics.
+
+Keeping a target handle open without delete sharing blocks replacement by any
+actor, including ACP's own pathname-based replacement. Closing that handle
+before `os.replace` restores the race window.
+
+A future Windows design therefore needs a deliberate choice, such as:
+
+- handle-bound in-place write/truncate with explicit crash-recovery semantics;
+- a handle-relative rename/replace design using a trusted parent directory
+  handle and carefully verified Windows rename semantics;
+- or retention of pathname atomic replacement with an explicit residual TOCTOU
+  ceiling.
+
+Do not treat the successful delete probe as proof that write replacement is
+solved.
+
+```text
+HANDLE_BOUND_DELETE_FEASIBILITY=VERIFIED_SYNTHETIC_WINDOWS
+TARGET_REPLACEMENT_BLOCK_BY_OPEN_HANDLE=VERIFIED_SYNTHETIC_WINDOWS
+HANDLE_BOUND_ATOMIC_WRITE_REPLACEMENT=NOT_ESTABLISHED
+REAL_PROJECT_REPOSITORY_EXECUTION=NOT_AUTHORIZED
+```
