@@ -6,7 +6,7 @@ This tranche binds caller-supplied external execution evidence to the exact ACP 
 
 ## Required congruence
 
-The binder requires exact agreement across transaction ID, request/resource/operation identity, canonical plan SHA-256, one journal external-effect event, terminal postcondition-verified journal state, and one verified postcondition record.
+The binder requires exact agreement across transaction ID, request/resource/operation identity, canonical plan SHA-256, rollback descriptor SHA-256, rollback custody reference, one journal external-effect event, terminal postcondition-verified journal state, and one verified postcondition record. The stronger postcondition identity must match both the exact plan rollback hash and the journal's bound custody chain.
 
 The caller-supplied evidence carries executor ID, execution ID, result SHA-256, external-effect evidence SHA-256, and postcondition-evidence SHA-256. The complete evidence object has deterministic canonical bytes and its own SHA-256 content identity.
 

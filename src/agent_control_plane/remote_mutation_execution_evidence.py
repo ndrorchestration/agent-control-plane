@@ -130,6 +130,7 @@ def bind_mutation_execution_evidence(
         or journal.resource_id != plan.resource_id
         or journal.operation_id != plan.operation_id
         or journal.plan_sha256 != plan.plan_sha256
+        or journal.rollback_descriptor_sha256 != plan.rollback_sha256
     ):
         mismatches.append("journal.plan_identity")
 
@@ -138,9 +139,12 @@ def bind_mutation_execution_evidence(
         or postcondition.resource_id != plan.resource_id
         or postcondition.operation_id != plan.operation_id
         or postcondition.plan_sha256 != plan.plan_sha256
+        or postcondition.rollback_descriptor_sha256 != journal.rollback_descriptor_sha256
+        or postcondition.rollback_descriptor_sha256 != plan.rollback_sha256
+        or postcondition.rollback_custody_ref != journal.custody_ref
         or postcondition.postcondition_verified is not True
         or postcondition.execution_enabled is not False
-        or postcondition.acp_mutation_executed is not False
+        or postcondition.mutation_executed is not False
     ):
         mismatches.append("postcondition")
 

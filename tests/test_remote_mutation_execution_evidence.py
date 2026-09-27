@@ -85,7 +85,13 @@ def journal_for(p: MutationPlan, *, effect_sha=D, post_sha=E, current=MutationJo
     )
 
 
-def postcondition_for(p: MutationPlan, *, verified=True):
+def postcondition_for(
+    p: MutationPlan,
+    *,
+    verified=True,
+    rollback_descriptor_sha256=None,
+    rollback_custody_ref="custody://operator-local/evidence-1",
+):
     return MutationPostconditionRecord(
         request_id=p.request_id,
         resource_id=p.resource_id,
@@ -94,6 +100,8 @@ def postcondition_for(p: MutationPlan, *, verified=True):
         requested_path=p.parameters["path"],
         repository_root="C:/repo",
         resolved_path="C:/repo/docs/example.md",
+        rollback_descriptor_sha256=rollback_descriptor_sha256 or p.rollback_sha256,
+        rollback_custody_ref=rollback_custody_ref,
         target_exists=True,
         observed_content_sha256=p.parameters["content_sha256"],
         path_revalidated=True,
@@ -159,6 +167,30 @@ def test_unverified_postcondition_blocks_even_with_matching_journal():
     p = plan()
     receipt = bind_mutation_execution_evidence(
         p, journal_for(p), postcondition_for(p, verified=False), evidence_for(p)
+    )
+    assert receipt.evidence_bound is False
+    assert "postcondition" in receipt.reason
+
+
+def test_postcondition_rollback_descriptor_mismatch_blocks():
+    p = plan()
+    receipt = bind_mutation_execution_evidence(
+        p,
+        journal_for(p),
+        postcondition_for(p, rollback_descriptor_sha256=B),
+        evidence_for(p),
+    )
+    assert receipt.evidence_bound is False
+    assert "postcondition" in receipt.reason
+
+
+def test_postcondition_custody_reference_mismatch_blocks():
+    p = plan()
+    receipt = bind_mutation_execution_evidence(
+        p,
+        journal_for(p),
+        postcondition_for(p, rollback_custody_ref="custody://operator-local/other"),
+        evidence_for(p),
     )
     assert receipt.evidence_bound is False
     assert "postcondition" in receipt.reason
