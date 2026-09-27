@@ -47,12 +47,18 @@ class ExternalMutationExecutionEvidence:
 
     def __post_init__(self) -> None:
         for field in (
-            "executor_id", "execution_id", "transaction_id", "request_id",
-            "resource_id", "operation_id",
+            "executor_id",
+            "execution_id",
+            "transaction_id",
+            "request_id",
+            "resource_id",
+            "operation_id",
         ):
             object.__setattr__(self, field, _required(getattr(self, field), field))
         for field in (
-            "plan_sha256", "result_sha256", "external_effect_sha256",
+            "plan_sha256",
+            "result_sha256",
+            "external_effect_sha256",
             "postcondition_evidence_sha256",
         ):
             object.__setattr__(self, field, _sha256(getattr(self, field), field))
@@ -70,7 +76,9 @@ class ExternalMutationExecutionEvidence:
             "result_sha256": self.result_sha256,
             "transaction_id": self.transaction_id,
         }
-        return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
 
     @property
     def evidence_sha256(self) -> str:
@@ -98,11 +106,17 @@ class MutationExecutionEvidenceReceipt:
 
     def __post_init__(self) -> None:
         for field in (
-            "plan_sha256", "result_sha256", "external_effect_sha256",
-            "postcondition_evidence_sha256", "evidence_sha256",
+            "plan_sha256",
+            "result_sha256",
+            "external_effect_sha256",
+            "postcondition_evidence_sha256",
+            "evidence_sha256",
         ):
             _sha256(getattr(self, field), field)
-        if self.execution_authorized is not False or self.acp_mutation_executed is not False:
+        if (
+            self.execution_authorized is not False
+            or self.acp_mutation_executed is not False
+        ):
             raise MutationExecutionEvidenceError(
                 "execution evidence cannot authorize or claim ACP mutation execution"
             )
@@ -138,6 +152,9 @@ def bind_mutation_execution_evidence(
         or postcondition.resource_id != plan.resource_id
         or postcondition.operation_id != plan.operation_id
         or postcondition.plan_sha256 != plan.plan_sha256
+        or postcondition.rollback_descriptor_sha256
+        != journal.rollback_descriptor_sha256
+        or postcondition.rollback_custody_ref != journal.custody_ref
         or postcondition.postcondition_verified is not True
         or postcondition.execution_enabled is not False
         or postcondition.acp_mutation_executed is not False
@@ -154,11 +171,13 @@ def bind_mutation_execution_evidence(
         mismatches.append("evidence.plan_identity")
 
     effect_events = [
-        event for event in journal.events
+        event
+        for event in journal.events
         if event.state is MutationJournalState.EXTERNAL_EFFECT_REPORTED
     ]
     post_events = [
-        event for event in journal.events
+        event
+        for event in journal.events
         if event.state is MutationJournalState.POSTCONDITION_VERIFIED
     ]
     if len(effect_events) != 1:

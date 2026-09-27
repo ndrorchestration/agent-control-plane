@@ -14,7 +14,9 @@ from agent_control_plane.remote_mutation_journal import (
     MutationJournalRecord,
     MutationJournalState,
 )
-from agent_control_plane.remote_mutation_postcondition import MutationPostconditionRecord
+from agent_control_plane.remote_mutation_postcondition import (
+    MutationPostconditionRecord,
+)
 from agent_control_plane.remote_mutation_rollback_custody import (
     RollbackMaterialDescriptor,
     RollbackMode,
@@ -48,27 +50,41 @@ def plan():
     )
 
 
-def journal_for(p: MutationPlan, *, effect_sha=D, post_sha=E, current=MutationJournalState.POSTCONDITION_VERIFIED):
+def journal_for(
+    p: MutationPlan,
+    *,
+    effect_sha=D,
+    post_sha=E,
+    current=MutationJournalState.POSTCONDITION_VERIFIED,
+):
     events = [
         MutationJournalEvent(
-            transaction_id="tx-evidence-1", event_index=0,
-            state=MutationJournalState.PREPARED, occurred_at="2026-09-27T09:00:00Z",
+            transaction_id="tx-evidence-1",
+            event_index=0,
+            state=MutationJournalState.PREPARED,
+            occurred_at="2026-09-27T09:00:00Z",
         ),
         MutationJournalEvent(
-            transaction_id="tx-evidence-1", event_index=1,
-            state=MutationJournalState.EXECUTION_INTENT_RECORDED, occurred_at="2026-09-27T09:00:01Z",
+            transaction_id="tx-evidence-1",
+            event_index=1,
+            state=MutationJournalState.EXECUTION_INTENT_RECORDED,
+            occurred_at="2026-09-27T09:00:01Z",
         ),
         MutationJournalEvent(
-            transaction_id="tx-evidence-1", event_index=2,
-            state=MutationJournalState.EXTERNAL_EFFECT_REPORTED, occurred_at="2026-09-27T09:00:02Z",
+            transaction_id="tx-evidence-1",
+            event_index=2,
+            state=MutationJournalState.EXTERNAL_EFFECT_REPORTED,
+            occurred_at="2026-09-27T09:00:02Z",
             evidence_sha256=effect_sha,
         ),
     ]
     if current is MutationJournalState.POSTCONDITION_VERIFIED:
         events.append(
             MutationJournalEvent(
-                transaction_id="tx-evidence-1", event_index=3,
-                state=MutationJournalState.POSTCONDITION_VERIFIED, occurred_at="2026-09-27T09:00:03Z",
+                transaction_id="tx-evidence-1",
+                event_index=3,
+                state=MutationJournalState.POSTCONDITION_VERIFIED,
+                occurred_at="2026-09-27T09:00:03Z",
                 evidence_sha256=post_sha,
             )
         )
@@ -94,6 +110,8 @@ def postcondition_for(p: MutationPlan, *, verified=True):
         requested_path=p.parameters["path"],
         repository_root="C:/repo",
         resolved_path="C:/repo/docs/example.md",
+        rollback_descriptor_sha256=p.rollback_sha256,
+        rollback_custody_ref="custody://operator-local/evidence-1",
         target_exists=True,
         observed_content_sha256=p.parameters["content_sha256"],
         path_revalidated=True,
@@ -199,12 +217,20 @@ def test_plan_identity_drift_blocks():
 def test_transaction_id_mismatch_blocks():
     p = plan()
     e = ExternalMutationExecutionEvidence(
-        executor_id="external-executor:test", execution_id="exec-1",
-        transaction_id="tx-other", request_id=p.request_id, resource_id=p.resource_id,
-        operation_id=p.operation_id, plan_sha256=p.plan_sha256, result_sha256=A,
-        external_effect_sha256=D, postcondition_evidence_sha256=E,
+        executor_id="external-executor:test",
+        execution_id="exec-1",
+        transaction_id="tx-other",
+        request_id=p.request_id,
+        resource_id=p.resource_id,
+        operation_id=p.operation_id,
+        plan_sha256=p.plan_sha256,
+        result_sha256=A,
+        external_effect_sha256=D,
+        postcondition_evidence_sha256=E,
     )
-    receipt = bind_mutation_execution_evidence(p, journal_for(p), postcondition_for(p), e)
+    receipt = bind_mutation_execution_evidence(
+        p, journal_for(p), postcondition_for(p), e
+    )
     assert receipt.evidence_bound is False
     assert "evidence.plan_identity" in receipt.reason
 
@@ -212,24 +238,55 @@ def test_transaction_id_mismatch_blocks():
 def test_receipt_cannot_authorize_execution():
     with pytest.raises(MutationExecutionEvidenceError, match="cannot authorize"):
         MutationExecutionEvidenceReceipt(
-            transaction_id="tx", execution_id="exec", executor_id="external:test",
-            request_id="req", resource_id="repo", operation_id="repo.write_text_file",
-            plan_sha256=A, result_sha256=B, external_effect_sha256=C,
-            postcondition_evidence_sha256=D, evidence_sha256=E, evidence_bound=True,
-            reason="invalid", execution_authorized=True,
+            transaction_id="tx",
+            execution_id="exec",
+            executor_id="external:test",
+            request_id="req",
+            resource_id="repo",
+            operation_id="repo.write_text_file",
+            plan_sha256=A,
+            result_sha256=B,
+            external_effect_sha256=C,
+            postcondition_evidence_sha256=D,
+            evidence_sha256=E,
+            evidence_bound=True,
+            reason="invalid",
+            execution_authorized=True,
         )
 
 
-@pytest.mark.parametrize("field", ["result_sha256", "external_effect_sha256", "postcondition_evidence_sha256"])
+@pytest.mark.parametrize(
+    "field",
+    ["result_sha256", "external_effect_sha256", "postcondition_evidence_sha256"],
+)
 def test_evidence_rejects_malformed_hashes(field):
     p = plan()
     values = {
-        "executor_id": "external:test", "execution_id": "exec-1",
-        "transaction_id": "tx-evidence-1", "request_id": p.request_id,
-        "resource_id": p.resource_id, "operation_id": p.operation_id,
-        "plan_sha256": p.plan_sha256, "result_sha256": A,
-        "external_effect_sha256": D, "postcondition_evidence_sha256": E,
+        "executor_id": "external:test",
+        "execution_id": "exec-1",
+        "transaction_id": "tx-evidence-1",
+        "request_id": p.request_id,
+        "resource_id": p.resource_id,
+        "operation_id": p.operation_id,
+        "plan_sha256": p.plan_sha256,
+        "result_sha256": A,
+        "external_effect_sha256": D,
+        "postcondition_evidence_sha256": E,
     }
     values[field] = "bad"
     with pytest.raises(MutationExecutionEvidenceError, match="sha256"):
         ExternalMutationExecutionEvidence(**values)
+
+
+def test_postcondition_rollback_custody_identity_mismatch_blocks():
+    p = plan()
+    post = postcondition_for(p)
+    post = MutationPostconditionRecord(
+        **{
+            **post.__dict__,
+            "rollback_custody_ref": "custody://operator-local/other",
+        }
+    )
+    receipt = bind_mutation_execution_evidence(p, journal_for(p), post, evidence_for(p))
+    assert receipt.evidence_bound is False
+    assert "postcondition" in receipt.reason
