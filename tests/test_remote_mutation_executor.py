@@ -11,6 +11,7 @@ from agent_control_plane.remote_mutation_execution_authorization import (
 from agent_control_plane.remote_mutation_executor import (
     AuthorizedRepositoryMutationExecutor,
     DEFAULT_REPOSITORY_MUTATION_EXECUTOR_ID,
+    FilesystemObjectIdentity,
     RepositoryMutationExecutorError,
 )
 from agent_control_plane.remote_mutation_executor_recovery import (
@@ -34,7 +35,6 @@ from agent_control_plane.remote_mutation_transaction import (
     MutationTransactionReceipt,
     MutationTransactionState,
 )
-
 
 A = "a" * 64
 
@@ -229,7 +229,9 @@ def test_executor_rejects_non_allowlisted_repository(tmp_path):
         allowed_repository_roots=[allowed],
         experimental_enable=True,
     )
-    with pytest.raises(RepositoryMutationExecutorError, match="not in executor allowlist"):
+    with pytest.raises(
+        RepositoryMutationExecutorError, match="not in executor allowlist"
+    ):
         executor._allowed_root(other)
 
 
@@ -291,11 +293,15 @@ def test_wrong_write_content_is_rejected_before_authorization_consumption(tmp_pa
     assert journal.current_state is MutationJournalState.PREPARED
 
 
-def test_pre_execution_content_drift_is_rejected_before_authorization_consumption(tmp_path):
+def test_pre_execution_content_drift_is_rejected_before_authorization_consumption(
+    tmp_path,
+):
     ctx = prepare(tmp_path, prior=b"before", after=b"after")
     ctx["target"].write_bytes(b"drifted-after-authorization")
 
-    with pytest.raises(RepositoryMutationExecutorError, match="drifted after authorization"):
+    with pytest.raises(
+        RepositoryMutationExecutorError, match="drifted after authorization"
+    ):
         execute(ctx)
 
     assert ctx["target"].read_bytes() == b"drifted-after-authorization"
@@ -329,7 +335,9 @@ def test_delete_content_drift_is_rejected_before_authorization_consumption(tmp_p
     )
     ctx["target"].write_bytes(b"changed")
 
-    with pytest.raises(RepositoryMutationExecutorError, match="drifted after authorization"):
+    with pytest.raises(
+        RepositoryMutationExecutorError, match="drifted after authorization"
+    ):
         execute(ctx, content_marker=False)
 
     assert ctx["target"].read_bytes() == b"changed"
@@ -337,7 +345,9 @@ def test_delete_content_drift_is_rejected_before_authorization_consumption(tmp_p
     assert auth is not None and auth.consumed is False
 
 
-def test_failure_after_execution_intent_consumes_auth_and_enters_recovery_hold(tmp_path, monkeypatch):
+def test_failure_after_execution_intent_consumes_auth_and_enters_recovery_hold(
+    tmp_path, monkeypatch
+):
     ctx = prepare(tmp_path, prior=b"before", after=b"after")
 
     def fail_side_effect(plan, target, *, content):
@@ -362,7 +372,9 @@ def test_failure_after_execution_intent_consumes_auth_and_enters_recovery_hold(t
     assert assessment.repository_mutation_may_exist is True
 
 
-def test_wrong_post_state_after_side_effect_fails_closed_and_requires_recovery(tmp_path, monkeypatch):
+def test_wrong_post_state_after_side_effect_fails_closed_and_requires_recovery(
+    tmp_path, monkeypatch
+):
     ctx = prepare(tmp_path, prior=b"before", after=b"expected")
 
     def wrong_side_effect(plan, target, *, content):
@@ -391,9 +403,9 @@ def test_wrong_post_state_after_side_effect_fails_closed_and_requires_recovery(t
     reopened_auth = RemoteMutationExecutionAuthorizationStore(
         tmp_path / "authorization.sqlite3"
     ).get("authz-executor-1")
-    reopened_journal = RemoteMutationJournal(
-        tmp_path / "journal.sqlite3"
-    ).get("tx-executor-1")
+    reopened_journal = RemoteMutationJournal(tmp_path / "journal.sqlite3").get(
+        "tx-executor-1"
+    )
     assert reopened_auth is not None and reopened_journal is not None
     cross_store = assess_executor_recovery(reopened_auth, reopened_journal)
     assert (
@@ -403,3 +415,89 @@ def test_wrong_post_state_after_side_effect_fails_closed_and_requires_recovery(t
     assert cross_store.repository_mutation_may_exist is True
     assert cross_store.recovery_hold is True
     assert cross_store.new_authorization_required is True
+
+
+def test_parent_object_identity_drift_fails_after_intent_without_side_effect(
+    tmp_path, monkeypatch
+):
+    ctx = prepare(tmp_path, prior=b"before", after=b"after")
+    parent = FilesystemObjectIdentity.capture(ctx["target"].parent)
+    target = FilesystemObjectIdentity.capture(ctx["target"])
+    sequence = iter(
+        [
+            parent,
+            target,
+            FilesystemObjectIdentity(
+                path=parent.path,
+                exists=True,
+                device=parent.device,
+                inode=(parent.inode or 0) + 1,
+                mode=parent.mode,
+            ),
+            target,
+        ]
+    )
+
+    monkeypatch.setattr(
+        FilesystemObjectIdentity,
+        "capture",
+        classmethod(lambda cls, path: next(sequence)),
+    )
+
+    with pytest.raises(
+        RepositoryMutationExecutorError, match="target parent object identity changed"
+    ):
+        execute(ctx)
+
+    assert ctx["target"].read_bytes() == b"before"
+    auth = ctx["auth_store"].get("authz-executor-1")
+    assert auth is not None and auth.consumed is True
+    journal = ctx["journal_store"].get("tx-executor-1")
+    assert journal is not None
+    assert journal.current_state is MutationJournalState.FAILED
+    assert (
+        ctx["journal_store"]
+        .assess_recovery("tx-executor-1")
+        .repository_mutation_may_exist
+        is True
+    )
+
+
+def test_target_object_identity_drift_fails_after_intent_without_side_effect(
+    tmp_path, monkeypatch
+):
+    ctx = prepare(tmp_path, prior=b"before", after=b"after")
+    parent = FilesystemObjectIdentity.capture(ctx["target"].parent)
+    target = FilesystemObjectIdentity.capture(ctx["target"])
+    sequence = iter(
+        [
+            parent,
+            target,
+            parent,
+            FilesystemObjectIdentity(
+                path=target.path,
+                exists=True,
+                device=target.device,
+                inode=(target.inode or 0) + 1,
+                mode=target.mode,
+            ),
+        ]
+    )
+
+    monkeypatch.setattr(
+        FilesystemObjectIdentity,
+        "capture",
+        classmethod(lambda cls, path: next(sequence)),
+    )
+
+    with pytest.raises(
+        RepositoryMutationExecutorError, match="target object identity changed"
+    ):
+        execute(ctx)
+
+    assert ctx["target"].read_bytes() == b"before"
+    auth = ctx["auth_store"].get("authz-executor-1")
+    assert auth is not None and auth.consumed is True
+    journal = ctx["journal_store"].get("tx-executor-1")
+    assert journal is not None
+    assert journal.current_state is MutationJournalState.FAILED
