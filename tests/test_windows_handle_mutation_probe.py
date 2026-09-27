@@ -115,3 +115,132 @@ def test_handle_based_disposition_deletes_exact_opened_temp_file(tmp_path):
         api.CloseHandle(handle)
 
     assert not target.exists()
+
+
+class _RENAME_UNION(ctypes.Union):
+    _fields_ = [
+        ("ReplaceIfExists", wintypes.BOOLEAN),
+        ("Flags", wintypes.DWORD),
+    ]
+
+
+class _FILE_RENAME_INFO(ctypes.Structure):
+    _anonymous_ = ("u",)
+    _fields_ = [
+        ("u", _RENAME_UNION),
+        ("RootDirectory", wintypes.HANDLE),
+        ("FileNameLength", wintypes.DWORD),
+        ("FileName", wintypes.WCHAR * 1),
+    ]
+
+
+_FILE_RENAME_INFO_CLASS = 3
+_FILE_LIST_DIRECTORY = 0x00000001
+_FILE_ADD_FILE = 0x00000002
+_FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+
+
+def open_directory_handle(path: Path):
+    api = kernel32()
+    handle = api.CreateFileW(
+        str(path),
+        _FILE_LIST_DIRECTORY | _FILE_ADD_FILE,
+        _FILE_SHARE_READ | _FILE_SHARE_WRITE | _FILE_SHARE_DELETE,
+        None,
+        _OPEN_EXISTING,
+        _FILE_FLAG_BACKUP_SEMANTICS | _FILE_FLAG_OPEN_REPARSE_POINT,
+        None,
+    )
+    if ctypes.cast(handle, ctypes.c_void_p).value == _INVALID_HANDLE_VALUE:
+        raise OSError(ctypes.get_last_error(), "CreateFileW(directory) failed")
+    return api, handle
+
+
+def rename_by_source_handle_relative_to_parent(
+    source_handle,
+    parent_handle,
+    target_name: str,
+):
+    api = kernel32()
+    name_bytes = target_name.encode("utf-16-le")
+    file_name_offset = _FILE_RENAME_INFO.FileName.offset
+    size = file_name_offset + len(name_bytes) + ctypes.sizeof(wintypes.WCHAR)
+    buffer = ctypes.create_string_buffer(size)
+    info = ctypes.cast(buffer, ctypes.POINTER(_FILE_RENAME_INFO)).contents
+    info.ReplaceIfExists = True
+    info.RootDirectory = parent_handle
+    info.FileNameLength = len(name_bytes)
+    ctypes.memmove(
+        ctypes.addressof(buffer) + file_name_offset,
+        name_bytes,
+        len(name_bytes),
+    )
+    ok = api.SetFileInformationByHandle(
+        source_handle,
+        _FILE_RENAME_INFO_CLASS,
+        ctypes.byref(buffer),
+        size,
+    )
+    if not ok:
+        raise OSError(
+            ctypes.get_last_error(),
+            "SetFileInformationByHandle(FileRenameInfo) failed",
+        )
+
+
+@pytest.mark.xfail(
+    reason=(
+        "SetFileInformationByHandle(FileRenameInfo) rejects non-NULL "
+        "RootDirectory with ERROR_INVALID_PARAMETER on this Windows host; "
+        "handle-relative rename requires a different API path"
+    ),
+    strict=True,
+)
+def test_handle_relative_atomic_replace_uses_held_parent_directory(tmp_path):
+    target = tmp_path / "target.txt"
+    temp = tmp_path / "prepared.tmp"
+    target.write_bytes(b"old")
+    temp.write_bytes(b"new")
+
+    api, parent_handle = open_directory_handle(tmp_path.resolve())
+    _, source_handle = open_handle(
+        temp.resolve(),
+        access=_DELETE | _FILE_READ_ATTRIBUTES,
+        share=_FILE_SHARE_READ | _FILE_SHARE_WRITE | _FILE_SHARE_DELETE,
+    )
+    try:
+        rename_by_source_handle_relative_to_parent(
+            source_handle,
+            parent_handle,
+            "target.txt",
+        )
+    finally:
+        api.CloseHandle(source_handle)
+        api.CloseHandle(parent_handle)
+
+    assert target.read_bytes() == b"new"
+    assert not temp.exists()
+
+
+def test_handle_rename_with_absolute_destination_path(tmp_path):
+    target = tmp_path / "target-absolute.txt"
+    temp = tmp_path / "prepared-absolute.tmp"
+    target.write_bytes(b"old")
+    temp.write_bytes(b"new")
+
+    api, source_handle = open_handle(
+        temp.resolve(),
+        access=_DELETE | _FILE_READ_ATTRIBUTES,
+        share=_FILE_SHARE_READ | _FILE_SHARE_WRITE | _FILE_SHARE_DELETE,
+    )
+    try:
+        rename_by_source_handle_relative_to_parent(
+            source_handle,
+            None,
+            str(target.resolve()),
+        )
+    finally:
+        api.CloseHandle(source_handle)
+
+    assert not temp.exists()
+    assert target.read_bytes() == b"new"

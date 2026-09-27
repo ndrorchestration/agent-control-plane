@@ -183,3 +183,38 @@ TARGET_REPLACEMENT_BLOCK_BY_OPEN_HANDLE=VERIFIED_SYNTHETIC_WINDOWS
 HANDLE_BOUND_ATOMIC_WRITE_REPLACEMENT=NOT_ESTABLISHED
 REAL_PROJECT_REPOSITORY_EXECUTION=NOT_AUTHORIZED
 ```
+
+
+## Win32 rename finding
+
+The synthetic Windows probe produced an important API-specific result:
+
+- `SetFileInformationByHandle(FileRenameInfo)` with an absolute destination
+  path and `RootDirectory=NULL`: PASS in the disposable probe;
+- `SetFileInformationByHandle(FileRenameInfo)` with a held parent-directory
+  handle in `RootDirectory` and a relative target name: reproducible
+  `ERROR_INVALID_PARAMETER (87)` on this Windows host.
+
+This conflicts with the documented `FILE_RENAME_INFO.RootDirectory` contract
+for the tested Win32 entrypoint. The failing relative-handle test is retained as
+a strict expected failure so this limitation stays visible.
+
+The implication for #117 is:
+
+- handle-derived object identity is locally verified;
+- holding an object without delete-sharing blocks pathname substitution;
+- handle-based delete via `FileDispositionInfo` is locally verified;
+- source-handle atomic rename with an absolute destination path is locally
+  verified;
+- parent-directory-handle-relative rename is **not** established via
+  `SetFileInformationByHandle` on this host.
+
+A lower-level Windows API path may be required if parent-directory anchoring is
+a hard requirement. That path is not yet part of ACP and must be evaluated
+separately before any assurance promotion.
+
+```text
+WIN32_ABSOLUTE_HANDLE_RENAME=VERIFIED_SYNTHETIC_WINDOWS
+WIN32_ROOTDIRECTORY_RELATIVE_RENAME=NOT_ESTABLISHED_ERROR_87
+LOWER_LEVEL_HANDLE_RELATIVE_RENAME=NOT_EVALUATED_IN_ACP
+```
