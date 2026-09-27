@@ -148,3 +148,44 @@ committed to the repository.
 
 This converts the #118 boundary from a prose-only concern into a repeatable
 operator audit while preserving the same assurance ceiling.
+
+
+## Disposable executor-isolation lab harness — 2026-09-27
+
+`scripts/setup_executor_isolation_lab.ps1` now provides a reversible, plan-first
+fixture for the next #118 step.
+
+Default behavior is non-privileged plan mode. It:
+
+- creates only a disposable lab under `NDR-Ecosystem/staging`;
+- defines separate repository, authorization, journal, and rollback paths;
+- refuses a lab root inside DGAF, Aetherwake, or the ACP Active Projects tree;
+- records whether the current process is elevated;
+- records whether the dedicated `ACPExecutorLab` local identity already exists;
+- emits the intended ACL/isolation controls without applying them.
+
+The `-Apply` path fails closed unless the caller is elevated and the dedicated
+worker identity was already created by an explicit elevated operator step. The
+script deliberately does **not** create an account, generate/store a password,
+install a service, or grant access to any real project tree.
+
+Current RDC plan-mode evidence:
+
+```text
+current_process_is_administrator=false
+worker_exists=false
+apply_requested=false
+real_project_roots_explicitly_excluded=true
+```
+
+This means the lab is operator-ready but privileged boundary establishment has
+not occurred. The next privileged action must be explicit and separately
+reviewable.
+
+```text
+DEDICATED_SERVICE_IDENTITY_VERIFIED=false
+ACL_SEPARATION_OBSERVED=false
+OS_ISOLATION_VERIFIED=false
+PEER_PROCESS_TAMPER_RESISTANCE_VERIFIED=false
+HIGH_ASSURANCE_BOUNDARY_ESTABLISHED=false
+```
