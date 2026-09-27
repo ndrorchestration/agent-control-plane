@@ -347,3 +347,27 @@ Focused operator-script/candidate/identity/native-backend tests:
 `20 passed, 1 skipped`.
 
 The privileged installation remains a human-visible gate.
+
+
+## SCM registration established — operator + independent read-back
+
+The human-visible privileged registration step completed successfully.
+
+Operator evidence:
+- service `ACPExecutorLabProbe`;
+- start account `.\ACPExecutorLab`;
+- exact disposable probe path;
+- start mode `Manual`;
+- state `Stopped`;
+- exact binary SHA-256
+  `9215cd763d325abf43c4fcb1a2b4b222aa7ce9c27059103107bbea749974eab4`;
+- all six post-install checks true.
+
+Independent RDC read-back then observed the same service/account/path/start mode,
+`State=Stopped`, `ProcessId=0`, and the same binary SHA-256. Focused
+installed-identity/operator-script/candidate tests: `10 passed`.
+
+This establishes **SCM registration identity for the stopped disposable
+service**. It does not yet prove the process actually launches under that token,
+nor trusted launcher/signature identity, OS isolation, or peer-process tamper
+resistance. Service execution is therefore a separate next gate.
