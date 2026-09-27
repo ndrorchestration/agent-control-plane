@@ -8,7 +8,7 @@ Other repositories may consume ACP through explicit interfaces, but an integrati
 
 ## Current accepted boundary
 
-Accepted ACP `main` includes PR #93 at `e27a4fa1a5f351eb3a142744be3579eeac4e900c`, establishing the repository's current typed read-only remote-execution contract. Signed read-only requests carry typed operation intent and structured parameters; ACP/executor policy derives fixed argv and executes with `shell=False` under bounded local controls.
+Accepted ACP `main` includes PR #93; the typed read-only feature baseline is `e27a4fa1a5f351eb3a142744be3579eeac4e900c`, establishing the repository's accepted typed read-only remote-execution contract. Signed read-only requests carry typed operation intent and structured parameters; ACP/executor policy derives fixed argv and executes with `shell=False` under bounded local controls.
 
 Cross-runtime portability, production security, authenticated remote transport identity, hardware-rooted attestation, and live remote mutation remain unestablished.
 
