@@ -322,3 +322,28 @@ auto-start request.
 
 Revised candidate/admission suite: `28 passed, 2 skipped`.
 SCM remains unmodified at this point.
+
+
+## Operator-gated disposable SCM installation script
+
+`scripts/install_disposable_scm_probe.ps1` is prepared but was not executed by
+RDC. It requires an explicitly elevated interactive PowerShell and prompts for
+the worker password as a SecureString. The password is not accepted as a
+parameter and is not stored in source, Git, documentation, or command-line
+arguments.
+
+The script:
+1. confines the binary to the disposable isolation-lab root;
+2. re-verifies exact SHA-256 before SCM mutation;
+3. requires Administrator context and an enabled worker;
+4. refuses an existing service rather than overwriting it;
+5. creates `ACPExecutorLabProbe` as Manual/Demand start only;
+6. does not start the service;
+7. reads CIM identity back immediately;
+8. verifies service name, account, binary path/hash, manual start, and stopped state;
+9. deletes the service if post-install identity verification fails.
+
+Focused operator-script/candidate/identity/native-backend tests:
+`20 passed, 1 skipped`.
+
+The privileged installation remains a human-visible gate.
