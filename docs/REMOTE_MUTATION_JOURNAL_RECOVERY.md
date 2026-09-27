@@ -35,4 +35,4 @@ The journal persists only ACP control/evidence metadata. It does not execute a m
 
 ## Remaining gates
 
-Before a live ACP mutation path can be considered, the stack still needs execution receipt/result-evidence binding and a separate explicit live mutation-execution authorization gate. Any future executor must compose journal intent recording before side effects and postcondition/rollback evidence after side effects in a way appropriate to the final threat model.
+A separate execution/result-evidence binding gate now binds caller-supplied external executor/result hashes to the exact plan, journal transaction, external-effect event, and verified postcondition without enabling execution. Before a live ACP mutation path can be considered, a separate explicit live mutation-execution authorization gate is still required. Any future executor must compose journal intent recording before side effects and postcondition/rollback evidence after side effects in a way appropriate to the final threat model.
