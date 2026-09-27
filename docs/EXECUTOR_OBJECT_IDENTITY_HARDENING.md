@@ -258,3 +258,50 @@ HIGH_ASSURANCE=NOT_AUTHORIZED
 The next admissible #117 step is to extract the NT-native primitive behind a
 narrow Windows-only adapter and test it against disposable repository fixtures
 through the executor's existing authorization/journal/recovery lifecycle.
+
+
+## NT handle-relative rename feasibility — 2026-09-27
+
+A lower-level Windows synthetic probe now exercises
+`NtSetInformationFile(FileRenameInformation)` with:
+
+- a source file held by handle;
+- a destination parent directory held by handle;
+- a relative destination filename;
+- disposable pytest temporary directories only.
+
+Focused local verification on Windows / Python 3.12:
+
+- Win32 open-handle substitution blocking: PASS;
+- handle-based delete: PASS;
+- Win32 `SetFileInformationByHandle` + non-NULL `RootDirectory`: retained strict XFAIL (ERROR_INVALID_PARAMETER / 87);
+- Win32 source-handle absolute rename: PASS;
+- NT `NtSetInformationFile(FileRenameInformation)` parent-handle-relative replace: PASS;
+- NT parent-handle-relative rename while the held parent prevents pathname displacement: PASS.
+
+Focused mutation-probe result: **5 PASS / 1 expected failure**.
+Combined focused identity/mutation/executor suite: **20 PASS / 1 skipped / 1 expected failure**.
+
+Microsoft's published filesystem semantics describe `FileRenameInformation`
+with a nonzero `RootDirectory` as resolving the destination relative to that
+directory for local operations. This supports the semantics exercised by the
+probe, but ACP's use of the lower-level NT entrypoint remains an experimental
+platform-specific implementation direction rather than a portable contract.
+
+Assurance ceiling remains:
+
+```text
+NT_HANDLE_RELATIVE_RENAME=VERIFIED_SYNTHETIC_LOCAL_WINDOWS
+WIN32_ROOTDIRECTORY_RELATIVE_RENAME=NOT_ESTABLISHED_ERROR_87
+HANDLE_BOUND_ATOMIC_WRITE_REPLACEMENT_IN_EXECUTOR=NOT_IMPLEMENTED
+CROSS_WINDOWS_VERSION_FILESYSTEM_VALIDATION=NOT_ESTABLISHED
+REAL_PROJECT_REPOSITORY_EXECUTION=NOT_AUTHORIZED
+HIGH_ASSURANCE=NOT_AUTHORIZED
+```
+
+Next admissible engineering step: isolate the NT primitive behind a narrow
+Windows adapter and test it only against disposable local filesystem fixtures,
+including target-exists, target-missing, parent/object substitution attempts,
+same-volume enforcement, and fail-closed error handling. Do not wire it into
+real repository execution until those adapter tests and #118 process-boundary
+requirements are separately satisfied.
