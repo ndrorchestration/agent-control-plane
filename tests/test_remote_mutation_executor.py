@@ -13,6 +13,10 @@ from agent_control_plane.remote_mutation_executor import (
     DEFAULT_REPOSITORY_MUTATION_EXECUTOR_ID,
     RepositoryMutationExecutorError,
 )
+from agent_control_plane.remote_mutation_executor_recovery import (
+    ExecutorRecoveryDisposition,
+    assess_executor_recovery,
+)
 from agent_control_plane.remote_mutation_journal import (
     MutationJournalState,
     RemoteMutationJournal,
@@ -381,3 +385,21 @@ def test_wrong_post_state_after_side_effect_fails_closed_and_requires_recovery(t
     assert journal.current_state is MutationJournalState.FAILED
     assessment = ctx["journal_store"].assess_recovery("tx-executor-1")
     assert assessment.repository_mutation_may_exist is True
+
+    # Simulate process restart: reconstruct both durable stores and reconcile
+    # authorization consumption with the persisted failed journal.
+    reopened_auth = RemoteMutationExecutionAuthorizationStore(
+        tmp_path / "authorization.sqlite3"
+    ).get("authz-executor-1")
+    reopened_journal = RemoteMutationJournal(
+        tmp_path / "journal.sqlite3"
+    ).get("tx-executor-1")
+    assert reopened_auth is not None and reopened_journal is not None
+    cross_store = assess_executor_recovery(reopened_auth, reopened_journal)
+    assert (
+        cross_store.disposition
+        is ExecutorRecoveryDisposition.HOLD_FAILED_AFTER_EXECUTION_INTENT
+    )
+    assert cross_store.repository_mutation_may_exist is True
+    assert cross_store.recovery_hold is True
+    assert cross_store.new_authorization_required is True
