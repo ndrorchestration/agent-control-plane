@@ -31,7 +31,7 @@ There is no shell, argv, command-string, arbitrary process, recursive-delete, re
 
 Pre-consumption input/path/content drift leaves the authorization unused and journal `PREPARED`.
 
-Any failure after authorization consumption / execution intent leaves the token consumed. The journal records `FAILED` when possible, and recovery classifies the transaction as potentially mutated. The executor does not silently retry and does not auto-rollback.
+A crash after durable authorization consumption but before `EXECUTION_INTENT_RECORDED` leaves the token consumed while the journal is still `PREPARED`. The cross-store recovery assessor recognizes this exact combination as **no repository side effect possible under this executor ordering, but reauthorization required**. Once execution intent is durably recorded, any failure before verified postcondition/rollback evidence is treated as potentially mutated and requires a recovery hold. The executor does not silently retry and does not auto-rollback.
 
 ## Current evidence boundary
 
