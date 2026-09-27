@@ -70,5 +70,8 @@ rollback, or authorize mutation execution.
 
 The custody reference and read-back hash are caller-provided evidence. This
 candidate does not establish storage authenticity, encryption, immutability,
-WORM retention, independent attestation, external custody, rollback execution,
-postcondition verification, crash/interruption recovery, or production security.
+WORM retention, independent attestation, external custody, or rollback execution.
+A separate read-only postcondition gate now verifies the currently observed
+repository state against the exact plan after an external mutation may have
+occurred. Crash/interruption recovery, execution evidence, and production
+security remain separate gates.
