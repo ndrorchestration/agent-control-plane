@@ -86,6 +86,7 @@ class MutationPathSafetyRecord:
     symlink_safe: bool
     repository_metadata_safe: bool
     operation_shape_verified: bool
+    target_exists: bool = False
     execution_enabled: bool = False
     mutation_executed: bool = False
     schema_version: str = MUTATION_PATH_SAFETY_SCHEMA_VERSION
@@ -122,6 +123,7 @@ def _record(
     symlink_safe: bool,
     repository_metadata_safe: bool,
     operation_shape_verified: bool,
+    target_exists: bool,
 ) -> MutationPathSafetyRecord:
     return MutationPathSafetyRecord(
         request_id=plan.request_id,
@@ -137,6 +139,7 @@ def _record(
         symlink_safe=symlink_safe,
         repository_metadata_safe=repository_metadata_safe,
         operation_shape_verified=operation_shape_verified,
+        target_exists=target_exists,
     )
 
 
@@ -181,6 +184,7 @@ def inspect_repository_mutation_path(
             symlink_safe=False,
             repository_metadata_safe=False,
             operation_shape_verified=False,
+            target_exists=False,
         )
 
     if not root.exists() or not root.is_dir():
@@ -196,6 +200,7 @@ def inspect_repository_mutation_path(
             symlink_safe=False,
             repository_metadata_safe=False,
             operation_shape_verified=False,
+            target_exists=False,
         )
 
     git_marker = root / ".git"
@@ -212,6 +217,7 @@ def inspect_repository_mutation_path(
             symlink_safe=False,
             repository_metadata_safe=False,
             operation_shape_verified=False,
+            target_exists=False,
         )
 
     metadata_safe = all(part.lower() != ".git" for part in parts)
@@ -230,6 +236,7 @@ def inspect_repository_mutation_path(
         candidates.append(cursor)
     ancestor_symlink = any(path.is_symlink() for path in candidates if path.exists())
     target_symlink = target.is_symlink()
+    target_exists = target.exists()
     symlink_safe = not ancestor_symlink and not target_symlink
 
     if plan.operation_id == "repo.write_text_file":
@@ -270,4 +277,5 @@ def inspect_repository_mutation_path(
         symlink_safe=symlink_safe,
         repository_metadata_safe=metadata_safe,
         operation_shape_verified=operation_shape_verified,
+        target_exists=target_exists,
     )

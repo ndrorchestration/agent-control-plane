@@ -32,4 +32,4 @@ Every `MutationPathSafetyRecord` fixes `execution_enabled=false` and `mutation_e
 
 ## Known boundaries
 
-This candidate does not establish rollback-material custody, postcondition verification, crash/interruption recovery, execution receipts/result-evidence binding, hardlink equivalence detection, cross-machine filesystem identity, a production-grade Windows reparse-point policy beyond resolved-boundary checks, a live mutation executor, or explicit mutation-execution authorization.
+The next candidate gate binds deterministic rollback material to an opaque custody/read-back evidence reference while keeping execution disabled. This path-safety candidate itself does not establish rollback-material custody, postcondition verification, crash/interruption recovery, execution receipts/result-evidence binding, hardlink equivalence detection, cross-machine filesystem identity, a production-grade Windows reparse-point policy beyond resolved-boundary checks, a live mutation executor, or explicit mutation-execution authorization.

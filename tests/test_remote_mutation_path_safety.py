@@ -73,6 +73,7 @@ def test_existing_write_target_is_admitted_without_execution(tmp_path):
     assert record.symlink_safe is True
     assert record.repository_metadata_safe is True
     assert record.operation_shape_verified is True
+    assert record.target_exists is True
     assert record.execution_enabled is False
     assert record.mutation_executed is False
     assert target.read_text(encoding="utf-8") == "before"
@@ -87,6 +88,7 @@ def test_new_write_target_with_existing_parent_is_admitted(tmp_path):
     )
 
     assert record.admitted is True
+    assert record.target_exists is False
     assert not (root / "docs" / "new.md").exists()
 
 
