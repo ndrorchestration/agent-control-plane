@@ -189,3 +189,43 @@ OS_ISOLATION_VERIFIED=false
 PEER_PROCESS_TAMPER_RESISTANCE_VERIFIED=false
 HIGH_ASSURANCE_BOUNDARY_ESTABLISHED=false
 ```
+
+
+## Privileged disposable-lab read-back — 2026-09-27
+
+An explicit elevated operator step created the local `ACPExecutorLab` identity and
+applied the staged ACL fixture. Subsequent evidence collection was read-only.
+
+Observed:
+- worker exists and is enabled;
+- worker is not a member of local Administrators;
+- repository, authorization, journal, and rollback paths are four distinct
+  disposable staging paths;
+- all four paths have protected ACLs (inheritance disabled);
+- all four paths grant the worker Modify/Synchronize and SYSTEM FullControl;
+- no real DGAF, Aetherwake, or ACP Active Projects path was admitted by the setup
+  harness.
+
+The v0 audit incorrectly defined ACL separation as four distinct SDDL strings.
+That would reject a valid design in which four distinct protected paths share the
+same least-privilege descriptor. The v1 candidate instead verifies path
+distinctness, ACL protection, worker SID grants on every path, and non-admin
+worker status.
+
+Read-back result:
+
+```text
+PATHS_DISTINCT=true
+PROTECTED_ACL_PATH_COUNT=4
+WORKER_ACL_PATH_COUNT=4
+EXPECTED_WORKER_IS_ADMINISTRATOR=false
+ACL_SEPARATION_OBSERVED=true
+DEDICATED_SERVICE_IDENTITY_VERIFIED=false
+TRUSTED_LAUNCHER_IDENTITY_VERIFIED=false
+OS_ISOLATION_VERIFIED=false
+PEER_PROCESS_TAMPER_RESISTANCE_VERIFIED=false
+HIGH_ASSURANCE_BOUNDARY_ESTABLISHED=false
+```
+
+This establishes only the disposable lab's filesystem ACL isolation component.
+It does not establish service/process identity or High-Assurance.
