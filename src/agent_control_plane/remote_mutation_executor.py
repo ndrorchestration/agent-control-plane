@@ -35,6 +35,8 @@ from .remote_mutation_journal import (
 )
 from .remote_mutation_path_safety import (
     MutationPathSafetyRecord,
+    _has_multiple_hardlinks,
+    _is_link_like,
     inspect_repository_mutation_path,
 )
 from .remote_mutation_postcondition import (
@@ -230,7 +232,60 @@ class AuthorizedRepositoryMutationExecutor:
             )
 
     @staticmethod
-    def _write_atomic(target: Path, content: bytes) -> None:
+    def _primitive_path_guard(repository_root: Path, target: Path) -> None:
+        """Recheck path identity immediately inside the side-effect primitive.
+
+        This narrows, but cannot eliminate, TOCTOU against a hostile concurrent
+        filesystem actor. High-assurance object identity still requires an
+        OS-handle-bound design.
+        """
+        root = repository_root.resolve(strict=True)
+        try:
+            relative = target.relative_to(root)
+        except ValueError as exc:
+            raise RepositoryMutationExecutorError(
+                "primitive target is not lexically inside repository root"
+            ) from exc
+
+        cursor = root
+        ancestors = [root]
+        for part in relative.parts[:-1]:
+            cursor = cursor / part
+            ancestors.append(cursor)
+
+        if any(_is_link_like(path) for path in ancestors if path.exists()):
+            raise RepositoryMutationExecutorError(
+                "primitive guard rejected symlink/reparse ancestor"
+            )
+        if target.exists() and _is_link_like(target):
+            raise RepositoryMutationExecutorError(
+                "primitive guard rejected symlink/reparse target"
+            )
+
+        resolved_target = target.resolve(strict=False)
+        if (
+            resolved_target == root
+            or not resolved_target.is_relative_to(root)
+        ):
+            raise RepositoryMutationExecutorError(
+                "primitive guard rejected repository-boundary drift"
+            )
+
+        if _has_multiple_hardlinks(target):
+            raise RepositoryMutationExecutorError(
+                "primitive guard rejected multi-hardlink target"
+            )
+
+    @staticmethod
+    def _write_atomic(
+        repository_root: Path,
+        target: Path,
+        content: bytes,
+    ) -> None:
+        AuthorizedRepositoryMutationExecutor._primitive_path_guard(
+            repository_root,
+            target,
+        )
         fd, temp_name = tempfile.mkstemp(
             prefix=".acp-mutation-",
             suffix=".tmp",
@@ -242,6 +297,10 @@ class AuthorizedRepositoryMutationExecutor:
                 handle.write(content)
                 handle.flush()
                 os.fsync(handle.fileno())
+            AuthorizedRepositoryMutationExecutor._primitive_path_guard(
+                repository_root,
+                target,
+            )
             os.replace(temp, target)
         finally:
             if temp.exists():
@@ -276,6 +335,7 @@ class AuthorizedRepositoryMutationExecutor:
     @staticmethod
     def _perform_side_effect(
         plan: MutationPlan,
+        repository_root: Path,
         target: Path,
         *,
         content: bytes | None,
@@ -286,9 +346,17 @@ class AuthorizedRepositoryMutationExecutor:
         )
         if plan.operation_id == "repo.write_text_file":
             assert isinstance(content, bytes)
-            AuthorizedRepositoryMutationExecutor._write_atomic(target, content)
+            AuthorizedRepositoryMutationExecutor._write_atomic(
+                repository_root,
+                target,
+                content,
+            )
             return
         if plan.operation_id == "repo.delete_file":
+            AuthorizedRepositoryMutationExecutor._primitive_path_guard(
+                repository_root,
+                target,
+            )
             target.unlink()
             return
         raise RepositoryMutationExecutorError(
@@ -380,7 +448,12 @@ class AuthorizedRepositoryMutationExecutor:
                     "repository path safety revalidation failed immediately before side effect"
                 )
             self._verify_rollback_precondition(plan, rollback_descriptor, target)
-            self._perform_side_effect(plan, target, content=content)
+            self._perform_side_effect(
+                plan,
+                root,
+                target,
+                content=content,
+            )
 
             effect_payload = {
                 "execution_id": execution_id,

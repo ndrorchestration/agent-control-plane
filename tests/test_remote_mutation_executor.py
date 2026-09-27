@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import subprocess
 
 import pytest
 
@@ -233,6 +235,101 @@ def test_executor_rejects_non_allowlisted_repository(tmp_path):
         executor._allowed_root(other)
 
 
+def test_primitive_guard_blocks_parent_swap_to_link_like_directory(tmp_path):
+    root = repo(tmp_path)
+    target = root / "docs" / "example.md"
+    target.write_bytes(b"before")
+    original_docs = root / "docs-original"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    (root / "docs").rename(original_docs)
+
+    swapped = root / "docs"
+    if os.name == "nt":
+        completed = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(swapped), str(outside)],
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            pytest.skip("junction creation is unavailable on this Windows host")
+    else:
+        try:
+            os.symlink(outside, swapped, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            pytest.skip("directory symlink creation is unavailable on this platform")
+
+    with pytest.raises(
+        RepositoryMutationExecutorError,
+        match="primitive guard rejected",
+    ):
+        AuthorizedRepositoryMutationExecutor._write_atomic(
+            root,
+            swapped / "example.md",
+            b"after-race",
+        )
+
+    assert not (outside / "example.md").exists()
+    assert (original_docs / "example.md").read_bytes() == b"before"
+
+
+def test_executor_blocks_parent_swap_after_second_validation(tmp_path, monkeypatch):
+    ctx = prepare(tmp_path, prior=b"before", after=b"after")
+    original_perform = AuthorizedRepositoryMutationExecutor._perform_side_effect
+    outside = tmp_path / "outside-race"
+
+    def swap_then_perform(plan, repository_root, target, *, content):
+        original_docs = repository_root / "docs-original"
+        outside.mkdir()
+        (repository_root / "docs").rename(original_docs)
+        swapped = repository_root / "docs"
+
+        if os.name == "nt":
+            completed = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(swapped), str(outside)],
+                capture_output=True,
+                text=True,
+            )
+            if completed.returncode != 0:
+                pytest.skip("junction creation is unavailable on this Windows host")
+        else:
+            try:
+                os.symlink(outside, swapped, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                pytest.skip("directory symlink creation is unavailable on this platform")
+
+        return original_perform(
+            plan,
+            repository_root,
+            target,
+            content=content,
+        )
+
+    monkeypatch.setattr(
+        AuthorizedRepositoryMutationExecutor,
+        "_perform_side_effect",
+        staticmethod(swap_then_perform),
+    )
+
+    with pytest.raises(
+        RepositoryMutationExecutorError,
+        match="primitive guard rejected",
+    ):
+        execute(ctx)
+
+    assert not (outside / "example.md").exists()
+    assert (ctx["root"] / "docs-original" / "example.md").read_bytes() == b"before"
+
+    auth = ctx["auth_store"].get("authz-executor-1")
+    assert auth is not None and auth.consumed is True
+    journal = ctx["journal_store"].get("tx-executor-1")
+    assert journal is not None
+    assert journal.current_state is MutationJournalState.FAILED
+    recovery = ctx["journal_store"].assess_recovery("tx-executor-1")
+    assert recovery.repository_mutation_may_exist is True
+
+
 def test_existing_file_write_end_to_end_closes_evidence_chain(tmp_path):
     ctx = prepare(tmp_path, prior=b"before", after=b"after")
     result = execute(ctx)
@@ -340,7 +437,7 @@ def test_delete_content_drift_is_rejected_before_authorization_consumption(tmp_p
 def test_failure_after_execution_intent_consumes_auth_and_enters_recovery_hold(tmp_path, monkeypatch):
     ctx = prepare(tmp_path, prior=b"before", after=b"after")
 
-    def fail_side_effect(plan, target, *, content):
+    def fail_side_effect(plan, repository_root, target, *, content):
         raise OSError("simulated filesystem failure after intent")
 
     monkeypatch.setattr(
@@ -365,7 +462,7 @@ def test_failure_after_execution_intent_consumes_auth_and_enters_recovery_hold(t
 def test_wrong_post_state_after_side_effect_fails_closed_and_requires_recovery(tmp_path, monkeypatch):
     ctx = prepare(tmp_path, prior=b"before", after=b"expected")
 
-    def wrong_side_effect(plan, target, *, content):
+    def wrong_side_effect(plan, repository_root, target, *, content):
         target.write_bytes(b"wrong-post-state")
 
     monkeypatch.setattr(
