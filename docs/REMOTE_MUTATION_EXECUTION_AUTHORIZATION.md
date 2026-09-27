@@ -42,4 +42,4 @@ This contract provides durable exact binding, expiry, and replay resistance for 
 
 The ACP remote-mutation control stack now has candidate contracts for authority admission, transaction planning, exact-plan composition, path safety, rollback custody, durable journal/recovery, explicit single-use execution authorization, read-only postcondition verification, execution/result-evidence binding, and authorization-to-evidence closure.
 
-Live repository mutation by ACP itself remains NOT IMPLEMENTED. Any future executor must be a separate tranche and must consume this exact authorization before recording execution intent and performing a side effect.
+A separate experimental executor candidate now exists on a child branch. It is disabled by default, exact-root allowlisted, limited to the typed write/delete operations, and tested only against temporary synthetic repositories. It consumes this exact authorization before recording execution intent and performing a side effect. It remains a separate draft tranche and does not change the production/High-Assurance boundary.
