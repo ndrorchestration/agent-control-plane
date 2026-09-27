@@ -411,3 +411,19 @@ on that right, re-exports policy, and verifies the exact SID is present. It
 does not add the worker to Administrators or grant other user rights.
 
 Focused right-grant + process-gate contracts: `9 passed`.
+
+
+## Service-logon grant verification correction
+
+The first grant invocation reported `verified=false`, but Windows
+`scesrv.log` independently records:
+- exact worker SID `S-1-5-21-3119701800-1075537928-727562629-1005`;
+- `add SeServiceLogonRight`;
+- `User Rights configuration was completed successfully.`
+
+The false negative was in script read-back: verification reused the original
+export path and did not validate the second `secedit /export` exit code.
+The corrected verifier exports to a fresh file, checks the exit code/file, and
+normalizes both `*SID` and `SID` representations.
+
+Focused correction + bounded-start contracts: `7 passed`.
