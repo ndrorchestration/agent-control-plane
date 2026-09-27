@@ -51,6 +51,8 @@ class MutationPostconditionRecord:
     requested_path: str
     repository_root: str
     resolved_path: str
+    rollback_descriptor_sha256: str
+    rollback_custody_ref: str
     target_exists: bool
     observed_content_sha256: str | None
     path_revalidated: bool
@@ -62,9 +64,18 @@ class MutationPostconditionRecord:
 
     def __post_init__(self) -> None:
         _sha256(self.plan_sha256, "plan_sha256")
+        _sha256(self.rollback_descriptor_sha256, "rollback_descriptor_sha256")
+        if (
+            not isinstance(self.rollback_custody_ref, str)
+            or not self.rollback_custody_ref.strip()
+        ):
+            raise MutationPostconditionError("rollback_custody_ref must not be blank")
         if self.observed_content_sha256 is not None:
             _sha256(self.observed_content_sha256, "observed_content_sha256")
-        if self.execution_enabled is not False or self.acp_mutation_executed is not False:
+        if (
+            self.execution_enabled is not False
+            or self.acp_mutation_executed is not False
+        ):
             raise MutationPostconditionError(
                 "postcondition verification cannot enable or claim ACP mutation execution"
             )
@@ -89,7 +100,10 @@ def verify_repository_mutation_postcondition(
     if not isinstance(rollback_custody, RollbackCustodyAdmissionRecord):
         raise TypeError("rollback_custody must be RollbackCustodyAdmissionRecord")
 
-    if path_safety.execution_enabled is not False or path_safety.mutation_executed is not False:
+    if (
+        path_safety.execution_enabled is not False
+        or path_safety.mutation_executed is not False
+    ):
         raise MutationPostconditionError(
             "path safety unexpectedly enables or claims mutation execution"
         )
@@ -135,9 +149,21 @@ def verify_repository_mutation_postcondition(
 
     resolved_root = root.resolve(strict=True) if root.exists() else root
     resolved_target = target.resolve(strict=False)
-    boundary_ok = (
-        resolved_target != resolved_root
-        and resolved_target.is_relative_to(resolved_root)
+
+    prior_root = Path(path_safety.repository_root)
+    prior_root_resolved = (
+        prior_root.resolve(strict=True) if prior_root.exists() else prior_root
+    )
+    if prior_root_resolved != resolved_root:
+        mismatches.append("path_safety.repository_root")
+    if (
+        path_safety.resolved_path is None
+        or Path(path_safety.resolved_path).resolve(strict=False) != resolved_target
+    ):
+        mismatches.append("path_safety.resolved_path")
+
+    boundary_ok = resolved_target != resolved_root and resolved_target.is_relative_to(
+        resolved_root
     )
 
     cursor = root
@@ -147,7 +173,9 @@ def verify_repository_mutation_postcondition(
         ancestors.append(cursor)
     ancestor_symlink = any(p.is_symlink() for p in ancestors if p.exists())
     target_symlink = target.is_symlink()
-    path_revalidated = root_valid and boundary_ok and not ancestor_symlink and not target_symlink
+    path_revalidated = (
+        root_valid and boundary_ok and not ancestor_symlink and not target_symlink
+    )
     if not path_revalidated:
         mismatches.append("path_revalidation")
 
@@ -185,8 +213,10 @@ def verify_repository_mutation_postcondition(
         operation_id=plan.operation_id,
         plan_sha256=plan.plan_sha256,
         requested_path=requested_path,
-        repository_root=str(root),
+        repository_root=str(resolved_root),
         resolved_path=str(resolved_target),
+        rollback_descriptor_sha256=rollback_custody.descriptor_sha256,
+        rollback_custody_ref=rollback_custody.custody_ref,
         target_exists=target_exists,
         observed_content_sha256=observed_content_sha256,
         path_revalidated=path_revalidated,
