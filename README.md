@@ -182,7 +182,9 @@ A framework/runtime adapter may populate the ACP execution contract, but adapter
 
 ## Current status
 
-**Experimental / development track — executable kernel with run-scoped provenance, fail-closed dispatch invariants, cooperative task-budget accounting, and an ACP-native versioned execution/trace contract with deterministic serialization and validation. Cross-runtime portability remains NOT ESTABLISHED.**
+**Experimental / development track — executable kernel with run-scoped provenance, fail-closed dispatch invariants, cooperative task-budget accounting, an ACP-native versioned execution/trace contract, and accepted typed read-only remote execution. Cross-runtime portability and live remote mutation remain NOT ESTABLISHED.**
+
+Current accepted mainline remote-execution state and the stacked non-executing mutation-control frontier are summarized in [`docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`](docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md). Draft PRs #94/#95/#96 do not become accepted mainline capability merely because they exist or pass local tests.
 
 ## Provenance
 
