@@ -371,3 +371,23 @@ This establishes **SCM registration identity for the stopped disposable
 service**. It does not yet prove the process actually launches under that token,
 nor trusted launcher/signature identity, OS isolation, or peer-process tamper
 resistance. Service execution is therefore a separate next gate.
+
+
+## Bounded running-process identity gate prepared
+
+A separate read-only verifier now requires a running service with nonzero SCM
+PID and checks:
+- configured SCM account;
+- process owner account;
+- process owner SID against the local `ACPExecutorLab` SID;
+- executable path;
+- executable SHA-256.
+
+The operator gate requires Administrator context, Manual start mode, and an
+initial Stopped state. It starts the disposable service, invokes the read-only
+identity verifier, and stops the service in a `finally` block. It then requires
+the final SCM state to be Stopped.
+
+Focused script contracts: `10 passed`.
+
+No service start was performed by RDC while preparing this gate.
