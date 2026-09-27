@@ -427,3 +427,20 @@ The corrected verifier exports to a fresh file, checks the exit code/file, and
 normalizes both `*SID` and `SID` representations.
 
 Focused correction + bounded-start contracts: `7 passed`.
+
+
+## Effective service-logon right confirmed
+
+Elevated diagnostic export succeeded with exit code 0 and returned:
+
+`SeServiceLogonRight = ACPExecutorLab,*S-1-5-80-0,*S-1-5-99-0`
+
+Therefore Windows retained the intended worker assignment but serialized the
+local account as the exact name `ACPExecutorLab`, not its SID. Earlier
+`verified=false` results were verifier false negatives caused by accepting
+only SID serialization.
+
+The grant/read-back verifier now accepts either the exact worker SID or exact
+local account name, using equality rather than substring matching. No further
+right mutation is required. Focused representation/grant/diagnostic/start-gate
+contracts: `13 passed`.

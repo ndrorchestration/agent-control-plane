@@ -18,7 +18,7 @@ try {
  if($LASTEXITCODE -ne 0 -or -not(Test-Path $cfg)){throw "secedit initial export failed"}
  $lines=Get-Content -LiteralPath $cfg
  $members=@(Get-ServiceLogonMembers $cfg)
- $already=$members -contains $sid
+ $already=($members -contains $sid) -or ($members -contains $WorkerName)
  if(-not $already){
    $rawMembers=@()
    $existing=$lines|Where-Object{$_ -match '^SeServiceLogonRight\s*='}|Select-Object -First 1
@@ -32,7 +32,7 @@ try {
  secedit.exe /export /cfg $verifyCfg /areas USER_RIGHTS | Out-Null
  if($LASTEXITCODE -ne 0 -or -not(Test-Path $verifyCfg)){throw "secedit verification export failed"}
  $verifiedMembers=@(Get-ServiceLogonMembers $verifyCfg)
- $verified=$verifiedMembers -contains $sid
+ $verified=($verifiedMembers -contains $sid) -or ($verifiedMembers -contains $WorkerName)
  [pscustomobject]@{worker=$WorkerName;worker_sid=$sid;right="SeServiceLogonRight";already_present=$already;verified=[bool]$verified}|ConvertTo-Json
  if(-not $verified){throw "service logon right verification failed"}
 } finally {Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue}
