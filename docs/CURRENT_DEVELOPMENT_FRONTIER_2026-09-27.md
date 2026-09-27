@@ -6,7 +6,7 @@ not be rewritten to imply later state.
 
 ## Accepted mainline state
 
-Current accepted `main` after PR #93:
+Accepted typed read-only feature baseline from PR #93:
 
 `e27a4fa1a5f351eb3a142744be3579eeac4e900c`
 
