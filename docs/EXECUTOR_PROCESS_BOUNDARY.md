@@ -229,3 +229,20 @@ HIGH_ASSURANCE_BOUNDARY_ESTABLISHED=false
 
 This establishes only the disposable lab's filesystem ACL isolation component.
 It does not establish service/process identity or High-Assurance.
+
+
+## Installed-service identity verification contract — 2026-09-27
+
+A read-only installed-service identity verifier now exists before any real SCM
+installation is attempted. It compares the observed SCM/CIM service record to an
+exact expected service name, worker account, binary path, binary SHA-256, and
+bounded start mode. Automatic start is outside the disposable-lab policy.
+
+This deliberately separates **service installation** from **service identity
+verification**. A successful install transaction alone cannot establish trusted
+process identity.
+
+Focused verifier + process-boundary + install-transaction/backend suite:
+`34 passed, 1 skipped`.
+
+No service was installed by this change.
