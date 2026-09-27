@@ -115,12 +115,16 @@ def test_write_postcondition_verifies_exact_content(tmp_path):
     target = root / "docs" / "example.md"
     target.write_bytes(expected)
     path, custody = upstream(plan, descriptor, root)
-    record = verify_repository_mutation_postcondition(plan, path, custody, repository_root=root)
+    record = verify_repository_mutation_postcondition(
+        plan, path, custody, repository_root=root
+    )
     assert record.schema_version == MUTATION_POSTCONDITION_SCHEMA_VERSION
     assert record.postcondition_verified is True
     assert record.path_revalidated is True
     assert record.target_exists is True
     assert record.observed_content_sha256 == sha(expected)
+    assert record.rollback_descriptor_sha256 == plan.rollback_sha256
+    assert record.rollback_custody_ref == custody.custody_ref
     assert record.execution_enabled is False
     assert record.acp_mutation_executed is False
 
@@ -130,7 +134,9 @@ def test_write_postcondition_blocks_wrong_content(tmp_path):
     plan, descriptor = write_plan(b"expected")
     (root / "docs" / "example.md").write_bytes(b"unexpected")
     path, custody = upstream(plan, descriptor, root)
-    record = verify_repository_mutation_postcondition(plan, path, custody, repository_root=root)
+    record = verify_repository_mutation_postcondition(
+        plan, path, custody, repository_root=root
+    )
     assert record.postcondition_verified is False
     assert "write_postcondition" in record.reason
 
@@ -139,7 +145,9 @@ def test_write_postcondition_blocks_missing_target(tmp_path):
     root = repo(tmp_path)
     plan, descriptor = write_plan(b"expected")
     path, custody = upstream(plan, descriptor, root)
-    record = verify_repository_mutation_postcondition(plan, path, custody, repository_root=root)
+    record = verify_repository_mutation_postcondition(
+        plan, path, custody, repository_root=root
+    )
     assert record.postcondition_verified is False
     assert record.target_exists is False
 
@@ -148,7 +156,9 @@ def test_delete_postcondition_verifies_absence(tmp_path):
     root = repo(tmp_path)
     plan, descriptor = delete_plan(b"before")
     path, custody = upstream(plan, descriptor, root)
-    record = verify_repository_mutation_postcondition(plan, path, custody, repository_root=root)
+    record = verify_repository_mutation_postcondition(
+        plan, path, custody, repository_root=root
+    )
     assert record.postcondition_verified is True
     assert record.target_exists is False
     assert record.observed_content_sha256 is None
@@ -161,7 +171,9 @@ def test_delete_postcondition_blocks_surviving_file_and_reports_hash(tmp_path):
     target = root / "docs" / "example.md"
     target.write_bytes(prior)
     path, custody = upstream(plan, descriptor, root)
-    record = verify_repository_mutation_postcondition(plan, path, custody, repository_root=root)
+    record = verify_repository_mutation_postcondition(
+        plan, path, custody, repository_root=root
+    )
     assert record.postcondition_verified is False
     assert record.target_exists is True
     assert record.observed_content_sha256 == sha(prior)
@@ -175,12 +187,19 @@ def test_unadmitted_rollback_custody_blocks_even_if_state_matches(tmp_path):
     (root / "docs" / "example.md").write_bytes(expected)
     path, custody = upstream(plan, descriptor, root)
     custody = RollbackCustodyAdmissionRecord(
-        request_id=custody.request_id, resource_id=custody.resource_id,
-        operation_id=custody.operation_id, plan_sha256=custody.plan_sha256,
-        descriptor_sha256=custody.descriptor_sha256, custody_ref=custody.custody_ref,
-        admitted=False, reason="blocked", readback_verified=True,
+        request_id=custody.request_id,
+        resource_id=custody.resource_id,
+        operation_id=custody.operation_id,
+        plan_sha256=custody.plan_sha256,
+        descriptor_sha256=custody.descriptor_sha256,
+        custody_ref=custody.custody_ref,
+        admitted=False,
+        reason="blocked",
+        readback_verified=True,
     )
-    record = verify_repository_mutation_postcondition(plan, path, custody, repository_root=root)
+    record = verify_repository_mutation_postcondition(
+        plan, path, custody, repository_root=root
+    )
     assert record.postcondition_verified is False
     assert "rollback_custody" in record.reason
 
@@ -192,7 +211,9 @@ def test_plan_identity_drift_blocks(tmp_path):
     (root / "docs" / "example.md").write_bytes(expected)
     path, custody = upstream(plan, descriptor, root)
     other, _ = write_plan(expected, path="docs/other.md")
-    record = verify_repository_mutation_postcondition(other, path, custody, repository_root=root)
+    record = verify_repository_mutation_postcondition(
+        other, path, custody, repository_root=root
+    )
     assert record.postcondition_verified is False
     assert "path_safety" in record.reason
     assert "rollback_custody" in record.reason
@@ -203,7 +224,9 @@ def test_repository_root_must_be_absolute(tmp_path):
     root = repo(tmp_path)
     path, custody = upstream(plan, descriptor, root)
     with pytest.raises(MutationPostconditionError, match="absolute"):
-        verify_repository_mutation_postcondition(plan, path, custody, repository_root="relative/repo")
+        verify_repository_mutation_postcondition(
+            plan, path, custody, repository_root="relative/repo"
+        )
 
 
 def test_repository_marker_is_revalidated(tmp_path):
@@ -214,7 +237,9 @@ def test_repository_marker_is_revalidated(tmp_path):
     plan, descriptor = write_plan(expected)
     (root / "docs" / "example.md").write_bytes(expected)
     path, custody = upstream(plan, descriptor, root)
-    record = verify_repository_mutation_postcondition(plan, path, custody, repository_root=root)
+    record = verify_repository_mutation_postcondition(
+        plan, path, custody, repository_root=root
+    )
     assert record.postcondition_verified is False
     assert "repository_root" in record.reason
 
@@ -223,9 +248,85 @@ def test_postcondition_record_cannot_claim_acp_execution(tmp_path):
     root = repo(tmp_path)
     with pytest.raises(MutationPostconditionError, match="cannot enable"):
         MutationPostconditionRecord(
-            request_id="req", resource_id="repo", operation_id="repo.write_text_file",
-            plan_sha256=A, requested_path="docs/example.md", repository_root=str(root),
-            resolved_path=str(root / "docs" / "example.md"), target_exists=True,
-            observed_content_sha256=B, path_revalidated=True, postcondition_verified=True,
-            reason="invalid", acp_mutation_executed=True,
+            request_id="req",
+            resource_id="repo",
+            operation_id="repo.write_text_file",
+            plan_sha256=A,
+            requested_path="docs/example.md",
+            repository_root=str(root),
+            resolved_path=str(root / "docs" / "example.md"),
+            rollback_descriptor_sha256=B,
+            rollback_custody_ref="custody://test",
+            target_exists=True,
+            observed_content_sha256=B,
+            path_revalidated=True,
+            postcondition_verified=True,
+            reason="invalid",
+            acp_mutation_executed=True,
         )
+
+
+def test_repository_root_substitution_blocks(tmp_path):
+    root = repo(tmp_path)
+    other_parent = tmp_path / "other"
+    other_parent.mkdir()
+    other = repo(other_parent)
+    expected = b"after"
+    plan, descriptor = write_plan(expected)
+    (root / "docs" / "example.md").write_bytes(expected)
+    (other / "docs" / "example.md").write_bytes(expected)
+    path, custody = upstream(plan, descriptor, root)
+
+    record = verify_repository_mutation_postcondition(
+        plan, path, custody, repository_root=other
+    )
+
+    assert record.postcondition_verified is False
+    assert "path_safety.repository_root" in record.reason
+
+
+def test_resolved_target_substitution_blocks(tmp_path):
+    root = repo(tmp_path)
+    expected = b"after"
+    plan, descriptor = write_plan(expected)
+    (root / "docs" / "example.md").write_bytes(expected)
+    path, custody = upstream(plan, descriptor, root)
+    path = MutationPathSafetyRecord(
+        **{
+            **path.__dict__,
+            "resolved_path": str(root / "docs" / "other.md"),
+        }
+    )
+
+    record = verify_repository_mutation_postcondition(
+        plan, path, custody, repository_root=root
+    )
+
+    assert record.postcondition_verified is False
+    assert "path_safety.resolved_path" in record.reason
+
+
+def test_rollback_descriptor_substitution_blocks(tmp_path):
+    root = repo(tmp_path)
+    expected = b"after"
+    plan, descriptor = write_plan(expected)
+    (root / "docs" / "example.md").write_bytes(expected)
+    path, custody = upstream(plan, descriptor, root)
+    custody = RollbackCustodyAdmissionRecord(
+        request_id=custody.request_id,
+        resource_id=custody.resource_id,
+        operation_id=custody.operation_id,
+        plan_sha256=custody.plan_sha256,
+        descriptor_sha256="f" * 64,
+        custody_ref=custody.custody_ref,
+        admitted=True,
+        reason="fabricated",
+        readback_verified=True,
+    )
+
+    record = verify_repository_mutation_postcondition(
+        plan, path, custody, repository_root=root
+    )
+
+    assert record.postcondition_verified is False
+    assert "rollback_custody" in record.reason
