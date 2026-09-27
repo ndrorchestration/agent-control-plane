@@ -22,4 +22,4 @@ The record fixes execution_enabled=false and acp_mutation_executed=false. A veri
 
 ## Remaining gates
 
-Before a live ACP mutation path can be considered, the stack still needs crash/interruption journal and recovery semantics, execution receipt/result-evidence binding, and a separate explicit mutation-execution authorization gate. TOCTOU between observation and any future action remains unresolved until an execution design composes these controls atomically enough for its threat model.
+A separate durable mutation journal/recovery gate now classifies prepared, ambiguous-effect, postcondition-required, verified-postcondition, rollback-ambiguous, verified-rollback, and failure states without enabling execution. Before a live ACP mutation path can be considered, the stack still needs execution receipt/result-evidence binding and a separate explicit mutation-execution authorization gate. TOCTOU between observation and any future action remains unresolved until an execution design composes these controls atomically enough for its threat model.
