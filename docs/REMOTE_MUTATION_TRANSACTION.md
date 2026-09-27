@@ -23,7 +23,7 @@ A `MutationPlan` binds:
 - authority ID;
 - resource ID/type;
 - exact operation ID;
-- exact structured parameters;
+- exact structured parameters; repository `path` values preserve their exact spelling and are not trimmed before plan hashing;
 - expected precondition SHA-256;
 - expected rollback SHA-256;
 - canonical plan SHA-256.

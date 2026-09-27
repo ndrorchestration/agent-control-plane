@@ -97,7 +97,14 @@ class MutationPlan:
         keys = tuple(sorted(self.parameters))
         if keys != tuple(sorted(spec.parameter_names)):
             raise MutationTransactionError("parameters must exactly match operation schema")
-        normalized = {k: _required(v, f"parameters.{k}") for k, v in self.parameters.items()}
+        normalized = {}
+        for k, v in self.parameters.items():
+            if k == "path":
+                if not isinstance(v, str) or not v:
+                    raise MutationTransactionError("parameters.path must not be blank")
+                normalized[k] = v
+            else:
+                normalized[k] = _required(v, f"parameters.{k}")
         for k, v in normalized.items():
             if k.endswith("sha256"):
                 _sha256(v, f"parameters.{k}")

@@ -35,7 +35,4 @@ prepared transaction are congruent. It does not authorize or perform mutation.
 
 ## Remaining gates
 
-Before a live executor can be considered, ACP still needs operation-specific
-path/symlink/repository-metadata defenses, rollback-material custody,
-postcondition verification, crash/interruption recovery, execution receipts,
-and a separate explicit mutation-execution authorization gate.
+The next candidate gate applies operation-specific path/symlink/repository-metadata defenses to the exact admitted plan while keeping execution disabled. After that, ACP still needs rollback-material custody, postcondition verification, crash/interruption recovery, execution receipts/result-evidence binding, and a separate explicit mutation-execution authorization gate.

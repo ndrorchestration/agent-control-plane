@@ -44,6 +44,14 @@ def test_plan_binds_operation_schema_and_hashes():
     assert p.parameters["path"] == "docs/example.md"
 
 
+def test_path_parameter_identity_is_preserved_without_trimming():
+    raw_path = " docs/example.md "
+    p = plan(parameters={"path": raw_path, "content_sha256": C})
+
+    assert p.parameters["path"] == raw_path
+    assert raw_path.encode("utf-8") in p.canonical_bytes()
+
+
 def test_unknown_operation_fails_closed():
     try:
         plan(operation_id="repo.exec")
