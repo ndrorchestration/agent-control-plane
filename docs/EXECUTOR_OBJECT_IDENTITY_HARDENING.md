@@ -218,3 +218,43 @@ WIN32_ABSOLUTE_HANDLE_RENAME=VERIFIED_SYNTHETIC_WINDOWS
 WIN32_ROOTDIRECTORY_RELATIVE_RENAME=NOT_ESTABLISHED_ERROR_87
 LOWER_LEVEL_HANDLE_RELATIVE_RENAME=NOT_EVALUATED_IN_ACP
 ```
+
+
+## NT-native handle-relative rename feasibility
+
+A disposable Windows probe now exercises `NtSetInformationFile` with
+`FileRenameInformation`, a held source handle, and a held destination-parent
+directory handle.
+
+Local results:
+
+- NT-native parent-handle-relative atomic replacement: PASS;
+- returned NTSTATUS: `0x00000000`;
+- destination content replaced with prepared content: PASS;
+- prepared source removed after successful rename: PASS;
+- attempted pathname rename of the held trusted parent: blocked with
+  `WinError 5 / Access is denied`;
+- focused handle-identity / mutation / executor suite:
+  **22 PASS / 1 skipped / 1 expected Win32 failure**.
+
+The expected failure remains the higher-level
+`SetFileInformationByHandle(FileRenameInfo)` + non-NULL `RootDirectory`
+path. It is retained as negative API evidence rather than deleted.
+
+This establishes a viable lower-level Windows primitive for synthetic
+handle-relative replacement. It does **not** yet establish that ACP's live
+executor correctly composes that primitive with authorization consumption,
+durable intent, rollback custody, postcondition verification, and recovery.
+
+```text
+NT_NATIVE_HANDLE_RELATIVE_RENAME=VERIFIED_SYNTHETIC_WINDOWS
+HELD_PARENT_PATHNAME_SWAP=BLOCKED_IN_SYNTHETIC_TEST
+ACP_EXECUTOR_HANDLE_BOUND_WRITE_INTEGRATION=NOT_IMPLEMENTED
+FINAL_TOCTOU_ELIMINATION=NOT_ESTABLISHED
+REAL_PROJECT_REPOSITORY_EXECUTION=NOT_AUTHORIZED
+HIGH_ASSURANCE=NOT_AUTHORIZED
+```
+
+The next admissible #117 step is to extract the NT-native primitive behind a
+narrow Windows-only adapter and test it against disposable repository fixtures
+through the executor's existing authorization/journal/recovery lifecycle.

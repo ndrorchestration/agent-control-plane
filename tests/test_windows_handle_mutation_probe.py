@@ -244,3 +244,121 @@ def test_handle_rename_with_absolute_destination_path(tmp_path):
 
     assert not temp.exists()
     assert target.read_bytes() == b"new"
+
+
+class _IO_STATUS_BLOCK(ctypes.Structure):
+    _fields_ = [
+        ("Status", ctypes.c_ssize_t),
+        ("Information", ctypes.c_size_t),
+    ]
+
+
+_FILE_RENAME_INFORMATION_NT_CLASS = 10
+
+
+def rename_by_nt_source_handle_relative_to_parent(
+    source_handle,
+    parent_handle,
+    target_name: str,
+):
+    ntdll = ctypes.WinDLL("ntdll")
+    ntdll.NtSetInformationFile.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(_IO_STATUS_BLOCK),
+        wintypes.LPVOID,
+        wintypes.ULONG,
+        wintypes.INT,
+    ]
+    ntdll.NtSetInformationFile.restype = ctypes.c_long
+
+    name_bytes = target_name.encode("utf-16-le")
+    file_name_offset = _FILE_RENAME_INFO.FileName.offset
+    size = file_name_offset + len(name_bytes) + ctypes.sizeof(wintypes.WCHAR)
+    buffer = ctypes.create_string_buffer(size)
+    info = ctypes.cast(buffer, ctypes.POINTER(_FILE_RENAME_INFO)).contents
+    info.ReplaceIfExists = True
+    info.RootDirectory = parent_handle
+    info.FileNameLength = len(name_bytes)
+    ctypes.memmove(
+        ctypes.addressof(buffer) + file_name_offset,
+        name_bytes,
+        len(name_bytes),
+    )
+    iosb = _IO_STATUS_BLOCK()
+    status = ntdll.NtSetInformationFile(
+        source_handle,
+        ctypes.byref(iosb),
+        buffer,
+        size,
+        _FILE_RENAME_INFORMATION_NT_CLASS,
+    )
+    if status < 0:
+        raise OSError(
+            status & 0xFFFFFFFF,
+            "NtSetInformationFile(FileRenameInformation) failed",
+        )
+    return status, iosb.Status
+
+
+def test_nt_handle_relative_atomic_replace_uses_held_parent_directory(tmp_path):
+    target = tmp_path / "target-nt.txt"
+    temp = tmp_path / "prepared-nt.tmp"
+    target.write_bytes(b"old")
+    temp.write_bytes(b"new")
+
+    api, parent_handle = open_directory_handle(tmp_path.resolve())
+    _, source_handle = open_handle(
+        temp.resolve(),
+        access=_DELETE | _FILE_READ_ATTRIBUTES,
+        share=_FILE_SHARE_READ | _FILE_SHARE_WRITE | _FILE_SHARE_DELETE,
+    )
+    try:
+        status, iosb_status = rename_by_nt_source_handle_relative_to_parent(
+            source_handle,
+            parent_handle,
+            "target-nt.txt",
+        )
+    finally:
+        api.CloseHandle(source_handle)
+        api.CloseHandle(parent_handle)
+
+    assert status == 0
+    assert iosb_status == 0
+    assert target.read_bytes() == b"new"
+    assert not temp.exists()
+
+
+def test_nt_handle_relative_rename_stays_bound_to_held_parent_after_path_swap(tmp_path):
+    trusted = tmp_path / "trusted"
+    attacker = tmp_path / "attacker"
+    trusted.mkdir()
+    attacker.mkdir()
+    target = trusted / "target.txt"
+    temp = trusted / "prepared.tmp"
+    target.write_bytes(b"old")
+    temp.write_bytes(b"new")
+
+    api, parent_handle = open_directory_handle(trusted.resolve())
+    _, source_handle = open_handle(
+        temp.resolve(),
+        access=_DELETE | _FILE_READ_ATTRIBUTES,
+        share=_FILE_SHARE_READ | _FILE_SHARE_WRITE | _FILE_SHARE_DELETE,
+    )
+    displaced = tmp_path / "trusted-displaced"
+    try:
+        with pytest.raises(PermissionError):
+            trusted.rename(displaced)
+        status, iosb_status = rename_by_nt_source_handle_relative_to_parent(
+            source_handle,
+            parent_handle,
+            "target.txt",
+        )
+    finally:
+        api.CloseHandle(source_handle)
+        api.CloseHandle(parent_handle)
+
+    assert status == 0
+    assert iosb_status == 0
+    assert target.read_bytes() == b"new"
+    assert not temp.exists()
+    assert attacker.exists()
