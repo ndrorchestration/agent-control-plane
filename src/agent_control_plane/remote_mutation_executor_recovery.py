@@ -129,8 +129,12 @@ def assess_executor_recovery(
             disposition=ExecutorRecoveryDisposition.SAFE_AUTH_PENDING_PRE_EXECUTION,
             repository_mutation_may_exist=False,
             recovery_hold=False,
-            new_authorization_required=False,
-            reason="journal remains prepared and authorization is unconsumed; no executor side effect may exist",
+            new_authorization_required=True,
+            reason=(
+                "journal remains prepared and authorization is unconsumed; no executor "
+                "side effect may exist, but recovery never reuses prior authorization "
+                "without a fresh authorization decision"
+            ),
         )
 
     if not authorization.consumed:

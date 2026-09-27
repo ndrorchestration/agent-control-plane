@@ -97,7 +97,7 @@ def test_prepared_unconsumed_is_safe_pre_execution():
     assert rec.disposition is ExecutorRecoveryDisposition.SAFE_AUTH_PENDING_PRE_EXECUTION
     assert rec.repository_mutation_may_exist is False
     assert rec.recovery_hold is False
-    assert rec.new_authorization_required is False
+    assert rec.new_authorization_required is True
     assert rec.execution_enabled is False
     assert rec.mutation_executed is False
 

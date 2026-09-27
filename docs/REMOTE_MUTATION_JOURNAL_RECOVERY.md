@@ -27,7 +27,7 @@ Evidence SHA-256 is mandatory for external-effect, postcondition-verified, and r
 - FAILED_PRE_EXECUTION: failure occurred before execution intent.
 - HOLD_FAILED_AFTER_EXECUTION_INTENT: failure occurred after execution intent and repository mutation may exist.
 
-Journal-only recovery always requires a fresh execution authorization before any new effect. The executor adds a separate cross-store recovery assessment that reconciles the durable authorization record with the journal: `PREPARED + unconsumed` remains safe pre-execution, while `PREPARED + consumed` means no side effect can yet have occurred under the executor's fixed ordering but the consumed token must not be replayed and a new authorization is required. Any journal state beyond `PREPARED` with an unconsumed authorization is treated as an impossible/divergent state and held for operator review.
+All recovery paths require a fresh execution authorization before any new effect; recovery never reuses a prior token, even if that token is still stored as unconsumed. The executor's cross-store recovery assessment reconciles the durable authorization record with the journal: `PREPARED + unconsumed` remains no-effect pre-execution but still requires a fresh authorization decision, while `PREPARED + consumed` means no side effect can yet have occurred under the executor's fixed ordering and the consumed token cannot be replayed. Any journal state beyond `PREPARED` with an unconsumed authorization is treated as an impossible/divergent state and held for operator review.
 
 ## Strong non-effects
 
