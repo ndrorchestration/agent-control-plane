@@ -35,11 +35,17 @@ A successful completion records the task's reported resource usage in terminal p
 
 This is **cooperative deterministic accounting**. It does not automatically observe provider token usage, tool calls, elapsed wall-clock time, or monetary cost unless the owning adapter reports them. It also does not preempt an arbitrary blocking handler.
 
+### Task-budget checkpoint/resume candidate
+
+`agent-control-plane.task-budget-checkpoint.v0-candidate` provides a bounded checkpoint for task identity, declared budget ceilings, and already-consumed usage. A checkpoint may be created only from `created` or `running` tasks that have not already exhausted their budget. Restore creates a fresh `Task` in `created` state using caller-supplied payload while preserving the original task ID, budget, and usage totals, so subsequent `Task.consume(...)` calls can use only the remaining budget.
+
+Canonical JSON bytes and a deterministic SHA-256 helper provide checkpoint content identity. That hash is **not authentication, authorization, tamper-evident custody, or replay protection**. Payload, result, error, terminal state, hidden handler state, and process/runtime state are deliberately not checkpointed. Storage, transport, ownership, task-ID collision handling across processes, and lifecycle admission after restore remain caller responsibilities.
+
 Not yet implemented by this budget slice:
 
 - hard wall-clock execution deadlines or preemption;
 - bounded retry/backoff orchestration;
-- checkpoint/resume with remaining-budget restoration;
+- durable/authenticated checkpoint storage or replay protection;
 - parent/child or delegated budget conservation;
 - durable or distributed budget accounting.
 
@@ -194,6 +200,14 @@ The content hash is **not** a digital signature, MAC, sender-authentication mech
 A future Reticulum adapter may provide delivery, addressing, peer identity, and authenticated integrity information, but ACP remains authoritative for schema validation, replay/sequence rejection, authority epoch reconciliation, revocation conflicts, duplicate handling, and acknowledgement disposition.
 
 The current adapter interface is a local synchronous candidate, not a claim that Reticulum or other transports must expose an identical blocking API. An asynchronous/network implementation may wrap this contract while preserving the same message and reconciliation semantics.
+
+## Current typed remote-execution and mutation frontier
+
+Accepted `main` now includes the typed read-only remote-execution contract merged through PR #93. New signed read-only requests express immutable operation IDs plus validated structured parameters rather than arbitrary shell text; the executor derives fixed argv, uses `shell=False`, applies executor-owned allowed-root and Git-metadata boundary checks, and binds typed result evidence to the exact request-envelope SHA-256.
+
+The mutation-capable design remains **non-executing** and is intentionally separate from the generic `AuthorityPolicy` because that policy does not infer resource/operation fit. The stacked draft path now covers mutation-specific authority admission (#94), transaction/precondition/rollback modeling (#95), exact admission/plan composition (#96), repository path safety (#98), and rollback-material custody/read-back admission (#101). Every layer remains incapable of executing a mutation. Independent draft PR #97 adds bounded task-budget checkpoint/resume semantics and is not part of this mutation chain.
+
+The authoritative current-facing development overlay is `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`. Draft contracts are not accepted mainline behavior until separately reviewed and merged.
 
 ## Evidence boundary
 
