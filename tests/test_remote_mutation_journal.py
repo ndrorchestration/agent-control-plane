@@ -245,3 +245,36 @@ def test_journal_survives_reopen_and_preserves_event_order(tmp_path):
     assert record is not None
     assert [event.event_index for event in record.events] == [0, 1, 2]
     assert record.current_state is MutationJournalState.EXTERNAL_EFFECT_REPORTED
+
+def test_failed_after_execution_intent_can_enter_governed_rollback_recovery(tmp_path):
+    journal, _, *_ = begin(tmp_path)
+    append(journal, MutationJournalState.EXECUTION_INTENT_RECORDED, 1)
+    append(journal, MutationJournalState.FAILED, 2, error="side effect outcome uncertain")
+
+    held = journal.assess_recovery("tx-1")
+    assert held.disposition is MutationRecoveryDisposition.HOLD_FAILED_AFTER_EXECUTION_INTENT
+    assert held.repository_mutation_may_exist is True
+
+    append(journal, MutationJournalState.ROLLBACK_INTENT_RECORDED, 3)
+    rollback_pending = journal.assess_recovery("tx-1")
+    assert rollback_pending.disposition is MutationRecoveryDisposition.HOLD_ROLLBACK_AMBIGUOUS
+
+    append(journal, MutationJournalState.ROLLBACK_VERIFIED, 4, evidence=D)
+    clean = journal.assess_recovery("tx-1")
+    assert clean.disposition is MutationRecoveryDisposition.CLEAN_ROLLED_BACK
+    assert clean.repository_mutation_may_exist is False
+
+
+def test_failed_before_execution_intent_cannot_enter_rollback_recovery(tmp_path):
+    journal, _, *_ = begin(tmp_path)
+    append(journal, MutationJournalState.FAILED, 1, error="pre-execution admission failure")
+
+    with pytest.raises(
+        MutationJournalError,
+        match="rollback after FAILED requires prior execution intent",
+    ):
+        append(journal, MutationJournalState.ROLLBACK_INTENT_RECORDED, 2)
+
+    assessment = journal.assess_recovery("tx-1")
+    assert assessment.disposition is MutationRecoveryDisposition.FAILED_PRE_EXECUTION
+    assert assessment.repository_mutation_may_exist is False

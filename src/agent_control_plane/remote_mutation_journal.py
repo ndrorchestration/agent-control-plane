@@ -60,7 +60,6 @@ class MutationJournalState(str, Enum):
 _TERMINAL = {
     MutationJournalState.POSTCONDITION_VERIFIED,
     MutationJournalState.ROLLBACK_VERIFIED,
-    MutationJournalState.FAILED,
 }
 
 _ALLOWED = {
@@ -81,6 +80,9 @@ _ALLOWED = {
     MutationJournalState.ROLLBACK_INTENT_RECORDED: {
         MutationJournalState.ROLLBACK_VERIFIED,
         MutationJournalState.FAILED,
+    },
+    MutationJournalState.FAILED: {
+        MutationJournalState.ROLLBACK_INTENT_RECORDED,
     },
 }
 
@@ -297,6 +299,24 @@ class RemoteMutationJournal:
                 raise MutationJournalError(
                     f"invalid mutation journal transition: {current.value} -> {state.value}"
                 )
+            if (
+                current is MutationJournalState.FAILED
+                and state is MutationJournalState.ROLLBACK_INTENT_RECORDED
+            ):
+                prior_rows = connection.execute(
+                    """SELECT state FROM remote_mutation_event
+                       WHERE transaction_id = ?
+                       ORDER BY event_index ASC""",
+                    (txid,),
+                ).fetchall()
+                prior_states = {
+                    MutationJournalState(prior["state"])
+                    for prior in prior_rows
+                }
+                if MutationJournalState.EXECUTION_INTENT_RECORDED not in prior_states:
+                    raise MutationJournalError(
+                        "rollback after FAILED requires prior execution intent"
+                    )
             next_index = int(row["event_index"]) + 1
             connection.execute(
                 """INSERT INTO remote_mutation_event (

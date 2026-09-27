@@ -27,6 +27,8 @@ Evidence SHA-256 is mandatory for external-effect, postcondition-verified, and r
 - FAILED_PRE_EXECUTION: failure occurred before execution intent.
 - HOLD_FAILED_AFTER_EXECUTION_INTENT: failure occurred after execution intent and repository mutation may exist.
 
+A `FAILED` transaction is not treated uniformly. A failure before any execution intent remains non-recoverable through rollback because no side effect was admitted to begin. A failure after execution intent may transition into `ROLLBACK_INTENT_RECORDED` and then `ROLLBACK_VERIFIED`, allowing the same durable transaction to represent governed recovery. This does not itself authorize or execute rollback.
+
 Every recovery assessment fixes new_execution_authorization_required=true. Recovery classification never reuses or fabricates execution authority.
 
 ## Strong non-effects
