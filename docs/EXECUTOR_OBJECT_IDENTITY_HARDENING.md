@@ -85,3 +85,53 @@ keeps a trusted parent-directory/file handle (or equivalent object capability)
 through the effect operation. If the platform/runtime cannot provide such
 semantics portably, retain this residual risk explicitly rather than promoting
 the executor to High-Assurance.
+
+
+## Windows handle-identity feasibility spike
+
+A Windows-only read-only probe now uses:
+
+- `CreateFileW` to open the exact existing filesystem object;
+- `FILE_FLAG_OPEN_REPARSE_POINT` when requested so a reparse/symlink object can
+  be opened without normal target traversal;
+- `GetFileInformationByHandle` to record volume serial number + file index as
+  handle-derived object identity.
+
+Local Windows verification:
+
+- stable file identity across reopen: PASS;
+- stable directory identity across reopen: PASS;
+- pathname replacement changes handle-derived identity: PASS;
+- relative path rejection: PASS;
+- reparse/symlink-object probe: SKIPPED because symlink creation was unavailable
+  in this local environment;
+- combined Windows-handle + executor/recovery suite: 34 PASS / 1 skipped.
+
+This probe performs no mutation.
+
+### Handle-bound implementation direction
+
+The next stronger Windows executor design should keep trusted handles open across
+the critical interval and use handle-based metadata operations where applicable.
+
+Windows exposes `SetFileInformationByHandle` with file rename and disposition
+information classes. A future prototype should evaluate:
+
+1. open parent/target with reparse-safe flags and the minimum required rights;
+2. record handle-derived object identity;
+3. consume the exact single-use authorization;
+4. record durable execution intent;
+5. revalidate handle identity / current-state preconditions;
+6. perform delete/rename semantics using handle-based Windows operations where
+   possible rather than reopening by pathname;
+7. verify the resulting state and evidence.
+
+The current Python pathname executor is **not** automatically upgraded by this
+probe.
+
+```text
+WINDOWS_HANDLE_IDENTITY_PROBE=VERIFIED_LOCAL_ENGINEERING
+HANDLE_BOUND_MUTATION_EXECUTION=NOT_IMPLEMENTED
+FINAL_TOCTOU_ELIMINATION=NOT_ESTABLISHED
+HIGH_ASSURANCE=NOT_AUTHORIZED
+```
