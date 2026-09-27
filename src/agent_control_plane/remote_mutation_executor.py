@@ -48,7 +48,6 @@ from .remote_mutation_rollback_custody import (
 )
 from .remote_mutation_transaction import MutationPlan
 
-
 REPOSITORY_MUTATION_EXECUTOR_SCHEMA_VERSION = (
     "agent-control-plane.repository-mutation-executor.v0-candidate"
 )
@@ -59,6 +58,52 @@ DEFAULT_REPOSITORY_MUTATION_EXECUTOR_ID = (
 
 class RepositoryMutationExecutorError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class FilesystemObjectIdentity:
+    """Best-effort portable identity for one filesystem object.
+
+    On Windows/Python this uses the stat device/inode identity exposed by the
+    runtime. It is intentionally treated as a drift detector, not a handle-bound
+    object capability.
+    """
+
+    path: str
+    exists: bool
+    device: int | None
+    inode: int | None
+    mode: int | None
+
+    @classmethod
+    def capture(cls, path: Path) -> "FilesystemObjectIdentity":
+        try:
+            stat = os.stat(path, follow_symlinks=False)
+        except FileNotFoundError:
+            return cls(str(path), False, None, None, None)
+        return cls(str(path), True, stat.st_dev, stat.st_ino, stat.st_mode)
+
+
+def _assert_identity_unchanged(
+    before: FilesystemObjectIdentity,
+    after: FilesystemObjectIdentity,
+    *,
+    label: str,
+) -> None:
+    if before.path != after.path:
+        raise RepositoryMutationExecutorError(f"{label} path identity changed")
+    if before.exists != after.exists:
+        raise RepositoryMutationExecutorError(
+            f"{label} existence changed after authorization"
+        )
+    if before.exists and (
+        before.device != after.device
+        or before.inode != after.inode
+        or before.mode != after.mode
+    ):
+        raise RepositoryMutationExecutorError(
+            f"{label} object identity changed after authorization"
+        )
 
 
 def _hash_bytes(value: bytes) -> str:
@@ -164,9 +209,7 @@ class AuthorizedRepositoryMutationExecutor:
                 "repository_root is not in executor allowlist"
             )
         if not (resolved / ".git").exists():
-            raise RepositoryMutationExecutorError(
-                "repository_root lacks .git marker"
-            )
+            raise RepositoryMutationExecutorError("repository_root lacks .git marker")
         return resolved
 
     @staticmethod
@@ -204,9 +247,7 @@ class AuthorizedRepositoryMutationExecutor:
                         "new-file rollback precondition no longer holds"
                     )
             else:
-                raise RepositoryMutationExecutorError(
-                    "unsupported write rollback mode"
-                )
+                raise RepositoryMutationExecutorError("unsupported write rollback mode")
         elif plan.operation_id == "repo.delete_file":
             if descriptor.mode is not RollbackMode.RESTORE_FILE_BYTES:
                 raise RepositoryMutationExecutorError(
@@ -355,6 +396,9 @@ class AuthorizedRepositoryMutationExecutor:
         self._verify_rollback_precondition(plan, rollback_descriptor, target)
         self._validate_operation_input(plan, content=content)
 
+        parent_identity_before = FilesystemObjectIdentity.capture(target.parent)
+        target_identity_before = FilesystemObjectIdentity.capture(target)
+
         authorization = authorization_store.consume(
             authorization_id,
             executor_id=self.executor_id,
@@ -380,6 +424,20 @@ class AuthorizedRepositoryMutationExecutor:
                     "repository path safety revalidation failed immediately before side effect"
                 )
             self._verify_rollback_precondition(plan, rollback_descriptor, target)
+
+            parent_identity_after = FilesystemObjectIdentity.capture(target.parent)
+            target_identity_after = FilesystemObjectIdentity.capture(target)
+            _assert_identity_unchanged(
+                parent_identity_before,
+                parent_identity_after,
+                label="target parent",
+            )
+            _assert_identity_unchanged(
+                target_identity_before,
+                target_identity_after,
+                label="target",
+            )
+
             self._perform_side_effect(plan, target, content=content)
 
             effect_payload = {
@@ -489,15 +547,11 @@ class AuthorizedRepositoryMutationExecutor:
             )
         except Exception as exc:
             latest = journal_store.get(journal_before.transaction_id)
-            if (
-                latest is not None
-                and latest.current_state
-                not in {
-                    MutationJournalState.POSTCONDITION_VERIFIED,
-                    MutationJournalState.ROLLBACK_VERIFIED,
-                    MutationJournalState.FAILED,
-                }
-            ):
+            if latest is not None and latest.current_state not in {
+                MutationJournalState.POSTCONDITION_VERIFIED,
+                MutationJournalState.ROLLBACK_VERIFIED,
+                MutationJournalState.FAILED,
+            }:
                 try:
                     journal_store.append(
                         journal_before.transaction_id,
