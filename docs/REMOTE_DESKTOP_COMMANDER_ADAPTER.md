@@ -1,6 +1,6 @@
 # Remote Desktop Commander Adapter Candidate
 
-Status: local candidate only; not merged, released, or production-authorized.
+Status: typed read-only remote-execution contract accepted on `main`; mutation-capable execution remains unmerged and not authorized.
 
 ## Purpose
 
@@ -12,15 +12,19 @@ Remote Desktop Commander (RDC) is treated as an execution endpoint. ACP validate
 
 Executor != authorizer != evidence adjudicator.
 
-## Candidate flow
+## Current flow
 
-1. Governance admits a bounded action.
-2. ACP constructs a device-scoped execution request.
-3. The action string is bound by SHA-256.
-4. RDC executes on the named device.
-5. RDC returns a structured receipt.
-6. ACP validates identity, digest, profile, path, completion and side effects.
-7. Governance decides what claims, if any, the evidence supports.
+1. Governance admits a bounded read-only action.
+2. ACP constructs a device-scoped **typed operation** request.
+3. The operation ID and canonical structured parameters are bound by SHA-256 and the signed request envelope.
+4. The executor validates device/freshness/replay/root policy and derives fixed argv from ACP's immutable operation registry.
+5. Execution uses `shell=False` under bounded runtime/output limits.
+6. The executor returns typed result evidence bound to the exact request-envelope SHA-256.
+7. ACP validates request/result identity, operation digest, argv, path, completion and side-effect class.
+8. Governance decides what claims, if any, the evidence supports.
+
+The historical v1 shell-text path is compatibility-only. New signed execution requests use the typed v2 contract in `docs/TYPED_REMOTE_EXECUTION.md`.
+
 ## Implemented candidate checks
 
 - non-empty request, device, profile and working-directory identity;
@@ -62,10 +66,11 @@ A real local-executor control receipt was then validated using caller-supplied e
 
 The source receipt recorded zero files changed. This establishes local contract composition only; it does not establish trusted remote transport or production authorization.
 
-## Next bounded tranche
+## Historical next-tranche note — superseded
 
-Add signed/fresh request and receipt envelopes, explicit side-effect classes, nonce/replay handling, and adapter-level tests for unknown/partial outcomes before any mutation-capable integration is considered.
+The earlier next step of adding signed/fresh envelopes, side-effect classes, durable replay handling, and unknown-outcome tests has been implemented and subsequently superseded by the accepted typed v2 read-only execution contract.
 
+The current bounded frontier is documented in `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`: mutation authority admission, transaction planning/rollback identity, and exact plan composition are being reviewed as **non-executing** draft layers before any mutation-capable executor is considered.
 ## Freshness, replay and unknown-outcome hardening — 2026-09-26
 
 The local candidate now includes a bounded freshness envelope, process-local single-use replay guard, and explicit remote outcome classification.
