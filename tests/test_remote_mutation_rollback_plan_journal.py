@@ -295,6 +295,15 @@ def test_custody_identity_drift_blocks_plan():
         )
 
 
+def test_rollback_plan_preserves_exact_path_spelling():
+    p = rollback_plan()
+    values = dict(p.__dict__)
+    values["requested_path"] = " docs/example.md "
+    exact = RepositoryRollbackPlan(**values)
+    assert exact.requested_path == " docs/example.md "
+    assert b" docs/example.md " in exact.canonical_bytes()
+
+
 def test_current_state_expectation_must_be_explicit():
     with pytest.raises(RollbackPlanError, match="requires content sha256"):
         RepositoryRollbackPlan(

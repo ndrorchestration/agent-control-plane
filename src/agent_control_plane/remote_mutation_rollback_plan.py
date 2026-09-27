@@ -84,10 +84,11 @@ class RepositoryRollbackPlan:
             "resource_id",
             "original_operation_id",
             "original_journal_state",
-            "requested_path",
             "rollback_custody_ref",
         ):
             object.__setattr__(self, field, _required(getattr(self, field), field))
+        if not isinstance(self.requested_path, str) or not self.requested_path:
+            raise RollbackPlanError("requested_path must not be blank")
         for field in ("original_plan_sha256", "rollback_descriptor_sha256"):
             object.__setattr__(self, field, _sha256(getattr(self, field), field))
         if not isinstance(self.action, RollbackAction):
