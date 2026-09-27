@@ -107,3 +107,44 @@ The machine-checkable assessment must:
 A future implementation must verify those supplied controls from the operating
 system or an independently trusted launcher; caller-provided booleans are only a
 design-contract representation, not evidence that the controls truly exist.
+
+
+## Reproducible Windows boundary audit
+
+`scripts/inspect_executor_windows_boundary.ps1` now provides a read-only,
+machine-readable audit of the local Windows boundary.
+
+It records:
+
+- current Windows user context and integrity level;
+- executable path and SHA-256;
+- repository ACL owner/SDDL/inheritance state;
+- authorization-store ACL owner/SDDL/inheritance state;
+- journal-store ACL owner/SDDL/inheritance state;
+- rollback-custody ACL owner/SDDL/inheritance state;
+- number of distinct ACL descriptors;
+- whether ACL separation is observed;
+- explicit false defaults for service identity, trusted launcher, OS isolation,
+  and peer-process tamper resistance.
+
+The script performs no account, ACL, service, executable, or security-policy
+modification.
+
+A local disposable-lab run on 2026-09-27 produced:
+
+```text
+READ_ONLY_AUDIT=true
+DISTINCT_ACL_DESCRIPTOR_COUNT=1
+ACL_SEPARATION_OBSERVED=false
+DEDICATED_SERVICE_IDENTITY_VERIFIED=false
+TRUSTED_LAUNCHER_IDENTITY_VERIFIED=false
+OS_ISOLATION_VERIFIED=false
+PEER_PROCESS_TAMPER_RESISTANCE_VERIFIED=false
+HIGH_ASSURANCE_BOUNDARY_ESTABLISHED=false
+```
+
+Machine-specific user names, SIDs, owners, and SDDL are intentionally not
+committed to the repository.
+
+This converts the #118 boundary from a prose-only concern into a repeatable
+operator audit while preserving the same assurance ceiling.
