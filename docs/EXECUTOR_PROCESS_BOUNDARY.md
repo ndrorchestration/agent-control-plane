@@ -269,3 +269,26 @@ directory or PYTHONPATH. Local direct launch returned 0 with launch-spec SHA-256
 
 This is a launch-contract identity, not an immutable signed executable.
 `TRUSTED_LAUNCHER_IDENTITY_VERIFIED` therefore remains false.
+
+
+## Exact disposable SCM registration candidate — 2026-09-27
+
+A non-mutating candidate builder now binds the proposed lab service registration
+to the existing Python interpreter identity and the dedicated worker account.
+
+Candidate:
+- service: `ACPExecutorLabProbe`
+- account: `.\ACPExecutorLab`
+- start type: `DEMAND_START` (manual only)
+- delayed auto-start: false
+- credential reference: `operator-transient:ACPExecutorLab`
+- manifest SHA-256: `dc216f2b490c86b948b30e8e206cdeede6f59b0cbdfa25105883fbc6c3f61b6b`
+- interpreter SHA-256: `3adbbf2af609e206e3ca18cd55fc7c4b52f5c8bb8218dd99fd5a9e50d7a193cd`
+
+The custom Windows account requires a secret. No plaintext password is stored in
+the candidate, plan, source, documentation, Git history, or command line.
+Credential resolution remains an explicit privileged operator action.
+
+Focused registration/admission/install-transaction suite: `42 passed, 2 skipped`.
+
+This candidate is still non-mutating. SCM registration has not occurred.
