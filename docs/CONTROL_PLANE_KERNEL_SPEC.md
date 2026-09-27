@@ -201,6 +201,14 @@ A future Reticulum adapter may provide delivery, addressing, peer identity, and 
 
 The current adapter interface is a local synchronous candidate, not a claim that Reticulum or other transports must expose an identical blocking API. An asynchronous/network implementation may wrap this contract while preserving the same message and reconciliation semantics.
 
+## Current typed remote-execution and mutation frontier
+
+Accepted `main` now includes the typed read-only remote-execution contract merged through PR #93. New signed read-only requests express immutable operation IDs plus validated structured parameters rather than arbitrary shell text; the executor derives fixed argv, uses `shell=False`, applies executor-owned allowed-root and Git-metadata boundary checks, and binds typed result evidence to the exact request-envelope SHA-256.
+
+The mutation-capable design remains **non-executing** and is intentionally separate from the generic `AuthorityPolicy` because that policy does not infer resource/operation fit. The stacked draft path now covers mutation-specific authority admission (#94), transaction/precondition/rollback modeling (#95), exact admission/plan composition (#96), repository path safety (#98), and rollback-material custody/read-back admission (#101). Every layer remains incapable of executing a mutation. Independent draft PR #97 adds bounded task-budget checkpoint/resume semantics and is not part of this mutation chain.
+
+The authoritative current-facing development overlay is `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`. Draft contracts are not accepted mainline behavior until separately reviewed and merged.
+
 ## Evidence boundary
 
 The kernel and tests demonstrate local deterministic behavior only. The budget tests establish the cooperative count/cost accounting and fail-closed exhaustion properties exercised by those tests. The execution-contract tests establish only the ACP-native contract properties exercised by those tests.
