@@ -16,9 +16,15 @@ Cross-runtime portability, production security, authenticated remote transport i
 
 Mutation-capable design is being decomposed into stacked, non-executing draft layers:
 
-- PR #94 — exact mutation authority admission (`execution_enabled=false`);
-- PR #95 — immutable mutation registry plus precondition/rollback transaction model (`mutation_executed=false`);
-- PR #96 — exact authority/transaction-plan composition to prevent plan substitution (`mutation_executed=false`).
+- PR #94 — exact mutation authority admission;
+- PR #95 — immutable mutation registry plus precondition/rollback transaction model;
+- PR #96 — exact authority/transaction-plan composition;
+- PR #98 — repository mutation path-safety gate;
+- PR #101 — rollback-material custody/read-back admission.
+
+All mutation layers remain non-executing. `execution_enabled=false` remains controlling, and transaction/downstream evidence retains `mutation_executed=false`.
+
+Independent draft PR #97 adds bounded task-budget checkpoint/resume semantics and is not part of the mutation dependency chain.
 
 See `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md` for exact heads, verification state, dependency ordering, and remaining gates.
 
@@ -32,7 +38,7 @@ See `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md` for exact heads, verificat
 
 ## Handoff rule for mutation work
 
-Do not wire a live mutation executor merely because #94/#95/#96 pass. Operation-specific path/reparse-point/repository-metadata defenses, rollback-material custody, postcondition verification, crash/interruption recovery, execution evidence, and a separate explicit mutation-execution authorization gate remain prerequisites.
+Do not wire a live mutation executor merely because #94/#95/#96/#98/#101 pass. Path safety and rollback-custody admission are now represented as non-executing draft gates; postcondition verification, crash/interruption recovery, execution-result evidence, and a separate explicit mutation-execution authorization gate remain prerequisites.
 
 ## Status
 
