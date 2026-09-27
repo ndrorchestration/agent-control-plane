@@ -361,3 +361,236 @@ def test_git_status_readonly_policy_leaves_index_bytes_unchanged(tmp_path):
     assert result["exit_code"] == 0
     assert before == after
     assert "tracked.txt" in result["stdout"]
+
+
+def test_git_config_include_outside_allowed_root_is_rejected_without_consuming_replay(tmp_path):
+    repo = make_git_repo(tmp_path / "repo")
+    outside = tmp_path / "outside-gitconfig"
+    outside.write_text(
+        '[remote "origin"]\n\turl = https://example.invalid/outside-config-read\n',
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "config", "include.path", str(outside)],
+        cwd=repo,
+        check=True,
+    )
+
+    request, key, identity = issue_request(
+        tmp_path,
+        repo,
+        operation_id="git.remote.origin",
+    )
+    replay_db = tmp_path / "replay.sqlite3"
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+
+    blocked = run_verified(
+        request,
+        key,
+        identity,
+        replay_db,
+        repo,
+        evidence_root,
+    )
+    assert blocked.returncode != 0
+    assert "is not admitted" in blocked.stdout
+    assert not _typed_result_path(request, evidence_root).exists()
+
+    subprocess.run(
+        ["git", "config", "--unset-all", "include.path"],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://example.invalid/in-root"],
+        cwd=repo,
+        check=True,
+    )
+    accepted = run_verified(
+        request,
+        key,
+        identity,
+        replay_db,
+        repo,
+        evidence_root,
+    )
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+    result = json.loads(
+        _typed_result_path(request, evidence_root).read_text(encoding="utf-8")
+    )
+    assert result["stdout"].strip() == "https://example.invalid/in-root"
+
+
+def test_git_includeif_is_rejected(tmp_path):
+    repo = make_git_repo(tmp_path / "repo")
+    config = repo / ".git" / "config"
+    with config.open("a", encoding="utf-8") as handle:
+        handle.write(
+            '\n[includeIf "gitdir:**"]\n'
+            '\tpath = ../outside-gitconfig\n'
+        )
+    request, key, identity = issue_request(tmp_path, repo)
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    blocked = run_verified(
+        request,
+        key,
+        identity,
+        tmp_path / "replay.sqlite3",
+        repo,
+        evidence_root,
+    )
+    assert blocked.returncode != 0
+    assert "is not admitted" in blocked.stdout
+
+
+def test_gitdir_pointer_outside_allowed_root_is_rejected(tmp_path):
+    metadata_repo = make_git_repo(tmp_path / "metadata")
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    (worktree / ".git").write_text(
+        f"gitdir: {metadata_repo / '.git'}\n",
+        encoding="utf-8",
+    )
+    request, key, identity = issue_request(tmp_path, worktree)
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    blocked = run_verified(
+        request,
+        key,
+        identity,
+        tmp_path / "replay.sqlite3",
+        worktree,
+        evidence_root,
+    )
+    assert blocked.returncode != 0
+    assert "git directory is outside allowed roots" in blocked.stdout
+
+
+@pytest.mark.parametrize(
+    "section_text",
+    [
+        '[filter "evil"]\n\tclean = python evil.py\n',
+        '[diff "evil"]\n\ttextconv = python evil.py\n',
+        '[include] # trailing comment\n\tpath = ../outside\n',
+    ],
+)
+def test_git_config_helper_sections_are_rejected(tmp_path, section_text):
+    repo = make_git_repo(tmp_path / "repo")
+    config = repo / ".git" / "config"
+    with config.open("a", encoding="utf-8") as handle:
+        handle.write("\n" + section_text)
+    request, key, identity = issue_request(tmp_path, repo)
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    blocked = run_verified(
+        request,
+        key,
+        identity,
+        tmp_path / "replay.sqlite3",
+        repo,
+        evidence_root,
+    )
+    assert blocked.returncode != 0
+    assert "is not admitted" in blocked.stdout
+
+
+def test_git_core_worktree_is_rejected(tmp_path):
+    repo = make_git_repo(tmp_path / "repo")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    subprocess.run(
+        ["git", "config", "core.worktree", str(outside)],
+        cwd=repo,
+        check=True,
+    )
+    request, key, identity = issue_request(tmp_path, repo)
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    blocked = run_verified(
+        request,
+        key,
+        identity,
+        tmp_path / "replay.sqlite3",
+        repo,
+        evidence_root,
+    )
+    assert blocked.returncode != 0
+    assert "git core.worktree is not admitted" in blocked.stdout
+
+
+def test_git_object_alternates_are_rejected(tmp_path):
+    repo = make_git_repo(tmp_path / "repo")
+    info = repo / ".git" / "objects" / "info"
+    info.mkdir(parents=True, exist_ok=True)
+    (info / "alternates").write_text(
+        str(tmp_path / "outside-objects") + "\n",
+        encoding="utf-8",
+    )
+    request, key, identity = issue_request(tmp_path, repo)
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    blocked = run_verified(
+        request,
+        key,
+        identity,
+        tmp_path / "replay.sqlite3",
+        repo,
+        evidence_root,
+    )
+    assert blocked.returncode != 0
+    assert "git object alternates are not admitted" in blocked.stdout
+
+
+def test_executor_scrubs_inherited_git_environment(tmp_path, monkeypatch):
+    repo = make_git_repo(tmp_path / "repo")
+    (repo / "local.txt").write_text("local\n", encoding="utf-8")
+    foreign = make_git_repo(tmp_path / "foreign")
+    monkeypatch.setenv("GIT_DIR", str(foreign / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(foreign))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "attacker.cfg"))
+
+    argv = READ_ONLY_OPERATION_SPECS["git.status.short"].argv
+    result = execute_read_only_argv_bounded(argv, cwd=repo)
+
+    assert result["exit_code"] == 0
+    assert "local.txt" in result["stdout"]
+
+
+def test_existing_result_path_blocks_without_overwrite_or_replay_consumption(tmp_path):
+    repo = make_git_repo(tmp_path / "repo")
+    request, key, identity = issue_request(tmp_path, repo)
+    replay_db = tmp_path / "replay.sqlite3"
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    output = _typed_result_path(request, evidence_root)
+    output.write_text("sentinel\n", encoding="utf-8")
+
+    blocked = run_verified(
+        request,
+        key,
+        identity,
+        replay_db,
+        repo,
+        evidence_root,
+    )
+    assert blocked.returncode != 0
+    assert "typed result path already exists" in blocked.stdout
+    assert output.read_text(encoding="utf-8") == "sentinel\n"
+
+    output.unlink()
+    accepted = run_verified(
+        request,
+        key,
+        identity,
+        replay_db,
+        repo,
+        evidence_root,
+    )
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+    assert output.exists()
+    result = json.loads(output.read_text(encoding="utf-8"))
+    assert result["request_id"] == json.loads(
+        request.read_text(encoding="utf-8")
+    )["request"]["request_id"]

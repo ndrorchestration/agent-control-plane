@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -14,6 +15,7 @@ from agent_control_plane.typed_remote_execution import (
     execute_read_only_operation_bounded,
     render_read_only_operation_argv,
     resolve_authorized_working_directory,
+    validate_git_repository_boundary,
     typed_request_envelope_from_mapping,
     verify_typed_request_hmac_sha256,
 )
@@ -55,6 +57,7 @@ try:
         request.working_directory,
         args.allowed_root,
     )
+    validate_git_repository_boundary(cwd, args.allowed_root)
     try:
         evidence_root = Path(args.evidence_root).resolve(strict=True)
     except OSError as exc:
@@ -63,11 +66,34 @@ try:
         ) from exc
     if not evidence_root.is_dir():
         raise ContractValidationError("evidence root is not a directory")
-    DurableRemoteExecutionReplayGuard(args.replay_db).consume(
-        request,
-        freshness,
-        now_epoch_seconds=int(time.time()),
-    )
+    replay_guard = DurableRemoteExecutionReplayGuard(args.replay_db)
+    if replay_guard.is_consumed(request, freshness):
+        raise ContractValidationError(
+            "remote execution request replay detected"
+        )
+    out = evidence_root / f"{request.request_id}.typed-result.json"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    try:
+        result_fd = os.open(str(out), flags, 0o600)
+    except FileExistsError as exc:
+        raise ContractValidationError(
+            "typed result path already exists"
+        ) from exc
+    try:
+        replay_guard.consume(
+            request,
+            freshness,
+            now_epoch_seconds=int(time.time()),
+        )
+    except ContractValidationError:
+        os.close(result_fd)
+        try:
+            out.unlink()
+        except OSError:
+            pass
+        raise
 except (
     ContractValidationError,
     KeyError,
@@ -116,11 +142,13 @@ validated.assert_matches(
     request_envelope_sha256=request_envelope_sha256,
 )
 
-out = evidence_root / f"{request.request_id}.typed-result.json"
-out.write_text(
-    json.dumps(result_payload, indent=2, sort_keys=True) + "\n",
-    encoding="utf-8",
+serialized_result = (
+    json.dumps(result_payload, indent=2, sort_keys=True) + "\n"
 )
+with os.fdopen(result_fd, "w", encoding="utf-8", newline="\n") as handle:
+    handle.write(serialized_result)
+    handle.flush()
+    os.fsync(handle.fileno())
 print("TYPED_REQUEST_EXECUTION=PASS")
 print(f"TYPED_OPERATION_RESULT={out}")
 print(f"TYPED_OPERATION_EXIT_CODE={execution['exit_code']}")

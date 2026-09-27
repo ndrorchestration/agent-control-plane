@@ -131,3 +131,27 @@ This means a result whose retained output, byte counts, timing, timeout state, a
 ### Request identifier safety
 
 Typed request IDs are constrained to a bounded filename-safe token alphabet (`A-Z a-z 0-9 . _ -`, maximum 128 characters) and reject `.` / `..` plus any path separator or drive/colon syntax. Typed results enforce the same rule. This keeps executor-derived evidence filenames confined to the configured evidence root rather than trusting a signed request ID as a path fragment.
+
+
+## Repository metadata boundary hardening — 2026-09-26
+
+Adversarial review found that cwd containment and shell-free argv were not sufficient by themselves: a repository-local `.git/config` could use `[include]` / `[includeIf]` to make a nominally read-only Git operation consume configuration from outside the executor's allowed root. A real `git.remote.origin` probe reproduced that scope escape before this fix.
+
+Typed execution now performs a filesystem-level repository admission check before replay consumption:
+
+- `.git` directories and `gitdir:` pointers must resolve inside executor-configured allowed roots;
+- linked-worktree `commondir` targets must remain inside allowed roots;
+- repository config and `config.worktree` files must themselves resolve inside allowed roots;
+- `include`, `includeIf`, `filter`, and `diff` config sections are rejected;
+- path/helper-capable core keys `core.worktree`, `core.attributesFile`, `core.excludesFile`, `core.hooksPath`, and `core.fsmonitor` are rejected;
+- Git object `alternates` / `http-alternates` are rejected;
+- inherited `GIT_*` environment variables are scrubbed before execution;
+- the executor pins `GIT_WORK_TREE`, disables system/global attributes/config, disables prompts, disables optional locks, and sets `GIT_NO_LAZY_FETCH=1`.
+
+The exact real include-path probe that previously returned a sentinel from an outside config is now refused before execution. Removing the outside include allows the same signed request to execute, confirming the failed admission did not consume replay state.
+
+## Evidence-path collision hardening — 2026-09-26
+
+Typed result filenames are derived only from validated path-safe request IDs, but pre-existing result paths are also treated as an admission conflict. The executor reserves the result path with exclusive creation before replay consumption. If the path already exists, execution is refused without overwriting the file or consuming the request.
+
+For already-consumed requests, a non-mutating durable replay lookup runs first so the refusal remains explicitly classified as replay rather than being masked by the existing result file. Once the exclusive result reservation succeeds, replay is consumed immediately before execution and the validated result is written and fsynced through the reserved descriptor.

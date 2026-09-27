@@ -11,6 +11,7 @@ from agent_control_plane.remote_execution_adapter import DurableRemoteExecutionR
 from agent_control_plane.typed_remote_execution import (
     render_read_only_operation_argv,
     resolve_authorized_working_directory,
+    validate_git_repository_boundary,
     typed_request_envelope_from_mapping,
     verify_typed_request_hmac_sha256,
 )
@@ -50,6 +51,7 @@ try:
         request.working_directory,
         args.allowed_root,
     )
+    validate_git_repository_boundary(resolved_cwd, args.allowed_root)
     DurableRemoteExecutionReplayGuard(args.replay_db).consume(
         request, freshness, now_epoch_seconds=int(time.time())
     )

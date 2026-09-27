@@ -299,6 +299,34 @@ class DurableRemoteExecutionReplayGuard:
                 """
             )
 
+    def is_consumed(
+        self,
+        request: RemoteExecutionRequest | TypedRemoteExecutionRequest,
+        freshness: RemoteExecutionFreshness,
+    ) -> bool:
+        if not isinstance(
+            request,
+            (RemoteExecutionRequest, TypedRemoteExecutionRequest),
+        ):
+            raise ContractValidationError(
+                "request must be a remote execution request"
+            )
+        if not isinstance(freshness, RemoteExecutionFreshness):
+            raise ContractValidationError(
+                "freshness must be RemoteExecutionFreshness"
+            )
+        with sqlite3.connect(self.database_path) as connection:
+            row = connection.execute(
+                """
+                SELECT 1
+                FROM consumed_remote_requests
+                WHERE request_id = ? AND nonce = ?
+                LIMIT 1
+                """,
+                (request.request_id, freshness.nonce),
+            ).fetchone()
+        return row is not None
+
     def consume(
         self,
         request: RemoteExecutionRequest | TypedRemoteExecutionRequest,

@@ -717,7 +717,11 @@ def _execute_argv_bounded(
 
     process_env = None
     if argv[0] == "git":
-        process_env = os.environ.copy()
+        process_env = {
+            key: value
+            for key, value in os.environ.items()
+            if not key.upper().startswith("GIT_")
+        }
         process_env.update(
             {
                 "GIT_OPTIONAL_LOCKS": "0",
@@ -726,6 +730,9 @@ def _execute_argv_bounded(
                 "GIT_TERMINAL_PROMPT": "0",
                 "GIT_CONFIG_NOSYSTEM": "1",
                 "GIT_CONFIG_GLOBAL": os.devnull,
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "GIT_WORK_TREE": str(cwd),
             }
         )
 
@@ -819,5 +826,228 @@ __all__ = [
     "sign_typed_request_hmac_sha256",
     "typed_request_envelope_from_mapping",
     "typed_request_envelope_mapping",
+    "validate_git_repository_boundary",
     "verify_typed_request_hmac_sha256",
 ]
+
+
+_GIT_CONFIG_MAX_BYTES = 1024 * 1024
+
+
+def _resolve_allowed_roots(
+    allowed_roots: Tuple[str, ...] | list[str],
+) -> Tuple[Path, ...]:
+    if not isinstance(allowed_roots, (tuple, list)) or not allowed_roots:
+        raise ContractValidationError(
+            "at least one allowed working root is required"
+        )
+    resolved = []
+    for root_value in allowed_roots:
+        _required(root_value, "allowed_root")
+        try:
+            root = Path(root_value).resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ContractValidationError(
+                "allowed working root cannot be resolved"
+            ) from exc
+        if not root.is_dir():
+            raise ContractValidationError(
+                "allowed working root is not a directory"
+            )
+        resolved.append(root)
+    return tuple(resolved)
+
+
+def _assert_path_within_allowed_roots(
+    path: Path,
+    allowed_roots: Tuple[Path, ...],
+    *,
+    field_name: str,
+) -> Path:
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ContractValidationError(
+            f"{field_name} cannot be resolved"
+        ) from exc
+    for root in allowed_roots:
+        try:
+            resolved.relative_to(root)
+            return resolved
+        except ValueError:
+            continue
+    raise ContractValidationError(
+        f"{field_name} is outside allowed roots"
+    )
+
+
+def _read_small_git_control_file(path: Path, *, field_name: str) -> str:
+    try:
+        if path.stat().st_size > _GIT_CONFIG_MAX_BYTES:
+            raise ContractValidationError(
+                f"{field_name} exceeds size bound"
+            )
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise ContractValidationError(
+            f"{field_name} cannot be read"
+        ) from exc
+
+
+def validate_git_repository_boundary(
+    cwd: Path,
+    allowed_roots: Tuple[str, ...] | list[str],
+) -> Mapping[str, str]:
+    """Reject Git metadata/config indirection that escapes executor roots."""
+    if not isinstance(cwd, Path) or not cwd.is_dir():
+        raise ContractValidationError(
+            "cwd must be an existing Path directory"
+        )
+    roots = _resolve_allowed_roots(allowed_roots)
+    _assert_path_within_allowed_roots(
+        cwd, roots, field_name="working directory"
+    )
+
+    dotgit = cwd / ".git"
+    if dotgit.is_dir():
+        git_dir = _assert_path_within_allowed_roots(
+            dotgit, roots, field_name="git directory"
+        )
+    elif dotgit.is_file():
+        control = _read_small_git_control_file(
+            dotgit, field_name=".git control file"
+        )
+        lines = control.splitlines()
+        if len(lines) != 1 or not lines[0].lower().startswith("gitdir:"):
+            raise ContractValidationError(
+                ".git control file is not an exact gitdir pointer"
+            )
+        target_text = lines[0].split(":", 1)[1].strip()
+        if not target_text:
+            raise ContractValidationError(
+                ".git control file has blank gitdir"
+            )
+        target = Path(target_text)
+        if not target.is_absolute():
+            target = cwd / target
+        git_dir = _assert_path_within_allowed_roots(
+            target, roots, field_name="git directory"
+        )
+        if not git_dir.is_dir():
+            raise ContractValidationError(
+                "git directory is not a directory"
+            )
+    else:
+        raise ContractValidationError(
+            "working directory is not an admitted Git worktree"
+        )
+
+    common_dir = git_dir
+    commondir_file = git_dir / "commondir"
+    if commondir_file.exists():
+        commondir_file = _assert_path_within_allowed_roots(
+            commondir_file,
+            roots,
+            field_name="git commondir control file",
+        )
+        common_text = _read_small_git_control_file(
+            commondir_file,
+            field_name="git commondir control file",
+        ).strip()
+        if not common_text or "\n" in common_text or "\r" in common_text:
+            raise ContractValidationError(
+                "git commondir pointer is malformed"
+            )
+        common_target = Path(common_text)
+        if not common_target.is_absolute():
+            common_target = git_dir / common_target
+        common_dir = _assert_path_within_allowed_roots(
+            common_target,
+            roots,
+            field_name="git common directory",
+        )
+        if not common_dir.is_dir():
+            raise ContractValidationError(
+                "git common directory is not a directory"
+            )
+
+    for alternate_name in ("alternates", "http-alternates"):
+        alternate = common_dir / "objects" / "info" / alternate_name
+        if alternate.exists():
+            raise ContractValidationError(
+                "git object alternates are not admitted"
+            )
+
+    config_paths = [common_dir / "config", git_dir / "config.worktree"]
+    inspected = []
+    for config_path in config_paths:
+        if not config_path.exists():
+            continue
+        resolved_config = _assert_path_within_allowed_roots(
+            config_path,
+            roots,
+            field_name="git config",
+        )
+        if not resolved_config.is_file():
+            raise ContractValidationError(
+                "git config is not a regular file"
+            )
+        config_text = _read_small_git_control_file(
+            resolved_config,
+            field_name="git config",
+        )
+        _validate_git_config_policy(config_text)
+        inspected.append(str(resolved_config))
+
+    return MappingProxyType(
+        {
+            "git_dir": str(git_dir),
+            "common_dir": str(common_dir),
+            "configs_inspected": "|".join(inspected),
+        }
+    )
+
+
+_FORBIDDEN_GIT_CONFIG_SECTIONS = frozenset(
+    {"include", "includeif", "filter", "diff"}
+)
+_FORBIDDEN_GIT_CORE_KEYS = frozenset(
+    {"worktree", "attributesfile", "excludesfile", "hookspath", "fsmonitor"}
+)
+
+
+def _validate_git_config_policy(config_text: str) -> None:
+    current_section = None
+    for raw_line in config_text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith(("#", ";")):
+            continue
+        if stripped.startswith("["):
+            end = stripped.find("]")
+            if end < 0:
+                raise ContractValidationError(
+                    "git config contains malformed section header"
+                )
+            section_text = stripped[1:end].strip()
+            if not section_text:
+                raise ContractValidationError(
+                    "git config contains blank section header"
+                )
+            section_name = (
+                section_text.split(None, 1)[0]
+                .split(".", 1)[0]
+                .lower()
+            )
+            current_section = section_name
+            if current_section in _FORBIDDEN_GIT_CONFIG_SECTIONS:
+                raise ContractValidationError(
+                    f"git config section {current_section} is not admitted"
+                )
+            continue
+
+        if current_section == "core":
+            key = stripped.split("=", 1)[0].strip().lower()
+            if key in _FORBIDDEN_GIT_CORE_KEYS:
+                raise ContractValidationError(
+                    f"git core.{key} is not admitted"
+                )
