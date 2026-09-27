@@ -115,12 +115,23 @@ PR #113 is the bounded forward repository mutation executor candidate.
 
 It is intentionally **not merged**.
 
-PR #132 is the preferred consolidated hardening-review surface for #113. It
-combines:
+PR #139 is the canonical consolidated hardening-review surface for #113. Its
+exact head `dde9140cc158b536e77a9930e2c1f3ec98abcb93` has GitHub Actions
+SUCCESS.
 
-- #117 filesystem object-identity / TOCTOU hardening;
-- #118 executor process-boundary / ACL / isolation assessment;
-- #119-adjacent rollback-governance findings relevant to live execution.
+It reconciles the previously separate implementation surfaces:
+
+- #123 primitive-entry junction/reparse/multi-hardlink guard;
+- #124 SELF_REPORTED_LOCAL process-identity preflight and Windows deployment
+  boundary;
+- #126 object-identity drift checks plus Windows handle-feasibility probes;
+- #128 LOCAL_TEST/HIGH_ASSURANCE process-boundary assessment and reproducible
+  read-only Windows ACL/process audit;
+- #132's earlier combined object-identity/process-boundary integration.
+
+PRs #123, #124, #126, #128, and #132 are closed as superseded by #139.
+Issues #117 and #118 remain open because the underlying assurance gaps are not
+resolved.
 
 Current residual findings remain blocking:
 
@@ -135,7 +146,7 @@ Current residual findings remain blocking:
   not established on the current operator environment;
 - OS isolation / peer-process tamper resistance are not established.
 
-Therefore PR #132 remains draft/unmerged.
+Therefore PR #139 remains draft/unmerged.
 
 ## Experimental rollback executor — NOT accepted
 
@@ -165,7 +176,7 @@ the forward executor. No real-project repository rollback is authorized.
 ## Preferred development order
 
 1. Keep forward and rollback simulation as the default validation lanes.
-2. Treat PR #132 as the consolidated live-executor hardening review surface.
+2. Treat PR #139 as the consolidated live-executor hardening review surface.
 3. Resolve or explicitly bound #117 handle-bound filesystem identity limits.
 4. Establish an OS-verifiable #118 executor process/ACL/isolation boundary.
 5. Keep PR #137 draft until those shared live-executor blockers are resolved.
