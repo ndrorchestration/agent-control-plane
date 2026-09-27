@@ -7,6 +7,7 @@ It never writes, deletes, renames, creates, or otherwise mutates repository stat
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path, PurePosixPath
 from typing import Union
 
@@ -26,6 +27,30 @@ _WINDOWS_RESERVED_BASENAMES = frozenset(
 
 class MutationPathSafetyError(ValueError):
     pass
+
+
+_WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+
+
+def _is_reparse_point(path: Path) -> bool:
+    try:
+        attributes = getattr(os.lstat(path), "st_file_attributes", 0)
+    except OSError:
+        return False
+    return bool(attributes & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def _is_link_like(path: Path) -> bool:
+    return path.is_symlink() or _is_reparse_point(path)
+
+
+def _has_multiple_hardlinks(path: Path) -> bool:
+    if not path.exists() or not path.is_file():
+        return False
+    try:
+        return os.stat(path, follow_symlinks=False).st_nlink > 1
+    except OSError:
+        return True
 
 
 def _sha256(value: str, field_name: str) -> str:
@@ -86,6 +111,7 @@ class MutationPathSafetyRecord:
     symlink_safe: bool
     repository_metadata_safe: bool
     operation_shape_verified: bool
+    hardlink_safe: bool = True
     target_exists: bool = False
     execution_enabled: bool = False
     mutation_executed: bool = False
@@ -103,6 +129,7 @@ class MutationPathSafetyRecord:
                 self.symlink_safe,
                 self.repository_metadata_safe,
                 self.operation_shape_verified,
+                self.hardlink_safe,
             )
         ):
             raise MutationPathSafetyError(
@@ -124,6 +151,7 @@ def _record(
     repository_metadata_safe: bool,
     operation_shape_verified: bool,
     target_exists: bool,
+    hardlink_safe: bool = True,
 ) -> MutationPathSafetyRecord:
     return MutationPathSafetyRecord(
         request_id=plan.request_id,
@@ -139,6 +167,7 @@ def _record(
         symlink_safe=symlink_safe,
         repository_metadata_safe=repository_metadata_safe,
         operation_shape_verified=operation_shape_verified,
+        hardlink_safe=hardlink_safe,
         target_exists=target_exists,
     )
 
@@ -234,10 +263,13 @@ def inspect_repository_mutation_path(
     for part in parts[:-1]:
         cursor = cursor / part
         candidates.append(cursor)
-    ancestor_symlink = any(path.is_symlink() for path in candidates if path.exists())
-    target_symlink = target.is_symlink()
+    ancestor_link_like = any(
+        _is_link_like(path) for path in candidates if path.exists()
+    )
+    target_link_like = _is_link_like(target) if target.exists() or target.is_symlink() else False
     target_exists = target.exists()
-    symlink_safe = not ancestor_symlink and not target_symlink
+    symlink_safe = not ancestor_link_like and not target_link_like
+    hardlink_safe = not _has_multiple_hardlinks(target)
 
     if plan.operation_id == "repo.write_text_file":
         parent = target.parent
@@ -256,6 +288,7 @@ def inspect_repository_mutation_path(
         "symlink safety": symlink_safe,
         "repository metadata": metadata_safe,
         "operation shape": operation_shape_verified,
+        "hardlink safety": hardlink_safe,
     }
     failed = [name for name, passed in checks.items() if not passed]
     admitted = not failed
@@ -278,4 +311,5 @@ def inspect_repository_mutation_path(
         repository_metadata_safe=metadata_safe,
         operation_shape_verified=operation_shape_verified,
         target_exists=target_exists,
+        hardlink_safe=hardlink_safe,
     )

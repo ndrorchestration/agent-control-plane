@@ -41,8 +41,8 @@ Development tests execute side effects only inside temporary synthetic repositor
 
 - no automatic rollback executor;
 - filesystem TOCTOU is reduced by repeated checks but not eliminated;
-- hardlink equivalence is not detected;
-- Windows reparse-point policy is limited to the current path-resolution/symlink checks;
+- existing multi-hardlink file targets are rejected, but filesystem identity can still change between checks and side effect;
+- Windows link safety now rejects Python symlinks and FILE_ATTRIBUTE_REPARSE_POINT ancestors/targets, but complete device/filesystem reparse semantics are not certified;
 - executor binary/process authenticity is not attested;
 - transport authenticity is not established;
 - no OS sandbox, privilege separation, or production security certification;

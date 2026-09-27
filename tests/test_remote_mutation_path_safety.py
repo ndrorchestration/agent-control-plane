@@ -244,6 +244,51 @@ def test_symlink_target_or_ancestor_is_blocked_when_supported(tmp_path):
     assert (outside / "victim.md").read_text(encoding="utf-8") == "outside"
 
 
+def test_existing_hardlink_target_is_blocked(tmp_path):
+    root = repo(tmp_path)
+    target = root / "docs" / "example.md"
+    alias = root / "docs" / "alias.md"
+    target.write_text("before", encoding="utf-8")
+    try:
+        os.link(target, alias)
+    except (OSError, NotImplementedError):
+        pytest.skip("hardlink creation is unavailable on this platform")
+
+    p = plan()
+    record = inspect_repository_mutation_path(
+        admitted_composition(p), p, repository_root=root
+    )
+
+    assert record.admitted is False
+    assert record.hardlink_safe is False
+    assert "hardlink safety" in record.reason
+    assert target.read_text(encoding="utf-8") == "before"
+    assert alias.read_text(encoding="utf-8") == "before"
+
+
+def test_admitted_record_cannot_claim_hardlink_unsafe(tmp_path):
+    root = repo(tmp_path)
+    p = plan()
+
+    with pytest.raises(MutationPathSafetyError, match="all safety checks"):
+        MutationPathSafetyRecord(
+            request_id=p.request_id,
+            resource_id=p.resource_id,
+            operation_id=p.operation_id,
+            plan_sha256=p.plan_sha256,
+            requested_path="docs/example.md",
+            repository_root=str(root),
+            resolved_path=str(root / "docs" / "example.md"),
+            admitted=True,
+            reason="invalid",
+            repository_boundary_verified=True,
+            symlink_safe=True,
+            repository_metadata_safe=True,
+            operation_shape_verified=True,
+            hardlink_safe=False,
+        )
+
+
 def test_path_safety_record_cannot_claim_execution(tmp_path):
     root = repo(tmp_path)
     p = plan()

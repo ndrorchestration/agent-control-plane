@@ -22,7 +22,7 @@ Mutation paths are repository-relative and must use one canonical `/` spelling. 
 
 ## Read-only filesystem checks
 
-The inspector verifies that the resolved target remains inside the resolved repository root, that root/ancestors/target are not symlinks, that repository metadata is not targeted, that `repo.write_text_file` has an existing directory parent and does not target a directory, and that `repo.delete_file` targets an existing regular file.
+The inspector verifies that the resolved target remains inside the resolved repository root; that root/ancestors/target are not symlinks or Windows reparse points; that an existing file target has no additional hardlink names; that repository metadata is not targeted; that `repo.write_text_file` has an existing directory parent and does not target a directory; and that `repo.delete_file` targets an existing regular file.
 
 The candidate does not create, write, rename, or delete anything during inspection.
 
@@ -32,4 +32,4 @@ Every `MutationPathSafetyRecord` fixes `execution_enabled=false` and `mutation_e
 
 ## Known boundaries
 
-The next candidate gate binds deterministic rollback material to an opaque custody/read-back evidence reference while keeping execution disabled. This path-safety candidate itself does not establish rollback-material custody, postcondition verification, crash/interruption recovery, execution receipts/result-evidence binding, hardlink equivalence detection, cross-machine filesystem identity, a production-grade Windows reparse-point policy beyond resolved-boundary checks, a live mutation executor, or explicit mutation-execution authorization.
+The next candidate gate binds deterministic rollback material to an opaque custody/read-back evidence reference while keeping execution disabled. This path-safety candidate itself does not establish rollback-material custody, postcondition verification, crash/interruption recovery, execution receipts/result-evidence binding, cross-machine filesystem identity, complete Windows reparse/device semantics beyond the current attribute + resolved-boundary checks, a live mutation executor, or explicit mutation-execution authorization. Hardlink targets are now rejected when the current filesystem reports more than one link.
