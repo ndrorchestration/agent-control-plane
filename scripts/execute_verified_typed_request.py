@@ -110,6 +110,7 @@ execution = execute_read_only_operation_bounded(
     request.operation_id,
     request.operation_parameters,
     cwd=cwd,
+    allowed_roots=args.allowed_root,
 )
 argv = execution["argv"]
 result_payload = {

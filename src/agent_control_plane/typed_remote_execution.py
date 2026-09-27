@@ -792,15 +792,21 @@ def execute_read_only_operation_bounded(
     parameters: Mapping[str, Any],
     *,
     cwd: Path,
+    allowed_roots: Tuple[str, ...] | list[str],
     timeout_seconds: int = REMOTE_EXECUTION_MAX_RUNTIME_SECONDS,
     max_output_bytes: int = REMOTE_EXECUTION_MAX_OUTPUT_BYTES,
 ) -> Mapping[str, Any]:
     """Execute one admitted typed operation under fixed resource bounds."""
+    resolved_cwd = resolve_authorized_working_directory(
+        str(cwd),
+        allowed_roots,
+    )
+    validate_git_repository_boundary(resolved_cwd, allowed_roots)
     argv = render_read_only_operation_argv(operation_id, parameters)
     result = dict(
         _execute_argv_bounded(
             argv,
-            cwd=cwd,
+            cwd=resolved_cwd,
             timeout_seconds=timeout_seconds,
             max_output_bytes=max_output_bytes,
         )

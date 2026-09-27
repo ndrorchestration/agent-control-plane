@@ -18,6 +18,7 @@ from agent_control_plane.typed_remote_execution import (
     TypedRemoteExecutionRequest,
     TypedRemoteExecutionResult,
     canonical_typed_request_bytes,
+    execute_read_only_operation_bounded,
     operation_sha256,
     render_read_only_operation_argv,
     resolve_authorized_working_directory,
@@ -378,3 +379,32 @@ def test_typed_result_rejects_path_unsafe_request_id():
     data["request_id"] = "../escape"
     with pytest.raises(ContractValidationError, match="request_id is not path-safe"):
         TypedRemoteExecutionResult.from_mapping(data)
+
+
+def test_public_typed_executor_enforces_repository_boundary(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(
+        ["git", "init"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    outside = tmp_path / "outside-gitconfig"
+    outside.write_text(
+        '[remote "origin"]\n\turl = https://example.invalid/outside\n',
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "config", "include.path", str(outside)],
+        cwd=repo,
+        check=True,
+    )
+
+    with pytest.raises(ContractValidationError, match="not admitted"):
+        execute_read_only_operation_bounded(
+            "git.remote.origin",
+            {},
+            cwd=repo,
+            allowed_roots=[str(repo)],
+        )
