@@ -20,4 +20,4 @@ It does not establish executor authenticity, transport authenticity, independent
 
 The mutation stack is now complete through non-executing authority admission, transaction planning, exact-plan composition, path safety, rollback custody evidence, postcondition verification, crash/recovery journaling, and execution/result-evidence binding.
 
-A live mutation path remains NOT AUTHORIZED. The next required gate is a separate explicit live mutation-execution authorization design that composes these records without allowing stale authority, replay, plan substitution, path drift, missing rollback custody, unjournaled side effects, or unverified postconditions.
+A separate durable single-use execution-authorization contract now binds one named external executor to one exact prepared transaction and prevents replay through persistent consumption state. A closure record then binds the consumed authorization to the terminal execution-evidence chain. ACP itself still has no repository mutation executor; any future executor must be a separate implementation tranche.
