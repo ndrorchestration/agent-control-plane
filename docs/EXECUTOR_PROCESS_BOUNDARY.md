@@ -246,3 +246,26 @@ Focused verifier + process-boundary + install-transaction/backend suite:
 `34 passed, 1 skipped`.
 
 No service was installed by this change.
+
+
+## Disposable SCM identity probe — 2026-09-27
+
+No compiler or executable packager was already available on the host, so no new
+packaging dependency was introduced merely to advance the gate. Instead, the
+branch now contains an inert Python identity probe plus a deterministic launch
+specification.
+
+The probe:
+- accepts only a path containing the disposable
+  `staging/ACP-Executor-Isolation-Lab` boundary;
+- has no executor/repository mutation capability;
+- has a bounded hold interval (0..30 seconds);
+- does not request auto-start or persistence.
+
+The launch spec explicitly binds the Python executable, source root, module, and
+lab root and uses Python isolated mode. It does not rely on ambient current
+directory or PYTHONPATH. Local direct launch returned 0 with launch-spec SHA-256
+`99ca6cea6d0b04cf05dbcb2c1bb80390f0c6349b15e2234a74bc485f7e975687`.
+
+This is a launch-contract identity, not an immutable signed executable.
+`TRUSTED_LAUNCHER_IDENTITY_VERIFIED` therefore remains false.
