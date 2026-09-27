@@ -1,64 +1,42 @@
 # ACP Current Development Frontier — 2026-09-27
 
-This page is the current-facing development overlay for Agent Control Plane
-(ACP). Dated audit and evidence documents remain historical records and should
-not be rewritten to imply later state.
+This is the current-facing development overlay for Agent Control Plane (ACP).
+Dated audits and evidence documents remain historical records and are not
+rewritten to imply later state.
 
-## Accepted mainline state
+## Accepted mainline
 
-Accepted typed read-only feature baseline from PR #93:
+Observed `main` at this documentation checkpoint:
+
+`e037e2b5ab3b519e9cd3e8171ababa22e1e6b115`
+
+Accepted capabilities include:
+
+- typed read-only remote execution from PR #93;
+- bounded task-budget checkpoint/resume from merged PR #97.
+
+The stable typed read-only feature baseline remains:
 
 `e27a4fa1a5f351eb3a142744be3579eeac4e900c`
 
-PR #93 replaced new signed read-only shell-text requests with a typed operation
-contract. The accepted read-only path uses typed operation intent, validated
-parameters, executor-owned allowed roots, fixed argv, `shell=False`, durable
-replay checks, bounded output/runtime, and typed result evidence bound to the
-exact request-envelope SHA-256.
+PR #97 merged with exact-head CI success after reconciliation onto current main.
+Its checkpoint hash is content identity only; durable/authenticated storage,
+replay protection, distributed ownership, hidden runtime-state restoration, and
+parent/child budget conservation remain unestablished.
 
-Exact-head #93 GitHub Actions completed successfully across Python 3.10–3.14.
-An isolated local verification also reproduced 116 focused passing tests / 2
-skipped and 640 full-suite passing tests / 11 skipped.
+## Canonical mutation-control stack
 
-## Independent bounded-execution frontier
+The mutation stack remains **draft / non-executing**. All exact heads below
+completed GitHub Actions successfully.
 
-### PR #97 — task-budget checkpoint/resume
-
-Head:
-
-`7782227a9b912b429cf8bb5f17ca98cc99b61eff`
-
-This draft is independent of the remote-mutation stack. It adds a candidate
-task-budget checkpoint/resume contract that preserves budget ceilings and
-already-consumed usage while restoring a fresh `CREATED` task from
-caller-supplied payload.
-
-Verification:
-
-- 23 focused tests PASS;
-- 695 full-suite tests PASS / 6 skipped;
-- compileall PASS;
-- `git diff --check` PASS;
-- GitHub Actions SUCCESS.
-
-It does not establish durable checkpoint storage, authentication,
-authorization, replay protection, distributed ownership, hidden runtime-state
-restoration, or parent/child budget conservation.
-
-## Active non-executing mutation-control stack
-
-Remote mutation execution remains blocked. The mutation frontier is deliberately
-stacked so each semantic transition can be reviewed independently.
-
-### PR #94 — mutation authority admission
+### #94 — mutation authority admission
 
 Head:
 
 `15aed6f1bae08750d60e994d5c88777942e3b309`
 
-Requires exact principal, `remote.mutation` capability, resource ID/type,
-operation ID, authority lease, revocation state, delegation scope/evaluator,
-and unconditional `ALLOW` alignment.
+Binds principal, `remote.mutation` capability, resource ID/type, operation,
+lease, revocation, delegation, and unconditional `ALLOW`.
 
 Invariant:
 
@@ -66,143 +44,212 @@ Invariant:
 execution_enabled=false
 ```
 
-Verification: 49 focused PASS; 653 full-suite PASS / 11 skipped; GitHub Actions
-SUCCESS.
-
-### PR #95 — mutation transaction model
+### #95 — mutation transaction model
 
 Head:
 
 `b0e475c97653d697d16ece3f7aa57b2e16b9a9e8`
 
-Adds the immutable initial mutation registry `repo.write_text_file` and
-`repo.delete_file`, plus exact structured parameters, precondition SHA-256,
-rollback SHA-256, and canonical plan SHA-256.
+Adds immutable `repo.write_text_file` / `repo.delete_file` operation
+definitions, canonical plan identity, precondition identity, and rollback
+identity.
 
 Invariants:
 
 ```text
-mutation_executed=false
 execution_enabled=false
+mutation_executed=false
 ```
 
-Verification: 58 focused PASS; 662 full-suite PASS / 11 skipped; GitHub Actions
-SUCCESS.
-
-### PR #96 — authority / exact-plan composition
+### #96 — exact authority / plan composition
 
 Head:
 
 `79d130c032a86cf76961198ab5891a289360d055`
 
-Binds the admitted intent to the exact prepared transaction so request,
-authority, resource, operation, or plan substitution cannot silently occur
-after admission.
-
-Verification: 65 focused PASS; 669 full-suite PASS / 11 skipped; GitHub Actions
-SUCCESS.
-
-### PR #98 — repository mutation path safety
+Prevents post-admission substitution of request, authority, resource,
+operation, plan, prepared transaction, preconditions, or rollback identity.
+### #98 — repository mutation path safety
 
 Head:
 
 `91bd411ac60826de9d930655783795989394f48b`
 
-Adds a non-executing repository path-safety gate after #96. It binds path
-inspection to the admitted composition and exact plan SHA-256, preserves exact
-path spelling, rejects traversal/absolute paths/drive syntax/control
-characters/NTFS ADS/reserved device names/ambiguous spaces or dots/`.git`
-segments, verifies resolved-root containment, rejects symlink target/ancestors,
-and enforces operation-specific target/parent requirements.
+Adds exact repository-relative path safety, resolved-root containment,
+symlink/junction/metadata defenses, operation-shape checks, and exact path
+identity preservation.
 
-This tranche also fixes a security-relevant plan-identity issue: transaction
-parameter normalization had stripped path whitespace before hashing. The path
-is now preserved exactly and filesystem canonicalization/rejection is owned by
-the path-safety layer.
-
-Invariants remain:
-
-```text
-mutation_executed=false
-execution_enabled=false
-```
-
-Verification: 54 stacked mutation tests PASS / 1 skipped; 726 full-suite tests
-PASS / 7 skipped; compileall and `git diff --check` PASS; GitHub Actions
-SUCCESS.
-
-### PR #101 — rollback material custody admission
+### #101 — rollback-material custody admission
 
 Head:
 
 `6d7dfacf3eeecd115d58b946d38f6e470acb6326`
 
-Adds deterministic rollback-material description and custody/read-back
-admission after #98. It binds rollback mode and descriptor SHA-256 to the
-transaction plan:
+Binds deterministic rollback descriptors, custody reference, custody-object
+SHA-256, read-back SHA-256, and exact upstream plan identity. Custody remains
+caller-observed evidence, not independent storage attestation.
 
-- existing write → restore prior bytes;
-- new write → delete newly created file;
-- delete → restore prior bytes and bind the prior-content SHA-256.
+### #103 — read-only postcondition verification
 
-The admission also binds an opaque custody reference, custody-object SHA-256,
-observed read-back SHA-256, and exact upstream request/resource/operation/plan
-identity.
+Head:
 
-Verification: 69 stacked mutation tests PASS / 1 skipped; 741 full-suite tests
-PASS / 7 skipped; compileall and `git diff --check` PASS; GitHub Actions
-SUCCESS.
+`ef6bc823cc8cfdb6abcd9e4775eb1a99f95073d6`
 
-Strong boundaries remain: ACP does not write custody material in this tranche;
-custody is caller-observed evidence rather than independent storage
-attestation; no rollback execution, mutation execution, postcondition
-verification, crash recovery, execution receipt, or mutation-execution
-authorization is established.
+Canonical postcondition lineage after reconciliation.
 
-## Mutation dependency chain
+It:
+
+- verifies planned write content by observed file SHA-256;
+- verifies planned delete by target absence;
+- revalidates repository boundary and symlink safety;
+- requires observation root to equal the pre-execution path-safety root;
+- requires observed resolved target to equal the pre-execution resolved target;
+- carries rollback descriptor SHA-256 and custody reference forward.
+
+Local canonicalization verification:
+
+- 82 stacked mutation tests PASS / 1 skipped;
+- 13 postcondition tests PASS.
+
+Exact-head GitHub Actions: SUCCESS.
+
+### #105 — durable mutation journal / recovery classification
+
+Head:
+
+`611a5678b9f034cfed8bd8c6a5ad0b1e212b471e`
+
+Canonical recovery lineage after reconciliation with #103.
+
+The journal distinguishes:
+
+- prepared;
+- execution intent recorded;
+- external effect reported;
+- postcondition verified;
+- rollback intent recorded;
+- rollback verified;
+- failed.
+
+It retains UTC chronology and evidence hashes and classifies restart/recovery
+state fail-closed. Any recovery path requires fresh execution authorization.
+
+Local canonicalization verification:
+
+- 99 stacked mutation/recovery tests PASS / 1 skipped;
+- 17 journal tests PASS.
+
+Exact-head GitHub Actions: SUCCESS.
+
+### #106 — execution/result-evidence binding
+
+Head:
+
+`c3ba51546faee1f6e592304aebc0cb92d3191ba7`
+
+Binds caller-supplied external execution/result evidence to the exact plan,
+journal transaction, external-effect event, verified postcondition, rollback
+descriptor, and custody reference.
+
+The receipt does **not** authenticate the external executor, prove causality, or
+authorize another mutation.
+
+Local canonicalization verification:
+
+- 112 stacked tests PASS / 1 skipped;
+- 13 execution-evidence tests PASS.
+
+Exact-head GitHub Actions: SUCCESS.
+### #108 — single-use mutation execution authorization + closure
+
+Head:
+
+`497b6eb1843a7f7936dd96f6f8278ca3d11048ce`
+
+Adds an exact, expiring, SQLite-backed, single-use authorization contract for one
+external mutation attempt plus post-execution closure binding.
+
+Authorization requires the exact admitted composition, verified transaction
+preconditions/rollback identity, path safety, rollback custody, PREPARED
+journal state, executor ID, transaction ID, plan SHA-256, and issue/expiry
+window.
+
+Consumption is replay-protected across restart. Closure binds the consumed
+authorization to the terminal evidence chain and authorizes no further
+execution.
+
+Local canonicalization verification:
+
+- 133 stacked mutation tests PASS / 1 skipped;
+- 21 authorization/closure tests PASS.
+
+Exact-head GitHub Actions: SUCCESS.
+
+## Superseded duplicate lineage
+
+PR #104 and PR #107 are closed as **superseded**, not failed.
+
+- #104's stronger postcondition identity findings were ported into canonical
+  #103.
+- #107's fail-closed recovery ideas were reconciled into the richer canonical
+  #105 recovery state machine.
+
+Keeping the duplicates closed avoids two competing postcondition/recovery APIs.
+
+## Canonical dependency chain
 
 ```text
 accepted typed read-only execution (#93)
   -> mutation authority admission (#94 draft)
-  -> mutation transaction model (#95 draft)
-  -> exact admission/plan composition (#96 draft)
+  -> transaction / rollback planning (#95 draft)
+  -> exact authority-plan composition (#96 draft)
   -> repository path safety (#98 draft)
-  -> rollback material custody admission (#101 draft)
-  -> postcondition verification
-  -> crash/interruption journal + recovery
-  -> execution receipt/result binding
-  -> separate live mutation-execution authorization
-  -> only then consider an RDC mutation executor
+  -> rollback-material custody admission (#101 draft)
+  -> read-only postcondition verification (#103 draft)
+  -> durable journal / recovery classification (#105 draft)
+  -> execution/result-evidence binding (#106 draft)
+  -> single-use exact-attempt authorization + closure (#108 draft)
+  -> NO LIVE ACP/RDC MUTATION EXECUTOR YET
 ```
 
-## Next bounded engineering gates
+## Next bounded engineering work
 
-Two independent lines are now active:
+Before a live mutation executor is considered, ACP still needs a separately
+reviewed execution composition that:
 
-1. Review/adjudicate the bounded task-budget checkpoint/resume draft #97.
-2. Continue the mutation stack only with non-executing postcondition
-   verification, then crash/interruption recovery and execution-evidence
-   contracts.
+- authenticates or otherwise establishes the executor identity assumed by the
+  authorization contract;
+- consumes the exact single-use authorization before the side effect;
+- records execution intent durably before the side effect;
+- restricts execution to the fixed typed mutation registry;
+- preserves path and plan identity at effect time;
+- records external-effect evidence without inferring success;
+- performs read-only postcondition verification after the effect;
+- enters recovery hold on ambiguous interruption;
+- performs rollback only through a separately authorized recovery path;
+- binds final evidence and closure without granting replay.
 
-A live Remote Desktop Commander mutation executor remains out of scope until a
-separate explicit execution-authorization gate is designed, tested, and
-accepted.
+A simulation/dry-run harness should precede any live Remote Desktop Commander
+mutation integration.
 
 ## Evidence boundary
 
-The current repository evidence does not establish:
+The current evidence does **not** establish:
 
+- a live ACP mutation executor;
 - arbitrary command execution;
-- live remote mutation authority or execution;
-- authenticated remote transport identity;
-- TPM/hardware-rooted device attestation;
+- authenticated remote executor identity;
+- causal proof that ACP caused an observed mutation;
+- hardware-rooted device attestation;
 - trusted external time;
-- externally trusted key or rollback custody;
+- independently trusted key or rollback custody;
 - production security or production readiness;
 - general cross-runtime portability;
 - DGAF High-Assurance authorization;
 - independent validation;
 - scientific efficacy or scientific-N increment.
 
-ACP engineering evidence must remain separate from DGAF scientific/evidence-state
-promotion and from claims made by any consuming research workload.
+Draft contracts do not become accepted `main` capability merely because their
+tests pass. ACP engineering evidence remains separate from DGAF
+scientific/evidence-state promotion and from claims made by consuming research
+workloads.
