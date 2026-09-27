@@ -35,11 +35,17 @@ A successful completion records the task's reported resource usage in terminal p
 
 This is **cooperative deterministic accounting**. It does not automatically observe provider token usage, tool calls, elapsed wall-clock time, or monetary cost unless the owning adapter reports them. It also does not preempt an arbitrary blocking handler.
 
+### Task-budget checkpoint/resume candidate
+
+`agent-control-plane.task-budget-checkpoint.v0-candidate` provides a bounded checkpoint for task identity, declared budget ceilings, and already-consumed usage. A checkpoint may be created only from `created` or `running` tasks that have not already exhausted their budget. Restore creates a fresh `Task` in `created` state using caller-supplied payload while preserving the original task ID, budget, and usage totals, so subsequent `Task.consume(...)` calls can use only the remaining budget.
+
+Canonical JSON bytes and a deterministic SHA-256 helper provide checkpoint content identity. That hash is **not authentication, authorization, tamper-evident custody, or replay protection**. Payload, result, error, terminal state, hidden handler state, and process/runtime state are deliberately not checkpointed. Storage, transport, ownership, task-ID collision handling across processes, and lifecycle admission after restore remain caller responsibilities.
+
 Not yet implemented by this budget slice:
 
 - hard wall-clock execution deadlines or preemption;
 - bounded retry/backoff orchestration;
-- checkpoint/resume with remaining-budget restoration;
+- durable/authenticated checkpoint storage or replay protection;
 - parent/child or delegated budget conservation;
 - durable or distributed budget accounting.
 

@@ -17,6 +17,7 @@ The kernel currently provides:
 - optional cooperative `ExecutionBudget` ceilings for steps, tool calls, tokens, and cost;
 - atomic resource accounting through `Task.consume(...)`;
 - terminal `BUDGET_EXHAUSTED` behavior when a declared cooperative budget is exceeded, including protection against a handler suppressing `BudgetExceeded` and then completing successfully;
+- a bounded `agent-control-plane.task-budget-checkpoint.v0-candidate` checkpoint/resume primitive that serializes task ID, budget ceilings, and consumed usage, restores as a fresh `CREATED` task with prior consumption preserved, and optionally binds restore to deterministic SHA-256 content identity;
 - run-scoped provenance events carrying both task ID and run ID;
 - terminal provenance containing reported resource usage;
 - a portable `agent-control-plane.provenance.v1` manifest for the current in-memory run;
@@ -138,7 +139,7 @@ Unless added and independently verified later, ACP does **not** currently provid
 - kernel-enforced authentication or authorization infrastructure;
 - bounded retry/backoff orchestration;
 - execution deadlines/preemption for arbitrary handlers;
-- checkpoint/resume with remaining-budget restoration;
+- durable/authenticated checkpoint storage, replay protection, or distributed checkpoint ownership;
 - parent/child or delegated budget conservation;
 - advanced scheduling;
 - multi-process consistency;
