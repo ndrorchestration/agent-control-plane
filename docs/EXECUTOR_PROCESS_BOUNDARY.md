@@ -618,3 +618,22 @@ The model deliberately cannot promote complete OS isolation. Current evidence
 supports containment controls, but `MINIMAL_SERVICE_TOKEN_VERIFIED=false`
 because no required-privilege allowlist or live token privilege observation
 has been established.
+
+
+## Minimal-token frontier — observer boundary
+
+A new read-only token characterization contract records an important evidence
+boundary: `whoami /priv` invoked by an external PowerShell verifier describes
+the verifier's token, not the service process token. It therefore cannot be
+used as live service-token evidence.
+
+The characterization script may read the SCM configured required-privilege
+list, but deliberately emits:
+`live_service_token_privileges_observed=false`,
+`observer_privileges_not_service_evidence=true`, and
+`minimal_service_token_verified=false`.
+
+This prevents a false promotion from configuration metadata or observer-token
+output. Real effective-token evidence requires either a trustworthy
+process-token inspection primitive or a narrowly scoped disposable service
+self-report whose identity/hash remains bound to the established probe.
