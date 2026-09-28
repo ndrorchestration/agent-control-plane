@@ -666,3 +666,26 @@ A reversible operator-gated rebind script:
 - does not start the service or alter account/start/SID configuration.
 
 Focused rebind/parser/source contracts: `10 passed`.
+
+
+## One-command bounded service-token evidence cycle
+
+To minimize privileged operator interaction, the token-probe workflow is now
+packaged as a single elevated bounded cycle:
+`scripts/run_bounded_service_token_probe_cycle.ps1`.
+
+The cycle:
+- requires Administrator, exact disposable service, Stopped/Manual state,
+  dedicated worker account, and RESTRICTED service SID;
+- verifies current inert-probe and token-probe SHA-256 values;
+- removes stale token evidence;
+- preserves a hash-verified backup of the inert probe;
+- installs the token probe temporarily;
+- starts only the disposable service;
+- binds evidence PID to the live SCM PID and worker SID;
+- captures the service's own effective privilege names;
+- stops the service in a `finally` block;
+- restores and re-verifies the original inert probe;
+- leaves `minimal_service_token_verified=false` pending analysis/policy.
+
+Focused bounded-cycle/source/parser/rebind contracts: `14 passed`.
