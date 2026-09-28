@@ -717,3 +717,34 @@ Rebuilt token probe SHA-256:
 `357c12de943a18bad6f6f6793a66257c4b388b23026f883636e47bc453b04d25`.
 
 Focused source/parser/bounded-cycle contracts: `11 passed`.
+
+
+## Direct service-token observation supersedes self-reporting probe
+
+Two bounded self-reporting token-probe start attempts failed before useful
+token evidence was produced. The previously verified inert service continued
+to run correctly under the same dedicated account and RESTRICTED service SID,
+so the failures are retained as token-probe compatibility evidence rather than
+treated as an isolation regression.
+
+A narrower observation path now supersedes the replacement-binary approach:
+`scripts/observe_disposable_service_token.ps1`.
+
+The elevated bounded observer:
+- requires exact disposable service, Stopped/Manual state, dedicated worker,
+  RESTRICTED service SID, and the verified inert-probe SHA-256;
+- starts the already verified inert service binary;
+- binds to its live SCM PID;
+- verifies process owner SID, executable path, and SHA-256;
+- uses native `OpenProcessToken(TOKEN_QUERY)` on that exact service PID;
+- enumerates the service token privileges via `GetTokenInformation` and
+  `LookupPrivilegeName`;
+- stops the service in a `finally` block and requires final Stopped state;
+- performs no binary swap, ACL mutation, SCM account/path mutation, network,
+  or repository access;
+- emits `minimal_service_token_verified=false` pending analysis.
+
+Focused direct-token/isolation/identity contracts: `11 passed`.
+
+The prior self-reporting probe artifacts remain in history as negative and
+superseded evidence; they are not the preferred execution path.
