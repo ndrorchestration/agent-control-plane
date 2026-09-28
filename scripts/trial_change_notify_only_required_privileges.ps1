@@ -11,17 +11,23 @@ if($svc.StartName -notmatch '(^|\\)ACPExecutorLab$'){throw "unexpected service a
 $sidText=(& sc.exe qsidtype $ServiceName 2>&1)-join "`n"
 if($sidText -notmatch 'SERVICE_SID_TYPE:\s+RESTRICTED'){throw "restricted service SID required"}
 
+function Parse-RequiredPrivileges([string]$text) {
+  $items=@()
+  foreach($line in ($text -split "`r?`n")){
+    foreach($m in [regex]::Matches($line,'Se\w+Privilege')){$items += $m.Value}
+  }
+  return @($items | Select-Object -Unique)
+}
+
 $beforeText=(& sc.exe qprivs $ServiceName 2>&1)-join "`n"
-$before=@()
-foreach($line in ($beforeText -split "`r?`n")){if($line -match '^\s+(Se\w+Privilege)\s*$'){$before += $Matches[1]}}
+$before=Parse-RequiredPrivileges $beforeText
 
 & sc.exe privs $ServiceName SeChangeNotifyPrivilege | Out-Null
 if($LASTEXITCODE -ne 0){throw "failed to configure SeChangeNotifyPrivilege-only policy"}
 
 try {
   $configuredText=(& sc.exe qprivs $ServiceName 2>&1)-join "`n"
-  $configured=@()
-  foreach($line in ($configuredText -split "`r?`n")){if($line -match '^\s+(Se\w+Privilege)\s*$'){$configured += $Matches[1]}}
+  $configured=Parse-RequiredPrivileges $configuredText
   if($configured.Count -ne 1 -or $configured[0] -ne "SeChangeNotifyPrivilege"){throw "required privilege configuration mismatch"}
 
   $obsRaw=& "$PSScriptRoot\observe_disposable_service_token.ps1"

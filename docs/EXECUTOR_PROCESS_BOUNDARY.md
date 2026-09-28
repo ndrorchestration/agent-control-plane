@@ -801,3 +801,21 @@ restores the prior required-privilege configuration in `finally`.
 
 No minimal-token claim is made until live evidence confirms the observed token.
 Focused corrected trial/token/isolation contracts: `13 passed`.
+
+
+## ChangeNotify-only trial parser false negative corrected
+
+The first explicit SeChangeNotifyPrivilege-only trial failed at the post-change
+verification step with `required privilege configuration mismatch`. The
+`finally` rollback executed and current `qprivs` read-back is empty, so the
+service was not left modified.
+
+Root cause: the verifier only accepted privilege names on standalone output
+lines. This Windows host may emit configured privilege names inline on the
+`PRIVILEGES : ...` line. The parser now extracts `Se*Privilege` tokens from
+either inline or multiline qprivs output and de-duplicates them before exact
+comparison.
+
+Focused corrected trial/token/isolation contracts: `14 passed`.
+The SCM mutation itself remains unadjudicated until the corrected bounded trial
+returns live token evidence.
