@@ -526,3 +526,24 @@ Not established by this result:
 `PEER_PROCESS_TAMPER_RESISTANCE_VERIFIED=false`
 `HIGH_ASSURANCE_BOUNDARY_ESTABLISHED=false`
 `REAL_PROJECT_REPOSITORY_EXECUTION=NOT_AUTHORIZED`.
+
+
+## OS isolation frontier — restricted service SID candidate
+
+Read-only baseline after dedicated process identity verification:
+- `sc qsidtype ACPExecutorLabProbe` => `SERVICE_SID_TYPE: NONE`;
+- `sc qprivs ACPExecutorLabProbe` => no configured required-privilege list.
+
+The next bounded isolation transition is a restricted service SID on the
+disposable probe only. The operator-gated script requires Administrator,
+exact service name, Stopped state, Manual start mode, and the dedicated worker
+account before invoking `sc sidtype ACPExecutorLabProbe restricted`. It does
+not start the service, create a service, change its account/path, or touch a
+real repository. A separate read-only verifier queries the resulting SID type.
+
+Focused contracts: `7 passed`.
+
+This candidate alone does not establish OS isolation. Required evidence is:
+restricted SID read-back, then a bounded live identity rerun showing the
+service still executes as the verified worker and returns to Stopped. Further
+tamper/ACL isolation tests remain separate.
