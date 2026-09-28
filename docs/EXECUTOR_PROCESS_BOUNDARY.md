@@ -469,3 +469,27 @@ The operator-gated migration script:
 - performs post-migration read-back checks.
 
 Focused migration/process-gate contracts: `9 passed`.
+
+
+## First successful live service process — verifier path stale
+
+Post-ProgramData bounded execution successfully launched the inert service:
+- SCM state Running;
+- PID 10252;
+- configured account `.\ACPExecutorLab`;
+- observed process owner `NEONTIC\ACPExecutorLab`;
+- observed owner SID exactly matched expected worker SID
+  `S-1-5-21-3119701800-1075537928-727562629-1005`;
+- observed process path
+  `C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\ACPExecutorLabProbe.exe`;
+- observed SHA-256 exactly matched
+  `9215cd763d325abf43c4fcb1a2b4b222aa7ce9c27059103107bbea749974eab4`;
+- service returned to Stopped; independent RDC read-back observed PID 0.
+
+Six of seven verifier checks were true. The sole false check,
+`process_path_match`, was caused by the verifier retaining the pre-migration
+profile-path default. The default is corrected to the ProgramData lab.
+Focused verifier/start/migration contracts: `9 passed`.
+
+Interpretation: live dedicated service process identity was directly observed,
+but final machine-readable gate closure awaits one corrected-verifier rerun.

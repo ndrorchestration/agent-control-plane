@@ -2,7 +2,7 @@
 param(
  [string]$ServiceName="ACPExecutorLabProbe",
  [string]$ExpectedWorkerName="ACPExecutorLab",
- [string]$ExpectedBinary="$env:USERPROFILE\Desktop\NDR-Ecosystem\staging\ACP-Executor-Isolation-Lab\ACPExecutorLabProbe.exe",
+ [string]$ExpectedBinary="$env:ProgramData\NDR\ACP-Executor-Isolation-Lab\ACPExecutorLabProbe.exe",
  [string]$ExpectedSha256="9215cd763d325abf43c4fcb1a2b4b222aa7ce9c27059103107bbea749974eab4"
 )
 $ErrorActionPreference="Stop"
