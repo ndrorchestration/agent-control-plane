@@ -444,3 +444,28 @@ The grant/read-back verifier now accepts either the exact worker SID or exact
 local account name, using equality rather than substring matching. No further
 right mutation is required. Focused representation/grant/diagnostic/start-gate
 contracts: `13 passed`.
+
+
+## Second bounded start — filesystem access blocker
+
+After the service-logon right was confirmed, a fresh bounded start failed again.
+Independent SCM evidence changed to Event 7000 `Access is denied`; the prior
+7041 logon-right event did not recur. Service remained Stopped with PID 0.
+
+ACL inspection found the worker had no traversal/execution access through the
+probe's location beneath `C:\Users\Admin`. Rather than widen access through
+the operator profile, the next correction uses a dedicated machine-level
+disposable directory:
+`C:\ProgramData\NDR\ACP-Executor-Isolation-Lab`.
+
+The operator-gated migration script:
+- requires Administrator and exact ProgramData destination;
+- requires the service be Stopped;
+- verifies source and copied binary SHA-256;
+- protects the destination ACL and grants only SYSTEM/Admin FullControl and
+  exact worker ReadAndExecute;
+- rebinds only the existing `ACPExecutorLabProbe` binary path;
+- does not start the service or create another service;
+- performs post-migration read-back checks.
+
+Focused migration/process-gate contracts: `9 passed`.
