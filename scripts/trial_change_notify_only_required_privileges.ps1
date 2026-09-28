@@ -20,14 +20,14 @@ function Parse-RequiredPrivileges([string]$text) {
 }
 
 $beforeText=(& sc.exe qprivs $ServiceName 2>&1)-join "`n"
-$before=Parse-RequiredPrivileges $beforeText
+$before=@(Parse-RequiredPrivileges $beforeText)
 
 & sc.exe privs $ServiceName SeChangeNotifyPrivilege | Out-Null
 if($LASTEXITCODE -ne 0){throw "failed to configure SeChangeNotifyPrivilege-only policy"}
 
 try {
   $configuredText=(& sc.exe qprivs $ServiceName 2>&1)-join "`n"
-  $configured=Parse-RequiredPrivileges $configuredText
+  $configured=@(Parse-RequiredPrivileges $configuredText)
   if($configured.Count -ne 1 -or $configured[0] -ne "SeChangeNotifyPrivilege"){throw "required privilege configuration mismatch"}
 
   $obsRaw=& "$PSScriptRoot\observe_disposable_service_token.ps1"

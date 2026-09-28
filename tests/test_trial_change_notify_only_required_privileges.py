@@ -13,3 +13,8 @@ def test_does_not_overclaim():
  s=src(); assert "minimal_service_token_verified=$false" in s
 def test_qprivs_parser_accepts_inline_privilege_tokens():
  s=src(); assert "Parse-RequiredPrivileges" in s; assert "[regex]::Matches($line,'Se\\w+Privilege')" in s
+
+def test_single_privilege_result_forced_to_array():
+ s=src()
+ assert "$before=@(Parse-RequiredPrivileges $beforeText)" in s
+ assert "$configured=@(Parse-RequiredPrivileges $configuredText)" in s

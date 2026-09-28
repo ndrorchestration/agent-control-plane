@@ -819,3 +819,22 @@ comparison.
 Focused corrected trial/token/isolation contracts: `14 passed`.
 The SCM mutation itself remains unadjudicated until the corrected bounded trial
 returns live token evidence.
+
+
+## Single-privilege parser scalar-collapse bug corrected
+
+Repeated `required privilege configuration mismatch` results were traced to
+PowerShell scalar-collapse semantics, not invalid SCM syntax. Host-local
+`sc.exe privs` help confirms a single privilege name is valid.
+
+The parser function returned a single string when exactly one configured
+privilege was present. Consequently `$configured[0]` indexed the first
+character of the string rather than the first array element, causing a false
+mismatch against `SeChangeNotifyPrivilege`.
+
+Both `before` and `configured` parser results are now explicitly wrapped in
+array subexpressions. A regression test covers the one-item case.
+
+Focused corrected trial/token/isolation contracts: `15 passed`.
+
+The prior failed trials are retained as verifier false-negative evidence.
