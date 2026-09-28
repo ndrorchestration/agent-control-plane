@@ -594,3 +594,27 @@ This establishes one concrete OS containment control, but not complete
 `OS_ISOLATION_VERIFIED` or peer-process tamper resistance. Trusted launcher
 identity, broader token/privilege confinement, and real-repository execution
 remain separately gated.
+
+
+## OS isolation evidence model — containment vs minimal token
+
+Read-only characterization after restricted-SID compatibility:
+- service is `WIN32_OWN_PROCESS`, demand/manual start;
+- dedicated non-admin account remains `.\ACPExecutorLab`;
+- `SERVICE_SID_TYPE=RESTRICTED`;
+- no explicit required-privilege list is configured;
+- no worker ACL entry is present on the real NDR-Ecosystem, DGAF & Governance,
+  or Aetherwake roots;
+- the protected ProgramData lab is not ACL-readable by the ordinary RDC
+  process, consistent with its narrow boundary.
+
+A fail-closed evidence model now distinguishes:
+1. concrete containment controls already established;
+2. explicit required-privilege configuration;
+3. live effective-token observation;
+4. complete OS-isolation claims.
+
+The model deliberately cannot promote complete OS isolation. Current evidence
+supports containment controls, but `MINIMAL_SERVICE_TOKEN_VERIFIED=false`
+because no required-privilege allowlist or live token privilege observation
+has been established.
