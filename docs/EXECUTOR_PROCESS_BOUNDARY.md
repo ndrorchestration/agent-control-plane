@@ -637,3 +637,32 @@ This prevents a false promotion from configuration metadata or observer-token
 output. Real effective-token evidence requires either a trustworthy
 process-token inspection primitive or a narrowly scoped disposable service
 self-report whose identity/hash remains bound to the established probe.
+
+
+## Self-reporting service-token probe — operator-ready
+
+A separate disposable service binary now self-reports only its own effective
+token privilege inventory to:
+`C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\token-evidence.json`.
+
+Source is in-repo as `scripts/ACPExecutorTokenProbe.cs`. It has no network
+or repository access and retains the same SCM service name/stop behavior.
+Current build SHA-256:
+`642ca4a7a9569a04ce5512c53ffe004eee7c2ce0b8759872778474607dd8d4b0`.
+
+A read-only evidence parser verifies schema/PID and emits
+`live_service_token_privileges_observed=true` while deliberately retaining
+`minimal_service_token_verified=false` until policy/adjudication.
+
+A reversible operator-gated rebind script:
+- requires Administrator;
+- exact disposable service only;
+- requires Stopped, Manual, dedicated ACPExecutorLab account, RESTRICTED service SID;
+- verifies old inert-probe SHA-256 `9215cd763d325abf43c4fcb1a2b4b222aa7ce9c27059103107bbea749974eab4`;
+- verifies new token-probe SHA-256 `642ca4a7a9569a04ce5512c53ffe004eee7c2ce0b8759872778474607dd8d4b0`;
+- preserves a hash-verified backup of the old probe;
+- copies only the new binary into the already isolated ProgramData path;
+- restores the backup if installed-hash verification fails;
+- does not start the service or alter account/start/SID configuration.
+
+Focused rebind/parser/source contracts: `10 passed`.
