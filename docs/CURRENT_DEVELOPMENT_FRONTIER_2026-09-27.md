@@ -8,9 +8,9 @@ rewritten to imply later state.
 
 Observed `main` at this checkpoint:
 
-`6933a09682cf0dcb8b6b9c2aab5ec79330d3c260`
+`954706a98adae7edd40132c7f49370c11f5f0186`
 
-Accepted mainline now includes:
+Accepted mainline includes:
 
 - typed read-only remote execution from PR #93;
 - bounded task-budget checkpoint/resume from PR #97;
@@ -18,7 +18,8 @@ Accepted mainline now includes:
 - simulation-only mutation composition + adversarial integration coverage from
   PR #121;
 - non-executing repository rollback control/evidence stack from PR #134;
-- simulation-only rollback execution composition from PR #135.
+- simulation-only rollback execution composition from PR #135;
+- rollback-control / executor-frontier documentation reconciliation from PR #138.
 
 Stable typed read-only feature baseline:
 
@@ -115,9 +116,9 @@ PR #113 is the bounded forward repository mutation executor candidate.
 
 It is intentionally **not merged**.
 
-PR #139 is the canonical consolidated hardening-review surface for #113. Its
-exact head `dde9140cc158b536e77a9930e2c1f3ec98abcb93` has GitHub Actions
-SUCCESS.
+PR #139 at exact head
+`dde9140cc158b536e77a9930e2c1f3ec98abcb93` is the latest consolidated
+forward-executor hardening review surface and has GitHub Actions SUCCESS.
 
 It reconciles the previously separate implementation surfaces:
 
@@ -130,29 +131,51 @@ It reconciles the previously separate implementation surfaces:
 - #132's earlier combined object-identity/process-boundary integration.
 
 PRs #123, #124, #126, #128, and #132 are closed as superseded by #139.
-Issues #117 and #118 remain open because the underlying assurance gaps are not
-resolved.
 
-Current residual findings remain blocking:
+**Important reconciliation update:** #139 is no longer a complete representation
+of the newest #117/#118 experimental evidence. Both dedicated hardening branches
+advanced after #139 from the same executor base and now diverge from #139:
 
-- handle-derived object identity is locally verified;
-- handle-based delete and absolute-destination handle rename are verified only
-  in synthetic Windows tests;
-- parent-directory-handle-relative `FileRenameInfo` is not established on the
-  current Windows host and is retained as a strict xfail;
-- current executor final side effects remain pathname-based;
-- dedicated executor service identity is not established;
+- #117 latest recorded branch head
+  `6d3d8076a48b10b43561791d1d930aa0e3f86d1b` is 7 commits ahead / 18 behind
+  #139. Synthetic local Windows evidence verifies NT-native handle-relative
+  rename with a held parent-directory handle, and an experimental Windows-only
+  handle-mutation adapter exists. That adapter is not wired into the executor
+  effect path.
+- #118 latest recorded branch head
+  `b276dd55ffbd77d07481c6bad042859e6b59bfd4` is 31 commits ahead / 18 behind
+  #139. Disposable-lab service process identity is verified, a restricted
+  service SID is operational, and a reversible minimal-service-token trial
+  verified an exact `SeChangeNotifyPrivilege` token policy.
+
+Those advances do **not** establish the production boundary. Current residual
+findings remain blocking:
+
+- handle-bound atomic write replacement in the ACP executor is not implemented;
+- final TOCTOU elimination is not established;
+- the NT-native rename path is platform-specific experimental evidence and lacks
+  cross-Windows-version/filesystem validation;
+- the verified service identity applies to a disposable inert lab probe, not an
+  accepted production executor;
+- the minimal service-token policy was verified experimentally and then rolled
+  back; it is not currently enforced;
+- trusted-launcher identity is not established;
 - ACL separation among repository, authorization store, journal, and custody is
-  not established on the current operator environment;
-- OS isolation / peer-process tamper resistance are not established.
+  not established as an accepted production boundary;
+- complete OS isolation / peer-process tamper resistance are not established.
 
-Therefore PR #139 remains draft/unmerged.
+Therefore PR #139 remains draft/unmerged, and a **fresh reconciliation surface**
+is required before it can again be described as the complete current hardening
+surface.
 
 ## Experimental rollback executor — NOT accepted
 
-PR #137 is the bounded repository rollback executor candidate.
+PR #137 at exact head
+`bc603c5002d21eb267821b012b01e95cd9bc2efe` is the bounded repository
+rollback executor candidate. Its hosted test surface is green.
 
-It is rebuilt on current main and intentionally remains **draft/unmerged**.
+It is rebuilt on accepted rollback controls and intentionally remains
+**draft/unmerged**.
 
 The candidate is:
 
@@ -170,18 +193,23 @@ The candidate is:
 
 Its side-effect tests are limited to pytest-created disposable repositories.
 
-PR #137 inherits the same unresolved filesystem and process-boundary risks as
-the forward executor. No real-project repository rollback is authorized.
+PR #137 inherits the unresolved filesystem and process-boundary risks above.
+No real-project repository rollback is authorized.
 
 ## Preferred development order
 
 1. Keep forward and rollback simulation as the default validation lanes.
-2. Treat PR #139 as the consolidated live-executor hardening review surface.
-3. Resolve or explicitly bound #117 handle-bound filesystem identity limits.
-4. Establish an OS-verifiable #118 executor process/ACL/isolation boundary.
-5. Keep PR #137 draft until those shared live-executor blockers are resolved.
-6. Re-run #115 threat-model acceptance against the hardened forward and
-   rollback candidates.
+2. Reconcile the post-#139 #117 and #118 branches into one fresh integration
+   candidate without weakening either branch's evidence ceiling.
+3. Exercise the verified Windows handle-relative adapter only in disposable
+   repository fixtures through the existing authorization/intent/postcondition
+   lifecycle.
+4. Convert the verified disposable-service identity/minimal-token evidence into
+   an accepted executor boundary only after trusted-launcher, ACL, isolation,
+   and tamper-resistance controls are separately established.
+5. Keep PR #137 draft until the shared live-executor blockers are resolved.
+6. Re-run #115 threat-model acceptance against the freshly reconciled forward
+   and rollback candidates.
 7. Only then consider a disposable dedicated test-repository exercise.
 8. Do not use canonical ACP, DGAF, Aetherwake, or another real project
    repository as the first live target.
@@ -194,9 +222,10 @@ Current evidence does **not** establish:
 - production-safe rollback execution;
 - real-project repository mutation or rollback authorization;
 - arbitrary command execution;
-- authenticated executor/process identity;
-- elimination of filesystem TOCTOU;
-- verified ACL/process isolation;
+- trusted production executor/launcher identity;
+- handle-bound atomic write replacement in the accepted executor;
+- final elimination of filesystem TOCTOU;
+- accepted production ACL/process isolation;
 - peer-process/store tamper resistance;
 - hardware-rooted attestation;
 - production security;
