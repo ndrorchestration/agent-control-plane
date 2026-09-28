@@ -568,3 +568,29 @@ bounded start/identity/stop cycle under the restricted SID remains required
 before treating this containment control as operational. Even a successful
 cycle will not by itself establish complete OS isolation or peer-process
 tamper resistance.
+
+
+## Restricted service SID — live compatibility VERIFIED
+
+A bounded post-transition live run produced a complete PASS while
+`SERVICE_SID_TYPE=RESTRICTED`:
+- PID 16880;
+- SCM account `.\ACPExecutorLab`;
+- process owner `NEONTIC\ACPExecutorLab`;
+- exact worker SID `S-1-5-21-3119701800-1075537928-727562629-1005`;
+- exact ProgramData probe path;
+- exact SHA-256 `9215cd763d325abf43c4fcb1a2b4b222aa7ce9c27059103107bbea749974eab4`;
+- all seven process identity checks true;
+- `verified=true`;
+- bounded start/stop completed true.
+
+Independent RDC read-back after the run observed:
+`SERVICE_SID_TYPE=RESTRICTED`, service Stopped, PID 0, Manual start, exact
+worker account, and exact ProgramData path.
+
+Scoped conclusion:
+`RESTRICTED_SERVICE_SID_OPERATIONAL=true` for the disposable lab service.
+This establishes one concrete OS containment control, but not complete
+`OS_ISOLATION_VERIFIED` or peer-process tamper resistance. Trusted launcher
+identity, broader token/privilege confinement, and real-repository execution
+remain separately gated.
