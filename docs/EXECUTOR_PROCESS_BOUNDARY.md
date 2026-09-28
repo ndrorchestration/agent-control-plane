@@ -779,3 +779,25 @@ A reversible bounded trial now:
 
 No minimization claim is made until live before/after evidence is returned.
 Focused trial/candidate/token-observer contracts: `11 passed`.
+
+
+## Empty-list privilege trial disproven; explicit ChangeNotify-only candidate
+
+The reversible empty-required-privileges trial completed successfully but did
+not reduce the live service token. The SCM required-privileges list was empty
+before and after, while the live token still contained all seven observed
+privileges. This falsifies the earlier interpretation that an empty required
+list would mean a zero-privilege request.
+
+Microsoft SCM semantics clarify the result: when required privileges are not
+set, the service receives the account's default token privileges; when a
+required list is explicitly specified, SCM removes privileges not in that
+list. SeChangeNotifyPrivilege is retained for compatibility.
+
+A corrected reversible trial now explicitly configures only
+`SeChangeNotifyPrivilege`, verifies that exact one-item SCM configuration,
+runs the direct live-token observer against the verified inert service, and
+restores the prior required-privilege configuration in `finally`.
+
+No minimal-token claim is made until live evidence confirms the observed token.
+Focused corrected trial/token/isolation contracts: `13 passed`.
