@@ -689,3 +689,31 @@ The cycle:
 - leaves `minimal_service_token_verified=false` pending analysis/policy.
 
 Focused bounded-cycle/source/parser/rebind contracts: `14 passed`.
+
+
+## Restricted-token evidence write failure — root cause and correction
+
+The first bounded self-token cycle failed at `Start-Service`. The service had
+already been proven operational under `SERVICE_SID_TYPE=RESTRICTED`, so the
+failure was treated as a token-probe compatibility defect rather than an
+isolation regression.
+
+Microsoft restricted-token semantics require an additional access check using
+the token's restricting SID list. The token probe attempted to create its
+evidence file in the lab root, whose ACL was intentionally narrow and did not
+grant the service SID write access. The probe's OnStart therefore could not
+write evidence and stopped.
+
+Correction:
+- token evidence moved to the exact dedicated subdirectory
+  `C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\token-evidence`;
+- the bounded elevated cycle creates/protects only that directory;
+- ACL grants SYSTEM/Admin FullControl and only
+  `NT SERVICE\ACPExecutorLabProbe` Modify;
+- no write access is added to real project roots or the broader ProgramData tree;
+- worker-account read/execute separation elsewhere remains unchanged.
+
+Rebuilt token probe SHA-256:
+`357c12de943a18bad6f6f6793a66257c4b388b23026f883636e47bc453b04d25`.
+
+Focused source/parser/bounded-cycle contracts: `11 passed`.

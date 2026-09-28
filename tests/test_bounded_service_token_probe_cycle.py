@@ -9,3 +9,11 @@ def test_always_stops_and_restores():
  s=src(); assert "finally" in s; assert "Stop-Service" in s; assert "Copy-Item -LiteralPath $BackupBinary -Destination $InstalledBinary -Force" in s; assert "identity probe restore verification failed" in s
 def test_does_not_claim_minimal_token():
  s=src(); assert "minimal_service_token_verified=$false" in s
+
+def test_evidence_acl_is_service_sid_scoped():
+ s=src()
+ assert 'NT SERVICE' in s
+ assert 'FileSystemAccessRule($serviceSid,"Modify"' in s
+ assert 'unexpected token evidence directory' in s
+ assert 'service SID evidence ACL verification failed' in s
+ assert r'C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\token-evidence' in s

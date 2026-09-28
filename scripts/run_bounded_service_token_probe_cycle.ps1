@@ -4,8 +4,8 @@ param(
  [string]$TokenProbeSource="$env:USERPROFILE\Desktop\NDR-Ecosystem\staging\ACP-Executor-Isolation-Lab\ACPExecutorTokenProbe.exe",
  [string]$InstalledBinary="C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\ACPExecutorLabProbe.exe",
  [string]$BackupBinary="C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\ACPExecutorLabProbe.identity-backup.exe",
- [string]$EvidencePath="C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\token-evidence.json",
- [string]$ExpectedTokenSha256="642ca4a7a9569a04ce5512c53ffe004eee7c2ce0b8759872778474607dd8d4b0",
+ [string]$EvidencePath="C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\token-evidence\token-evidence.json",
+ [string]$ExpectedTokenSha256="357c12de943a18bad6f6f6793a66257c4b388b23026f883636e47bc453b04d25",
  [string]$ExpectedIdentitySha256="9215cd763d325abf43c4fcb1a2b4b222aa7ce9c27059103107bbea749974eab4"
 )
 $ErrorActionPreference="Stop"
@@ -21,6 +21,23 @@ $sidText=(& sc.exe qsidtype $ServiceName 2>&1)-join "`n"
 if($sidText -notmatch 'SERVICE_SID_TYPE:\s+RESTRICTED'){throw "restricted service SID required"}
 if((Get-FileHash -LiteralPath $InstalledBinary -Algorithm SHA256).Hash.ToLowerInvariant() -ne $ExpectedIdentitySha256){throw "installed identity probe hash mismatch"}
 if((Get-FileHash -LiteralPath $TokenProbeSource -Algorithm SHA256).Hash.ToLowerInvariant() -ne $ExpectedTokenSha256){throw "token probe source hash mismatch"}
+$evidenceDir=Split-Path -Parent $EvidencePath
+$expectedEvidenceDir="C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\token-evidence"
+if([IO.Path]::GetFullPath($evidenceDir) -ine [IO.Path]::GetFullPath($expectedEvidenceDir)){throw "unexpected token evidence directory"}
+New-Item -ItemType Directory -Path $evidenceDir -Force | Out-Null
+$servicePrincipal=New-Object Security.Principal.NTAccount("NT SERVICE",$ServiceName)
+$serviceSid=$servicePrincipal.Translate([Security.Principal.SecurityIdentifier])
+$acl=New-Object Security.AccessControl.DirectorySecurity
+$acl.SetAccessRuleProtection($true,$false)
+$inherit=[Security.AccessControl.InheritanceFlags]"ContainerInherit, ObjectInherit"
+$prop=[Security.AccessControl.PropagationFlags]::None
+$allow=[Security.AccessControl.AccessControlType]::Allow
+$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule("SYSTEM","FullControl",$inherit,$prop,$allow)))
+$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule("BUILTIN\Administrators","FullControl",$inherit,$prop,$allow)))
+$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($serviceSid,"Modify",$inherit,$prop,$allow)))
+Set-Acl -LiteralPath $evidenceDir -AclObject $acl
+$serviceAcl=(Get-Acl -LiteralPath $evidenceDir).Access | Where-Object { try {$_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -eq $serviceSid.Value -and $_.AccessControlType -eq "Allow"} catch {$false} }
+if(-not $serviceAcl){throw "service SID evidence ACL verification failed"}
 if(Test-Path -LiteralPath $EvidencePath){Remove-Item -LiteralPath $EvidencePath -Force}
 Copy-Item -LiteralPath $InstalledBinary -Destination $BackupBinary -Force
 if((Get-FileHash -LiteralPath $BackupBinary -Algorithm SHA256).Hash.ToLowerInvariant() -ne $ExpectedIdentitySha256){throw "identity backup hash mismatch"}

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
- [string]$EvidencePath="C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\token-evidence.json"
+ [string]$EvidencePath="C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\token-evidence\token-evidence.json"
 )
 $ErrorActionPreference="Stop"
 if(-not(Test-Path -LiteralPath $EvidencePath -PathType Leaf)){throw "token evidence missing"}
