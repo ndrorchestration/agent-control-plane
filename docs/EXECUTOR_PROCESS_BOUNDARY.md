@@ -493,3 +493,36 @@ Focused verifier/start/migration contracts: `9 passed`.
 
 Interpretation: live dedicated service process identity was directly observed,
 but final machine-readable gate closure awaits one corrected-verifier rerun.
+
+
+## Dedicated live service process identity — VERIFIED
+
+Corrected bounded run produced a complete machine-readable PASS:
+- service state Running during observation;
+- PID 5404;
+- SCM account `.\ACPExecutorLab`;
+- process owner `NEONTIC\ACPExecutorLab`;
+- process owner SID exactly
+  `S-1-5-21-3119701800-1075537928-727562629-1005`;
+- process path exactly
+  `C:\ProgramData\NDR\ACP-Executor-Isolation-Lab\ACPExecutorLabProbe.exe`;
+- process SHA-256 exactly
+  `9215cd763d325abf43c4fcb1a2b4b222aa7ce9c27059103107bbea749974eab4`;
+- all seven verifier checks true;
+- `verified=true`;
+- bounded start/stop completed true.
+
+Independent RDC read-back after the run observed `State=Stopped`,
+`ProcessId=0`, Manual start mode, the exact ProgramData binary path, and the
+same configured worker account.
+
+Scoped conclusion:
+`DEDICATED_SERVICE_PROCESS_IDENTITY_VERIFIED=true` for this disposable lab
+probe.
+
+Not established by this result:
+`TRUSTED_LAUNCHER_IDENTITY_VERIFIED=false`
+`OS_ISOLATION_VERIFIED=false`
+`PEER_PROCESS_TAMPER_RESISTANCE_VERIFIED=false`
+`HIGH_ASSURANCE_BOUNDARY_ESTABLISHED=false`
+`REAL_PROJECT_REPOSITORY_EXECUTION=NOT_AUTHORIZED`.
