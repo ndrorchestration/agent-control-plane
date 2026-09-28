@@ -869,3 +869,25 @@ Because rollback was intentional, the policy is not currently persistent:
 
 This does not establish complete OS isolation, peer-process tamper resistance,
 trusted launcher identity, High-Assurance, or real-repository execution authority.
+
+
+## Service-object tamper surface — read-only verification
+
+A repeatable read-only verifier now inspects the service security descriptor
+with `sc sdshow` and classifies dangerous service-control rights.
+
+Observed SDDL:
+`D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)`.
+
+For ordinary Interactive Users (IU) and Service logon users (SU), the verifier
+observed none of the dangerous control tokens:
+`DC, RP, WP, DT, SD, WD, WO`.
+
+SYSTEM and BUILTIN\Administrators retain privileged service-control rights.
+
+Scoped conclusion:
+`PEER_SERVICE_CONTROL_TAMPER_SURFACE_REDUCED=true`.
+
+This does not establish full peer-process tamper resistance. Process-handle
+access, binary/ACL tampering by other privileged principals, and broader OS
+attack surfaces remain separate.
