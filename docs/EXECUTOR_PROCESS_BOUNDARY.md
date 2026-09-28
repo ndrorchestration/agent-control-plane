@@ -748,3 +748,34 @@ Focused direct-token/isolation/identity contracts: `11 passed`.
 
 The prior self-reporting probe artifacts remain in history as negative and
 superseded evidence; they are not the preferred execution path.
+
+
+## Required-privilege minimization candidate — bounded reversible trial
+
+Live service-token observation on the verified inert probe established seven
+privileges:
+- SeShutdownPrivilege (disabled)
+- SeChangeNotifyPrivilege (enabled)
+- SeUndockPrivilege (disabled)
+- SeImpersonatePrivilege (enabled)
+- SeCreateGlobalPrivilege (enabled)
+- SeIncreaseWorkingSetPrivilege (disabled)
+- SeTimeZonePrivilege (disabled)
+
+Microsoft SCM semantics state that a declared required-privilege set removes
+non-required privileges from the service token, while SeChangeNotifyPrivilege
+is retained for compatibility even when not explicitly requested. The inert
+probe has no demonstrated need for impersonation or global-object creation.
+
+A reversible bounded trial now:
+- snapshots the current `qprivs` configuration;
+- temporarily configures an empty explicit required-privilege list on the exact
+  disposable service only;
+- invokes the direct service-token observer against the already verified inert
+  binary;
+- stops the service via the observer;
+- restores the original required-privilege configuration in `finally`;
+- does not alter service account, path, SID type, binary, ACLs, or real repos.
+
+No minimization claim is made until live before/after evidence is returned.
+Focused trial/candidate/token-observer contracts: `11 passed`.
