@@ -838,3 +838,34 @@ array subexpressions. A regression test covers the one-item case.
 Focused corrected trial/token/isolation contracts: `15 passed`.
 
 The prior failed trials are retained as verifier false-negative evidence.
+
+
+## SeChangeNotify-only minimal-token trial — VERIFIED
+
+The corrected reversible trial produced live evidence:
+- prior required-privilege configuration: empty/unset;
+- temporary configured required privileges: exactly `SeChangeNotifyPrivilege`;
+- live observed service-token privileges: exactly `SeChangeNotifyPrivilege`;
+- observed privilege count: 1;
+- `only_change_notify_observed=true`;
+- live service-token observation completed successfully;
+- service returned to Stopped;
+- prior required-privilege configuration restored.
+
+Independent RDC read-back after the trial confirmed:
+- `qprivs` empty/unset again;
+- `SERVICE_SID_TYPE=RESTRICTED`;
+- service Stopped, PID 0;
+- dedicated worker account, Manual start, exact ProgramData binary path.
+
+Scoped conclusion:
+`MINIMAL_SERVICE_TOKEN_POLICY_TRIAL_VERIFIED=true`.
+The candidate policy `SeChangeNotifyPrivilege`-only is empirically compatible
+with the disposable inert service and strips the six other previously observed
+privileges during the trial.
+
+Because rollback was intentional, the policy is not currently persistent:
+`MINIMAL_SERVICE_TOKEN_CURRENTLY_ENFORCED=false`.
+
+This does not establish complete OS isolation, peer-process tamper resistance,
+trusted launcher identity, High-Assurance, or real-repository execution authority.

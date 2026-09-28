@@ -10,14 +10,31 @@ class ServiceIsolationEvidence:
     real_project_acl_absent: bool
     binary_acl_isolated: bool
     live_token_observed: bool = False
+    minimal_token_trial_verified: bool = False
+    minimal_token_policy_enforced: bool = False
 
     @property
     def containment_controls_established(self) -> bool:
-        return all((self.dedicated_account,self.non_admin_account,self.restricted_service_sid,self.real_project_acl_absent,self.binary_acl_isolated))
+        return all((
+            self.dedicated_account,
+            self.non_admin_account,
+            self.restricted_service_sid,
+            self.real_project_acl_absent,
+            self.binary_acl_isolated,
+        ))
 
     @property
     def minimal_token_verified(self) -> bool:
-        return self.containment_controls_established and self.explicit_required_privileges and self.live_token_observed
+        return (
+            self.containment_controls_established
+            and self.explicit_required_privileges
+            and self.live_token_observed
+            and self.minimal_token_trial_verified
+        )
+
+    @property
+    def minimal_token_currently_enforced(self) -> bool:
+        return self.minimal_token_verified and self.minimal_token_policy_enforced
 
     @property
     def complete_os_isolation_verified(self) -> bool:
