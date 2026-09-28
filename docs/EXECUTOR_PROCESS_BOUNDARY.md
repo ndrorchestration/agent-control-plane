@@ -547,3 +547,24 @@ This candidate alone does not establish OS isolation. Required evidence is:
 restricted SID read-back, then a bounded live identity rerun showing the
 service still executes as the verified worker and returns to Stopped. Further
 tamper/ACL isolation tests remain separate.
+
+
+## Restricted service SID — configuration VERIFIED
+
+Operator-gated transition returned:
+`service_sid_type=RESTRICTED`, `verified=true`.
+Separate read-only verifier returned:
+`service_sid_type=RESTRICTED`, `restricted=true`.
+
+Independent RDC read-back also observed
+`SERVICE_SID_TYPE: RESTRICTED`, with the service Stopped, PID 0, Manual start,
+the dedicated `.\ACPExecutorLab` account, and exact ProgramData probe path.
+
+Scoped state:
+`RESTRICTED_SERVICE_SID_CONFIGURED=true`.
+
+This is configuration evidence, not yet live compatibility evidence. One
+bounded start/identity/stop cycle under the restricted SID remains required
+before treating this containment control as operational. Even a successful
+cycle will not by itself establish complete OS isolation or peer-process
+tamper resistance.
