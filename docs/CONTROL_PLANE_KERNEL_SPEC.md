@@ -205,11 +205,11 @@ The current adapter interface is a local synchronous candidate, not a claim that
 
 Accepted `main` now includes the typed read-only remote-execution contract merged through PR #93. New signed read-only requests express immutable operation IDs plus validated structured parameters rather than arbitrary shell text; the executor derives fixed argv, uses `shell=False`, applies executor-owned allowed-root and Git-metadata boundary checks, and binds typed result evidence to the exact request-envelope SHA-256.
 
-The mutation-capable design remains separate from the generic `AuthorityPolicy` because that policy does not infer resource/operation fit. The canonical draft path now covers mutation-specific authority admission (#94), transaction/precondition/rollback modeling (#95), exact admission/plan composition (#96), repository path safety (#98), rollback-material custody/read-back admission (#101), read-only postcondition verification (#103), durable recovery journaling (#105), execution/result-evidence binding (#106), and single-use exact-attempt execution authorization plus closure (#108). These drafts still provide no live ACP mutation executor and do not prove executor authenticity or causality.
+The mutation-capable design remains separate from the generic `AuthorityPolicy` because that policy does not infer resource/operation fit. The canonical historical draft path covered mutation-specific authority admission (#94), transaction/precondition/rollback modeling (#95), exact admission/plan composition (#96), repository path safety (#98), rollback-material custody/read-back admission (#101), read-only postcondition verification (#103), durable recovery journaling (#105), execution/result-evidence binding (#106), and single-use exact-attempt execution authorization plus closure (#108). These drafts provided no live ACP mutation executor and did not prove executor authenticity or causality.
 
-Merged PR #97 separately provides bounded task-budget checkpoint/resume semantics and is not part of the mutation dependency chain.
+Merged PR #97 separately provided bounded task-budget checkpoint/resume semantics and was not part of the mutation dependency chain.
 
-The authoritative current-facing development overlay is `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`. PR #104/#107 are closed as superseded after reconciliation into #103/#105. Draft mutation contracts are not accepted mainline behavior until separately reviewed and merged.
+For current public-facing frontier routing, use `docs/CURRENT_FRONTIER.md`. Dated files such as `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md` are retained as historical evidence for their exact source state, not as evergreen current overlays. Draft mutation contracts are not accepted mainline behavior until separately reviewed and merged.
 
 ## Evidence boundary
 

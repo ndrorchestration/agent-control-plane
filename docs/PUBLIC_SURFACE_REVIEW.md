@@ -40,10 +40,11 @@ experimental
 | Category | Examples | Public handling |
 |---|---|---|
 | Front door | `README.md` | Short, clear, bounded, non-claim-inflating. |
+| Current frontier pointer | `docs/CURRENT_FRONTIER.md` | Current public-facing routing note for frontier status. |
+| Historical development frontier | `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md` | Historical evidence for that exact dated source state; not the evergreen current overlay. |
 | Core technical spec | `docs/CONTROL_PLANE_KERNEL_SPEC.md` | Public as design/implementation evidence. |
 | Evidence/release policy | `docs/RELEASE_AND_EVIDENCE_POLICY.md` | Public; useful for claim discipline. |
-| Development frontier | `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md` | Public only as provisional development evidence. |
-| Ecosystem handoff | `docs/ECOSYSTEM_HANDOFF.md` | Review for internal routing details before promotion. |
+| Ecosystem handoff | `docs/ECOSYSTEM_HANDOFF.md` | Public only with current-frontier routing and bounded handoff language. |
 | Remote adapter/mutation docs | `docs/REMOTE_*`, `docs/REMOTE_DESKTOP_COMMANDER_ADAPTER.md` | Public only with careful authority and safety framing. |
 | Experiments/integration | `experiments/`, `integration/` | Public if no secrets/private endpoints and clearly experimental. |
 
@@ -85,4 +86,4 @@ Avoid unsupported claims such as:
 
 ## Current cleanup result
 
-The README has been converted into a concise public front door. The dense candidate inventory has been moved into `docs/CURRENT_IMPLEMENTATION_INVENTORY.md` as a deeper engineering ledger. This preserves transparency while reducing public-facing cognitive load.
+The README has been converted into a concise public front door. The dense candidate inventory has been moved into `docs/CURRENT_IMPLEMENTATION_INVENTORY.md` as a deeper engineering ledger. `docs/CURRENT_FRONTIER.md` now provides a current public-facing pointer so dated frontier files remain usable as historical evidence without being mistaken for evergreen current status. This preserves transparency while reducing public-facing cognitive load.
