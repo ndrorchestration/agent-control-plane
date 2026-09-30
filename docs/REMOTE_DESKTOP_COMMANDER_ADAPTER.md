@@ -50,6 +50,7 @@ The following remain deliberately **not established**:
 - production security;
 - DGAF High-Assurance status;
 - scientific independence or scientific-N increment.
+
 ## Local evidence — 2026-09-26
 
 Baseline protected-main candidate: `ee8f48faa0af95aeae5336ae34cf4da7ea83723b`.
@@ -70,7 +71,7 @@ The source receipt recorded zero files changed. This establishes local contract 
 
 The earlier next step of adding signed/fresh envelopes, side-effect classes, durable replay handling, and unknown-outcome tests has been implemented and subsequently superseded by the accepted typed v2 read-only execution contract.
 
-The current bounded frontier is documented in `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`. Merged PR #97 now provides bounded task-budget checkpoint/resume. The canonical non-executing mutation stack extends through authority admission (#94), transaction planning (#95), exact plan composition (#96), repository path safety (#98), rollback custody (#101), read-only postcondition verification (#103), durable recovery journaling (#105), execution/result-evidence binding (#106), and single-use exact-attempt authorization/closure (#108). PR #104/#107 are closed as superseded. No live RDC mutation executor is established.
+For current public-facing frontier routing, use `docs/CURRENT_FRONTIER.md`. The dated file `docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md` is retained as historical evidence for its exact source state. The historical frontier recorded the bounded task-budget checkpoint/resume work and the non-executing mutation stack through authority admission (#94), transaction planning (#95), exact plan composition (#96), repository path safety (#98), rollback custody (#101), read-only postcondition verification (#103), durable recovery journaling (#105), execution/result-evidence binding (#106), and single-use exact-attempt authorization/closure (#108). PR #104/#107 were closed as superseded. No live RDC mutation executor is established by this history or by this document.
 
 ## Freshness, replay and unknown-outcome hardening — 2026-09-26
 
