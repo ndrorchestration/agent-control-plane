@@ -1,53 +1,68 @@
 # Agent Control Plane
 
-**Agent Control Plane (ACP)** is an experimental control-plane kernel for coordinating, constraining, and observing AI-agent/workflow execution.
+**Agent Control Plane (ACP)** is an experimental Python control-plane kernel for bounded agent and workflow execution. It focuses on deterministic dispatch, fail-closed policy checks, cooperative resource budgets, provenance records, authority-envelope candidates, and bounded supervisor/service-control candidates.
 
-> **Epistemic status:** Experimental engineering. The repository contains an executable deterministic kernel with policy hooks, cooperative task budgets, run-scoped provenance, and an additive versioned framework-neutral execution/trace contract. It is not a complete autonomous control plane, security boundary, proven cross-runtime portability layer, or production-ready orchestration platform.
+> **Status:** experimental engineering. ACP is not a production orchestrator, security boundary, autonomous agent runtime, distributed control plane, or independently validated governance system.
 
-## Current implementation
+## What this repository is for
 
-The kernel currently provides:
+ACP explores the control-plane layer around agentic work:
 
-- `Task` identity, payload, lifecycle state, result, and error;
-- capability registration with duplicate-registration rejection;
-- deterministic dispatch and lifecycle transitions;
-- cancellation semantics;
+- what task is being run;
+- which capability is being invoked;
+- whether policy admits or denies execution;
+- what budget or authority envelope applies;
+- what provenance record is emitted;
+- what happens when execution, replay, relay, or supervision should fail closed.
+
+The repository is intended as implementation evidence and design research for the broader `ndrorchestration` governance ecosystem. It is written to make boundaries explicit rather than to imply production readiness.
+
+## Current implemented surface
+
+The current Python package includes tested local primitives for:
+
+- task identity, lifecycle state, result, and error handling;
+- capability registration and duplicate-registration rejection;
+- deterministic dispatch and cancellation semantics;
 - explicit policy allow/deny decisions;
 - fail-closed rejection of unknown capabilities;
-- optional cooperative `ExecutionBudget` ceilings for steps, tool calls, tokens, and cost;
-- atomic resource accounting through `Task.consume(...)`;
-- terminal `BUDGET_EXHAUSTED` behavior when a declared cooperative budget is exceeded, including protection against a handler suppressing `BudgetExceeded` and then completing successfully;
-- a bounded `agent-control-plane.task-budget-checkpoint.v0-candidate` checkpoint/resume primitive that serializes task ID, budget ceilings, and consumed usage, restores as a fresh `CREATED` task with prior consumption preserved, and optionally binds restore to deterministic SHA-256 content identity;
-- run-scoped provenance events carrying both task ID and run ID;
-- terminal provenance containing reported resource usage;
-- a portable `agent-control-plane.provenance.v1` manifest for the current in-memory run;
-- additive `agent-control-plane.execution.v1` contract types for execution, trace/span, component/runtime/adapter, artifact, and event identity;
-- strict fail-closed validation of required identities, schema version, trace parentage, SHA-256 references, monotonic values, and UTC timestamps;
-- deterministic execution-event serialization with canonical UTC `Z` timestamps and validated round-trip reconstruction;
-- an explicit mapper from legacy `ProvenanceEvent` records into the new execution contract when the caller supplies context absent from legacy provenance;
-- tests covering successful dispatch, handler failure, cancellation, policy decisions, adversarial/invariant cases, duplicate registration, unknown-capability evidence, provenance binding, exact-limit budget use, atomic overrun handling, suppressed-exception fail-closure, execution-contract validation/serialization, round-trip reconstruction, and provenance mapping;
-- GitHub Actions CI for the Python suite;
-- a separate candidate `agent-control-plane.authority.v0-candidate` typed authority envelope covering principal, capability, resource, operation, policy identity, decision outcome/reason, lease expiry, delegation scope, and explicit conditions;
-- a fail-closed `AuthorityPolicy` adapter that can enforce envelope presence, capability binding, lease validity, explicit deny, caller-supplied conditional evaluation, revocation checks, and delegated-authority validation through the existing pre-execution policy hook. The envelope remains separate from `execution.v1`;
-- an append-only in-memory `agent-control-plane.revocation.v0-candidate` registry with deterministic manifest output and time-scoped revocation checks;
-- an additive `agent-control-plane.authority-decision-evidence.v0-candidate` sidecar that records run/task/capability plus authority, decision, policy, outcome, reason, observation time, and which state/revocation/delegation/condition checks were actually evaluated;
-- a candidate `agent-control-plane.authority-state.v0-candidate` in-memory cache with monotonic authority epochs, source identity, snapshot time, maximum-age requirements, stale-epoch detection, stale-age detection, and future-state rejection for disconnected-node experiments;
-- a transport-neutral `agent-control-plane.authority-sync.v0-candidate` contract for snapshot/revocation messages, per-sender replay sequencing, deterministic acknowledgements, duplicate detection, and explicit reconciliation rejection;\n- an additive SQLite-backed `agent-control-plane.authority-sync-log.v0-candidate` append-only reconciliation log that stores canonical applied messages, verifies content hashes on recovery, exposes a deterministic content-root identity, and can reconstruct authority state, revocations, duplicate detection, and sender replay sequence after process restart;\n- an `AuthoritySyncProgressGuard` that can hold the existing authority policy fail-closed until an explicitly configured sender-sequence floor has been reconciled locally, optionally combining that floor with the existing authority-state epoch/age requirement;\n- a transport-neutral `agent-control-plane.authority-sync-watermark.v0-candidate` record and trusted monotonic registry that lets explicitly trusted peers raise a required sequence floor for a target authority sender without allowing watermark regression;\n- an `AuthoritySyncWatermarkEndpoint` / `AuthoritySyncWatermarkTransport` boundary with canonical applied/duplicate acknowledgements and a deterministic loopback conformance adapter, keeping watermark trust semantics inside ACP rather than inside a network adapter;\n- an additive SQLite-backed `agent-control-plane.authority-sync-watermark-log.v0-candidate` durable watermark log that verifies canonical payload hashes and reconstructs accepted watermark floors across process restart;\n- a deterministic direct-peer convergence harness in which each peer may publish only the authority-sync sequence it has actually reconciled locally, allowing explicitly connected trusted peers to converge on the highest directly observed floor after partition/reconnect without re-originating third-party claims;\n- a bounded `agent-control-plane.authenticated-authority-sync-watermark.v0-candidate` HMAC-SHA256 envelope profile that binds the complete canonical watermark, issuer identity, key ID, algorithm, and schema to a 32-byte-or-longer caller-provisioned secret;\n- a non-secret `agent-control-plane.authority-sync-watermark-key.v0-candidate` lifecycle registry that enforces key activation windows, hard revocation, rotation metadata, and fail-closed unknown lifecycle state before cryptographic verification;\n- an optional `agent-control-plane.ed25519-authority-sync-watermark.v0-candidate` signature profile using public-key verification so downstream receivers can verify an origin watermark without receiving the origin signing secret;\n- a single-relay `agent-control-plane.authority-sync-watermark-relay.v0-candidate` envelope that carries the complete authenticated origin payload as base64 plus separate relay identity/time metadata, allowing the final receiver to bind the transport-authenticated relay identity and independently verify the origin before applying the watermark.\n- an experimental one-hop Reticulum relay adapter candidate that carries relay envelopes on a fixed request path, binds the declared relay ID to the Reticulum remote identity, and leaves embedded origin verification inside ACP; relay admission now has separate HMAC and Ed25519 origin-verification profiles behind the same byte-facing relay endpoint, while the live localhost gate still exercises the HMAC fixture path.\n- a transport-neutral `agent-control-plane.authority-sync-watermark-relay-chain.v0-candidate` Ed25519 profile that hash-links each signed relay hop to the immutable signed origin and prior hop, binds each hop to its declared next receiver, rejects relay loops, enforces a configured maximum hop count, and verifies relay-key lifecycle before accepting the chain.\n- a caller-provisioned `agent-control-plane.authority-key-binding.v0-candidate` registry that binds a logical subject/key ID to a SHA-256 public-key fingerprint and optionally to a transport-identity fingerprint, with activation windows and hard revocation; a bound Ed25519 verifier requires those bindings to match before signature verification.\n- a separate bounded localhost Reticulum topology candidate that routes canonical ACP authority-sync traffic through one transport-enabled intermediate Reticulum node, preserving end-to-end ACP sender identity at the destination.\n- a signed relay-chain composition candidate that carries an Ed25519-authenticated origin plus hash-linked signed relay provenance across that routed Reticulum topology and verifies the terminal relay's transport identity separately at the destination.\n- a stricter integration candidate where separate relay subprocesses independently verify the incoming signed prefix addressed to them and append exactly one signed hop each before the resulting chain is sent across the routed Reticulum topology.\n- a live Reticulum relay-stage endpoint candidate that binds the logical upstream sender derived from the signed chain prefix to the current Reticulum identity before verifying and appending one hop.\n- an autonomous application relay-chain candidate in which the origin contacts only relay A and distinct live Reticulum relay processes A→B→C independently verify, append one signed hop, and forward downstream until the final destination returns the canonical watermark acknowledgement.\n- an identity-preserving relay restart candidate that kills relay B, requires a new watermark to fail closed during the outage, restarts A/B/C with the same provisioned Reticulum identities, and—when the durable relay queue is enabled—requires relay A to drain the pending forward before readiness so the origin's resend is duplicate.\n- a local SQLite-backed `agent-control-plane.relay-forward-queue.v0-candidate` that persists signed post-append relay-chain bytes before downstream send, retains failed sends across restart with attempt metadata, and deletes pending records only after a byte response is returned.\n- a deterministic `BoundedRelayRetryPolicy` and `RetryingRelayForwarder` that compute capped exponential retry timing, perform one caller-triggered retry sweep, and report delivered/deferred/failed/exhausted outcomes without implying a background scheduler or delivery guarantee.\n- a durable SQLite-backed `agent-control-plane.relay-dead-letter.v0-candidate` store for policy-exhausted relay forwards, using idempotent persist-before-remove movement so exhausted evidence is not silently discarded.\n- optional fail-closed pending-item and pending-byte limits on the durable relay-forward queue, with SQLite-serialized admission checks and explicit local capacity usage reporting.\n- a deterministic caller-driven `RelaySupervisorCycle` that composes retry sweeps, policy-gated dead-letter movement, queue usage, and explicit idle/healthy/degraded/blocked health reporting without spawning a background daemon.\n- a deterministic `ProcessSupervisionPolicy` that maps bounded process-failure state to explicit `restart / hold / give_up` decisions using a restart budget and minimum restart spacing, without spawning or restarting processes itself.\n- an explicit caller-driven `ManagedProcessController` / `SupervisedProcessController` that can start, observe, terminate, and restart one configured subprocess and apply the accepted supervision decision contract, with real short-lived child-process tests.\n- a fail-closed `ProcessExecutionAdmissionPolicy` and `AdmittedManagedProcessController` candidate that bind process launch to admitted executable paths, working-directory roots, environment keys, optional immutable spec fingerprints, and optional effective-UID expectations before any child is spawned.\n- a durable one-shot `ProcessMonitorTick` with SQLite-backed failure/restart counters that distinguishes never-started from exited children, detects crashes on explicit ticks, applies the accepted supervision policy, and records restart state.\n- a persisted `ProcessMonitorCadencePolicy` / `ScheduledProcessMonitor` that records last-tick time, computes due/not-due against a minimum interval, and invokes the accepted monitor only when due, without sleeping or looping on its own.\n- a bounded `FiniteProcessMonitorRunner` that repeatedly invokes the accepted scheduled monitor for an explicit maximum cycle count with injected clock/sleep hooks, then returns instead of becoming an unbounded daemon.\n- an explicitly gated `ExperimentalLongRunningSupervisorServiceRunner` candidate that removes only the finite cycle ceiling while reusing the accepted service lifecycle, fenced ownership, recovery/checkpoint, execution-admission, real-signal, and serial-concurrency semantics.\n- a typed `SupervisorServiceContract` design gate defining lifecycle states, explicit stop reasons, worker/process/ownership uniqueness, and fail-closed SIGTERM/SIGINT mapping while keeping unbounded daemon execution NOT AUTHORIZED.\n- a finite `BoundedSupervisorServiceRunner` candidate that starts multiple registered workers, executes only bounded scheduled monitor cycles, handles injected SIGTERM/SIGINT before new cycle work, and performs bounded reverse-order shutdown before reaching `STOPPED`.\n- an explicit `SupervisorConcurrencyPolicy` candidate that fixes the current worker scheduling model at contract-order serial execution with `max_in_flight_workers=1`, and fails closed on requests for unimplemented parallel supervision.\n- a finite real-OS-signal integration candidate using `SupervisorSignalLatch`, with a dedicated Ubuntu gate that sends actual SIGTERM and SIGINT to the supervisor process and requires terminal `STOPPED` plus managed-child shutdown.\n- a durable `SupervisorOwnershipLeaseStore` with TTL-based acquisition, explicit release, persistent renewals, and monotonic fencing tokens so expired/stale supervisor instances cannot silently regain authority over a worker resource.\n- optional lease-enforced supervisor runner semantics that acquire all worker leases before process start, validate/renew fences before each monitor cycle, stop fail-closed on stale/expired ownership, and release leases only after bounded worker shutdown.\n- a durable generation-fenced `DurableSupervisorRuntimeCheckpointStore` that records service lifecycle state and ownership fence, classifies prior runs as fresh/clean-stop/unclean-exit/terminal-give-up/prior-failure, and rejects stale generation writes.\n- checkpoint-enforced runner semantics that acquire a dedicated service ownership lease, persist `STARTING` before worker launch, persist lifecycle transitions through the service fence, classify the previous generation on startup, and leave non-clean durable state if terminal persistence fails.\n- a fail-closed `SupervisorRecoveryAdmissionPolicy` that allows only `fresh` and `clean_stop` generations by default; unclean exit, terminal give-up, or prior failure are held before any worker starts, without creating a shadow runtime generation, unless a caller explicitly widens admission.\n- an exact, expiring, single-use `SupervisorRecoveryAuthorizationStore` that binds operator-labelled authorization to the precise prior service generation, owner/fence, disposition, and checkpoint SHA-256; stale, mismatched, expired, or replayed authorizations fail closed, and terminal give-up requires a separate explicit enable.
+- cooperative execution budgets for reported steps, tool calls, tokens, and cost;
+- run-scoped provenance manifests;
+- additive execution-contract types for execution, trace/span, component/runtime/adapter, artifact, and event identity;
+- authority-envelope, revocation, authority-state, sync, watermark, relay, and supervisor candidates under bounded test conditions.
 
-The legacy provenance manifest and the execution contract are distinct representations. `agent-control-plane.provenance.v1` remains unchanged and process-local. Mapping a legacy event into `agent-control-plane.execution.v1` requires caller-supplied execution/trace/component/monotonic context; ACP does not fabricate missing historical trace or identity data.
+For the full development inventory and candidate list, see [`docs/CURRENT_IMPLEMENTATION_INVENTORY.md`](docs/CURRENT_IMPLEMENTATION_INVENTORY.md).
 
-The provenance manifest is **an in-memory/exportable execution record**, not durable storage, tamper-evident attestation, or an external audit log. Resource accounting is **cooperative**: handlers or runtime/tool adapters must report usage with `Task.consume(...)`; the kernel does not infer provider token counts, tool usage, elapsed time, or cost automatically.
+## What is not established
 
-## Example
+Unless separately implemented and verified later, ACP does **not** currently establish:
+
+- production reliability;
+- security certification;
+- independent validation;
+- distributed-system reliability;
+- model/provider integration;
+- automatic provider token, tool-call, cost, or latency metering;
+- durable external audit logging;
+- tamper-evident provenance;
+- autonomous background operation;
+- cross-runtime portability evidence;
+- governance efficacy.
+
+Local invariants and tests are valuable engineering evidence, but they should not be read as proof of production safety, security, or real-world governance effectiveness.
+
+## Quick example
 
 ```python
 from agent_control_plane import ControlPlane, ExecutionBudget, Task
 
 plane = ControlPlane(run_id="example-run")
 
+
 def echo(task):
     task.consume(steps=1, tokens=5)
     return task.payload
+
 
 plane.register("echo", echo)
 
@@ -58,189 +73,62 @@ result = plane.dispatch(
         budget=ExecutionBudget(max_steps=1, max_tokens=5),
     ),
 )
+
 assert result.result == "hello"
-
-manifest = plane.provenance_manifest()
-assert manifest["run_id"] == "example-run"
+assert plane.provenance_manifest()["run_id"] == "example-run"
 ```
 
-The versioned execution contract is available from the additive subpackage:
-
-```python
-from agent_control_plane.contract import (
-    ComponentIdentity,
-    ExecutionEvent,
-    ExecutionIdentity,
-    TraceContext,
-)
-
-identity = ExecutionIdentity(execution_id="exec-1", run_id="run-1")
-trace = TraceContext(trace_id="trace-1", span_id="span-1")
-component = ComponentIdentity(
-    component_id="kernel",
-    component_type="kernel",
-    runtime_id="python",
-    adapter_id="native-acp",
-)
-
-event = ExecutionEvent(
-    event_type="task.completed",
-    identity=identity,
-    trace=trace,
-    component=component,
-    task_id="task-1",
-    status="completed",
-    utc_timestamp="2026-09-14T23:00:00Z",
-    monotonic_ns=1,
-)
-assert ExecutionEvent.from_dict(event.to_dict()) == event
-```
-
-Run verification with:
+## Run verification
 
 ```bash
 python -m pip install -e . pytest
 python -m pytest
 ```
 
-## Fail-closed boundaries
+## Documentation map
 
-The current kernel and contract deliberately reject or record several ambiguous states:
+| Document | Purpose |
+|---|---|
+| [`docs/CONTROL_PLANE_KERNEL_SPEC.md`](docs/CONTROL_PLANE_KERNEL_SPEC.md) | Core kernel design and behavior. |
+| [`docs/CURRENT_IMPLEMENTATION_INVENTORY.md`](docs/CURRENT_IMPLEMENTATION_INVENTORY.md) | Detailed implementation/candidate inventory. |
+| [`docs/PUBLIC_SURFACE_REVIEW.md`](docs/PUBLIC_SURFACE_REVIEW.md) | Public-facing review checklist and repo metadata guidance. |
+| [`docs/LONG_RUNNING_SUPERVISOR_DESIGN_GATE.md`](docs/LONG_RUNNING_SUPERVISOR_DESIGN_GATE.md) | Supervisor design gate and non-production boundaries. |
+| [`docs/REMOTE_DESKTOP_COMMANDER_ADAPTER.md`](docs/REMOTE_DESKTOP_COMMANDER_ADAPTER.md) | Experimental adapter notes requiring public-surface review before promotion. |
+| [`docs/REMOTE_MUTATION_ADMISSION.md`](docs/REMOTE_MUTATION_ADMISSION.md) | Remote mutation admission notes requiring careful authority framing. |
+| [`docs/RELEASE_AND_EVIDENCE_POLICY.md`](docs/RELEASE_AND_EVIDENCE_POLICY.md) | Release and evidence policy. |
 
-- an empty capability cannot be registered;
-- an already registered capability cannot be silently replaced;
-- a terminal task cannot be redispatched;
-- an unknown capability produces a provenance rejection event and raises `KeyError`;
-- a handler exception becomes a recorded `FAILED` task state;
-- a policy denial is recorded rather than treated as successful execution;
-- an attempted cooperative resource-budget overrun becomes `BUDGET_EXHAUSTED` and cannot be converted into successful completion by catching the budget exception inside the handler;
-- blank required execution/trace/component/artifact identity is rejected;
-- unsupported execution-contract schema versions are rejected;
-- trace span self-parenting is rejected;
-- malformed optional SHA-256 references are rejected;
-- negative or non-integer monotonic values are rejected;
-- naive or non-UTC event timestamps are rejected;
-- legacy provenance cannot be mapped across a mismatched run identity;
-- absent legacy state maps to explicit `unspecified`, never inferred success.
+## Suggested GitHub About description
 
-These properties are local software invariants under the tested conditions. They do not establish distributed reliability, system security, governance efficacy, or cross-runtime portability.
+The repository About field should be set manually to:
 
-## Not yet implemented / established
+> Experimental control-plane kernel for bounded agent execution, policy checks, provenance, authority envelopes, and fail-closed workflow supervision.
 
-Unless added and independently verified later, ACP does **not** currently provide:
+## Suggested topics
 
-- materially different external runtime adapters conforming to `agent-control-plane.execution.v1`;
-- two-runtime portability evidence without core-schema fork;
-- model/provider integrations;
-- automatic provider token/cost/tool-call metering;
-- durable event, trace, or budget persistence;
-- cryptographic/tamper-evident provenance;
-- distributed execution;
-- kernel-enforced authentication or authorization infrastructure;
-- bounded retry/backoff orchestration;
-- execution deadlines/preemption for arbitrary handlers;
-- durable/authenticated checkpoint storage, replay protection, or distributed checkpoint ownership;
-- parent/child or delegated budget conservation;
-- advanced scheduling;
-- multi-process consistency;
-- production reliability or security certification.
+```text
+agent-control-plane
+ai-governance
+agentic-ai
+workflow-governance
+provenance
+authority-model
+fail-closed
+python
+multi-agent-systems
+experimental
+```
 
-## Authority candidate boundary
+## Public-facing boundary
 
-The candidate authority envelope is an **engineering primitive**, not an authorization system. It provides typed, fail-closed records and explicit lease-expiry checks using caller-supplied UTC time.
+This repository is intentionally public as a design and implementation artifact. Deep design notes, experiments, and frontier documents may be technical and provisional; they are evidence of development work, not product claims.
 
-It does not authenticate principals, verify policy signatures, establish delegation legitimacy, revoke authority, persist leases, or bind an authority envelope to an execution event. `AuthorityPolicy` can now deny or permit the existing dispatch path for a narrow locally checkable subset, including optional revocation and delegation checks. Revocation state is currently process-local/in-memory, and delegation legitimacy remains caller-supplied rather than cryptographically established. Resource/operation legitimacy, identity authenticity, durable revocation, and cryptographic policy authority remain separate gates.
+Before using ACP in public claims, keep the distinction between:
 
-The candidate is intentionally separate from frozen `agent-control-plane.execution.v1` so GSAE-E0 Stage-A can measure that contract without the measurement target being silently repaired first.
+- implemented local software invariants;
+- candidate contracts and experiments;
+- documented design boundaries;
+- unestablished production, security, distributed, or independent-validation claims.
 
-`EvidenceAuthorityPolicy` can wrap `AuthorityPolicy` and retain one structured decision-evidence record per task. This creates an explicit local linkage between an ACP task/run and the authority decision used by the pre-execution policy path without modifying frozen kernel/provenance/contract files. The evidence sidecar is process-local, mutable in memory, non-cryptographic, and not an external audit log.
+## License
 
-For disconnected/stale-state experiments, `InMemoryAuthorityStateCache` tracks a monotonic epoch and issuance time per authority. An optional policy freshness checker can require a minimum epoch and maximum snapshot age. Missing state, epoch regression, same-epoch conflict, stale epoch, stale age, future-dated state, or checker failure are fail-closed conditions. This is a local staleness control, not distributed consensus or proof that a node has received the globally newest state.
-
-A deterministic synthetic partition harness under `experiments/authority_partition/` exercises divergent node caches, age-out during isolation, reconciliation to a newer epoch, and missing-state fail-closure. It is explicitly not a Reticulum/network simulation; it provides a local pre-integration test surface for those semantics.
-
-The authority-sync candidate is transport-neutral. Transport sequence numbers provide replay/order protection per sender; authority-state epochs independently express the semantic version of authority state. A higher transport sequence cannot override a lower authority epoch, and a valid authority epoch does not excuse a replayed transport message. Snapshot/revocation application produces explicit applied/duplicate/rejected acknowledgements rather than silent reconciliation.
-
-Sync messages now also have a canonical UTF-8 JSON representation with sorted keys, compact separators, strict reconstruction, and SHA-256 content identity. Unknown message kinds, malformed UTF-8/JSON, wrong schemas, extra fields, malformed nested records, and unsupported nested values fail closed. The SHA-256 is a deterministic content identifier only; it is not a cryptographic signature, sender authentication, or tamper-evident transport by itself.\n\n`DurableAuthoritySyncReconciler` can persist only canonically `APPLIED` sync messages to an append-only SQLite log and recover process-local authority/revocation/replay state by replaying that durable prefix through the same canonical reconciler. Recovery verifies stored content hashes, canonical payload bytes, indexed message identity, and log schema before accepting state. Its `content_root_sha256` is a deterministic identity for the ordered stored-message set, not a signature, external attestation, secure key binding, consensus proof, or guarantee that storage itself cannot be maliciously rewritten.\n\nFor reconnect/recovery policy, `AuthoritySyncProgressGuard` can require a caller-supplied minimum reconciled sender sequence before the authority state is treated as current. It can now also consume a trusted `AuthoritySyncWatermarkRegistry`; configured peers may publish monotonic minimum-sequence observations for a target authority sender, and the guard uses the maximum accepted trusted floor. Missing dynamic watermark state fails closed. This prevents a node from treating a fresh snapshot as sufficient when a trusted peer reports that later sync records (for example a revocation) must also have arrived. Watermarks remain bounded observations, not proof of global completeness: ACP does not infer consensus, a globally latest sequence, or unknown missing messages. `DurableAuthoritySyncWatermarkRegistry` can preserve accepted watermark floors across process restart using an append-only canonical SQLite log with hash/index/schema verification; this is local durability evidence, not cryptographic attestation or protection against malicious storage rewrite. `AuthoritySyncWatermarkPublisher` derives a peer's emitted floor only from that peer's own reconciler progress, and the direct-peer convergence harness intentionally does not forward a third party's watermark as if it were locally observed. This preserves origin semantics while testing partition/reconnect convergence without pretending that relayed or multi-hop claims are solved. The authenticated-watermark profile adds a bounded symmetric-key integrity/authentication option. It detects changed watermark content, issuer identity, key identity, or signature under the configured key. It is not a public-key signature or non-repudiation mechanism: any party provisioned the same HMAC secret can forge a valid envelope. A future relay may therefore forward such an envelope opaquely without receiving the origin secret. The current single-relay admission candidate does exactly that: it requires the caller to supply the relay identity authenticated by the transport, checks that against the declared relay ID, then verifies the embedded origin envelope before applying the original watermark. This is one-hop provenance separation only; it does not establish arbitrary multi-hop relay, authenticated relay chains, key distribution, endpoint identity, liveness, or compromise resistance. `LifecycleAwareHmacWatermarkVerifier` adds a separate metadata gate for key activation windows, expiration, and hard revocation. Revocation is intentionally fail-closed for all future verification attempts, including envelopes issued before the revocation timestamp; ACP does not grandfather historical authenticated envelopes after a key is revoked. The optional Ed25519 profile uses the same lifecycle registry but replaces shared-secret verification with public-key verification. It requires the `crypto` extra and is separately CI-gated; it does not itself solve key distribution, certificate chains, hardware protection, or identity proofing.
-
-`AuthoritySyncTransport` defines the adapter boundary: a transport exchanges canonical ACP bytes with a peer and returns canonical acknowledgement bytes. `AuthoritySyncEndpoint` retains decoding and reconciliation inside ACP, while `LoopbackAuthoritySyncTransport` provides an in-process conformance harness. Transport adapters must not redefine replay, authority-epoch, revocation, conflict, or acknowledgement semantics.
-
-An experimental `ReticulumAuthoritySyncTransport` / `ReticulumAuthoritySyncServer` candidate maps that boundary onto Reticulum's documented `Link.request(...)` and `Destination.register_request_handler(...)` surfaces. A bounded localhost integration with `rns==1.5.4` has established snapshot/revocation exchange over a real Reticulum link; broader Reticulum/network compatibility remains NOT ESTABLISHED. The server can additionally bind claimed ACP sender IDs to identified Reticulum identity hashes. See [`docs/RETICULUM_ADAPTER.md`](docs/RETICULUM_ADAPTER.md).
-
-## Evidence standard
-
-Claims in this repository should distinguish:
-
-`DEFINED → IMPLEMENTED → COMPUTED → VERIFIED → ATTESTED → HISTORICAL → HYPOTHESIS → METAPHOR → UNSUPPORTED → DEPRECATED`
-
-A passing unit test establishes only the tested property under that test environment. An exported provenance manifest is not an attestation. Cooperative resource accounting is not proof of externally measured consumption. ACP-native execution-contract conformance is not proof of cross-runtime portability. Cross-repository use does not transfer validation.
-
-## Ecosystem relationship
-
-ACP is the preferred experimental implementation host for a framework-neutral execution contract. DGAF retains governance, authorization, provenance/evidence-discipline, and evidence-state authority. PDMAL is a governed empirical workload/research consumer rather than a prerequisite parent of ACP. Other `ndrorchestration` repositories maintain separate evidence boundaries.
-
-A framework/runtime adapter may populate the ACP execution contract, but adapter readiness, CI success, deployment health, or successful execution cannot self-promote DGAF authorization, PDMAL scientific validity, empirical efficacy, or general portability.
-
-## Current status
-
-**Experimental / development track — executable kernel with run-scoped provenance, fail-closed dispatch invariants, cooperative task-budget accounting, an ACP-native versioned execution/trace contract, and accepted typed read-only remote execution. Cross-runtime portability and live remote mutation remain NOT ESTABLISHED.**
-
-Current accepted mainline remote-execution state and the stacked non-executing mutation-control frontier are summarized in [`docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md`](docs/CURRENT_DEVELOPMENT_FRONTIER_2026-09-27.md). Draft PRs #94/#95/#96 do not become accepted mainline capability merely because they exist or pass local tests.
-
-## Provenance
-
-Maintained by Ndr / Ender Hensel (`ndrorchestration`).
-
-
-### Experimental long-running supervisor status
-
-Accepted protected main `a7f98d5aadbae12cc745f5d70b13d892aed4746e` establishes the experimental unbounded-cycle supervisor under the bounded local Linux evidence model:
-
-`EXPERIMENTAL_LONG_RUNNING_SUPERVISOR=ESTABLISHED_BOUNDED_LOCAL_LINUX`
-
-This is not a production/unattended deployment claim. Systemd/Windows SCM/launchd integration, reboot persistence, distributed ownership, privilege dropping/sandboxing, and production watchdog guarantees remain unestablished.
-
-
-### Service-host event boundary
-
-A platform-neutral `SupervisorServiceHostEventLatch` candidate translates external service-manager-style events into typed ACP stop reasons:
-
-- `STOP -> service_stop`
-- `SHUTDOWN -> service_shutdown`
-
-The supervisor runner accepts these typed reasons separately from POSIX signal input. This keeps platform/service-manager adapters from redefining ACP lifecycle semantics or pretending every service stop is a Unix signal.
-
-
-### Windows SCM translation boundary
-
-A pure `WindowsScmControlAdapter` candidate translates selected Windows Service Control Manager control codes into the platform-neutral ACP service-host contract without adding a pywin32 dependency or installing a Windows service.
-
-Current mapping:
-- `SERVICE_CONTROL_STOP` -> ACP `service_stop`;
-- `SERVICE_CONTROL_SHUTDOWN` -> ACP `service_shutdown`;
-- `SERVICE_CONTROL_PRESHUTDOWN` -> ACP `service_preshutdown`;
-- `SERVICE_CONTROL_INTERROGATE` -> status-only, no lifecycle transition.
-
-ACP has no pause/resume lifecycle semantics, so `SERVICE_CONTROL_PAUSE` and `SERVICE_CONTROL_CONTINUE` fail closed instead of being reinterpreted.
-
-This is control-code translation only. It does not establish Windows SCM service registration, ServiceMain/HandlerEx hosting, reboot persistence, Windows service-account semantics, or production Windows-service operation.\n\nA `WindowsScmServiceHostContract` candidate now models the ServiceMain/HandlerEx-facing status lifecycle (`STOPPED -> START_PENDING -> RUNNING -> STOP_PENDING -> STOPPED`), accepted SCM controls, checkpoint/wait-hint fields, first-stop latching, and typed stop-reason composition into the existing supervisor runner. It remains a host contract only: it does not register a service with SCM or host native callbacks.\n\nA dependency-free `WindowsScmNativeBindings` candidate now maps that host contract to the native `SERVICE_STATUS` ABI and validates availability of `StartServiceCtrlDispatcherW`, `RegisterServiceCtrlHandlerExW`, and `SetServiceStatus` through `ctypes`. A dedicated `windows-latest` CI gate validates the native exports/callback ABI without installing a Windows service.\n\nA `WindowsScmNativeCallbackRuntime` candidate now composes those bindings with the accepted host contract: native ServiceMain startup publishes START_PENDING/RUNNING, HandlerEx controls publish STOP_PENDING or status-only updates, STOP/SHUTDOWN/PRESHUTDOWN retain typed ACP reasons, unsupported controls fail closed, and terminal STOPPED status is published without allowing Python exceptions to escape the callback boundary.\n\nA fail-closed `WindowsScmServiceRegistrationManifest` / `WindowsScmServiceRegistrationPolicy` candidate now defines immutable, hashable Windows service registration intent before privileged SCM mutation: absolute binary path, explicit account, start type, dependencies, optional credential reference, optional binary SHA-256, and policy admission for allowed paths/accounts/start types. Demand-start is the default policy boundary; LocalSystem, auto-start, delayed auto-start, and manifest drift require explicit admission.
-
-
-### Native Windows SCM installation backend
-
-A `WindowsScmNativeInstallationBackend` candidate now implements the already-authorized installation transaction against the native Windows SCM API surface: `OpenSCManagerW`, `CreateServiceW`, `ChangeServiceConfig2W`, `DeleteService`, and `CloseServiceHandle`. The backend is gated by the existing exact single-use authorization and transaction orchestration; it does not independently authorize installation.
-
-
-### Crash-safe Windows installation journal
-
-A `WindowsScmInstallationJournal` candidate now records append-only durable install phases and recovery classifications. The install transaction records create/configure/delete intent **before** those irreversible SCM calls. Interrupted transactions therefore reopen into explicit recovery states rather than being assumed successful.
-
-
-### Read-only Windows install recovery inspection
-
-A `WindowsScmInstallRecoveryInspector` candidate can now narrow ambiguous install-journal HOLD states using read-only live SCM configuration. It compares the observed service type, start type, error control, binary command, dependencies, account, display name, and delayed-auto-start setting against the exact admitted registration plan. Observation never authorizes or performs a recovery mutation.
-
-
-### Exact Windows SCM recovery authorization
-
-A `WindowsScmRecoveryAuthorizationStore` candidate now provides durable, expiring, single-use authorization for one recovery action: `delete_exact_service`. Authorization is bound to the journal transaction, manifest/binary/plan hashes, journal state/disposition, read-only inspection resolution, and canonical hash of the observed live service configuration. It performs no SCM mutation by itself.
+Apache-2.0.
