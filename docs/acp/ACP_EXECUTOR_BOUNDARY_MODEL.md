@@ -120,3 +120,9 @@ As of 2026-09-30:
 ## 6. Promotion rule
 
 Executor promotion requires explicit resolution, scoping, or accepted residual-risk treatment for #117 and #118. Passing synthetic repository tests is not sufficient to establish production executor authority, real-project repository authorization, or High-Assurance status.
+
+## 7. Current residual-risk decision
+
+The current decision record is `docs/acp/ACP_EXECUTOR_RESIDUAL_RISK_DECISION_2026-10-01.md`.
+
+It selects `BOUNDED_LOCAL_TEST` rather than a stronger production/High-Assurance executor profile. Final path-to-syscall TOCTOU elimination, trusted OS process identity, peer-process tamper resistance, production execution, rollback execution, and real-project mutation remain not established or not authorized.
