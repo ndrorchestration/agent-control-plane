@@ -35,8 +35,6 @@ from .remote_mutation_journal import (
 )
 from .remote_mutation_path_safety import (
     MutationPathSafetyRecord,
-    _has_multiple_hardlinks,
-    _is_link_like,
     inspect_repository_mutation_path,
 )
 from .remote_mutation_postcondition import (
@@ -57,6 +55,28 @@ REPOSITORY_MUTATION_EXECUTOR_SCHEMA_VERSION = (
 DEFAULT_REPOSITORY_MUTATION_EXECUTOR_ID = (
     "acp.repository-mutation-executor.v0-candidate"
 )
+_WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+
+
+def _is_reparse_point(path: Path) -> bool:
+    try:
+        attributes = getattr(os.lstat(path), "st_file_attributes", 0)
+    except OSError:
+        return False
+    return bool(attributes & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def _is_link_like(path: Path) -> bool:
+    return path.is_symlink() or _is_reparse_point(path)
+
+
+def _has_multiple_hardlinks(path: Path) -> bool:
+    if not path.exists() or not path.is_file():
+        return False
+    try:
+        return os.stat(path, follow_symlinks=False).st_nlink > 1
+    except OSError:
+        return True
 
 
 class RepositoryMutationExecutorError(RuntimeError):
