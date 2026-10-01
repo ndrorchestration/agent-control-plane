@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-from agent_control_plane.remote_mutation_postcondition import (
-    MutationPostconditionRecord,
-)
-from agent_control_plane.remote_mutation_recovery_journal import (
+from agent_control_plane.remote_mutation_journal import (
     MutationJournalEvent,
+    MutationJournalRecord,
     MutationJournalState,
     MutationRecoveryAssessment,
     MutationRecoveryDisposition,
-    MutationRecoveryJournalRecord,
+)
+from agent_control_plane.remote_mutation_postcondition import (
+    MutationPostconditionRecord,
 )
 from agent_control_plane.remote_mutation_result_binding import (
     MutationExternalOutcome,
@@ -49,72 +49,70 @@ def verified_postcondition() -> MutationPostconditionRecord:
 
 def journal_record(
     state: MutationJournalState = MutationJournalState.POSTCONDITION_VERIFIED,
-) -> MutationRecoveryJournalRecord:
-    events = [
-        MutationJournalEvent(
-            journal_id="journal-result",
-            event_index=0,
-            state=MutationJournalState.PREPARED,
-        )
-    ]
+) -> MutationJournalRecord:
+    states = [MutationJournalState.PREPARED]
     if state is not MutationJournalState.PREPARED:
-        events.append(
-            MutationJournalEvent(
-                journal_id="journal-result",
-                event_index=1,
-                state=MutationJournalState.EFFECT_INTENT_RECORDED,
-            )
-        )
+        states.append(MutationJournalState.EXECUTION_INTENT_RECORDED)
     if state in {
+        MutationJournalState.EXTERNAL_EFFECT_REPORTED,
         MutationJournalState.POSTCONDITION_VERIFIED,
-        MutationJournalState.CLOSED_VERIFIED,
     }:
-        events.append(
-            MutationJournalEvent(
-                journal_id="journal-result",
-                event_index=2,
-                state=MutationJournalState.POSTCONDITION_VERIFIED,
-            )
+        states.append(MutationJournalState.EXTERNAL_EFFECT_REPORTED)
+    if state is MutationJournalState.POSTCONDITION_VERIFIED:
+        states.append(MutationJournalState.POSTCONDITION_VERIFIED)
+
+    events = tuple(
+        MutationJournalEvent(
+            transaction_id="journal-result",
+            event_index=index,
+            state=item,
+            occurred_at=f"2026-10-01T20:00:0{index}Z",
+            evidence_sha256=(
+                D
+                if item
+                in {
+                    MutationJournalState.EXTERNAL_EFFECT_REPORTED,
+                    MutationJournalState.POSTCONDITION_VERIFIED,
+                }
+                else None
+            ),
         )
-    if state is MutationJournalState.CLOSED_VERIFIED:
-        events.append(
-            MutationJournalEvent(
-                journal_id="journal-result",
-                event_index=3,
-                state=MutationJournalState.CLOSED_VERIFIED,
-            )
-        )
-    return MutationRecoveryJournalRecord(
-        journal_id="journal-result",
+        for index, item in enumerate(states)
+    )
+
+    return MutationJournalRecord(
+        transaction_id="journal-result",
         request_id="req-result",
         resource_id="repo:acp",
         operation_id="repo.write_text_file",
         plan_sha256=A,
-        requested_path="docs/example.md",
         rollback_descriptor_sha256=B,
-        rollback_custody_ref="custody://result/1",
-        events=tuple(events),
+        custody_ref="custody://result/1",
+        created_at="2026-10-01T20:00:00Z",
+        events=events,
     )
 
 
 def assessment_for(
     state: MutationJournalState,
 ) -> MutationRecoveryAssessment:
-    if state is MutationJournalState.EFFECT_INTENT_RECORDED:
-        disposition = MutationRecoveryDisposition.HOLD_UNKNOWN_EFFECT
-        hold = True
-    elif state is MutationJournalState.CLOSED_VERIFIED:
-        disposition = MutationRecoveryDisposition.CLEAN_VERIFIED
-        hold = False
+    if state is MutationJournalState.EXECUTION_INTENT_RECORDED:
+        disposition = MutationRecoveryDisposition.HOLD_AMBIGUOUS_EFFECT
+        may_exist = True
+    elif state is MutationJournalState.EXTERNAL_EFFECT_REPORTED:
+        disposition = MutationRecoveryDisposition.HOLD_POSTCONDITION_REQUIRED
+        may_exist = True
+    elif state is MutationJournalState.POSTCONDITION_VERIFIED:
+        disposition = MutationRecoveryDisposition.CLEAN_POSTCONDITION_VERIFIED
+        may_exist = True
     else:
-        disposition = MutationRecoveryDisposition.VERIFIED_EFFECT
-        hold = False
+        disposition = MutationRecoveryDisposition.SAFE_PRE_EXECUTION
+        may_exist = False
     return MutationRecoveryAssessment(
-        journal_id="journal-result",
+        transaction_id="journal-result",
         current_state=state,
         disposition=disposition,
-        effect_may_exist=True,
-        recovery_hold=hold,
+        repository_mutation_may_exist=may_exist,
     )
 
 
@@ -186,7 +184,7 @@ def test_non_success_receipt_never_establishes_success(outcome):
 
 
 def test_unknown_effect_hold_cannot_become_success():
-    journal = journal_record(MutationJournalState.EFFECT_INTENT_RECORDED)
+    journal = journal_record(MutationJournalState.EXECUTION_INTENT_RECORDED)
     bound = bind_mutation_execution_result(
         journal,
         assessment_for(journal.current_state),
@@ -238,11 +236,10 @@ def test_mismatched_recovery_assessment_fails_closed():
     journal = journal_record()
     post = verified_postcondition()
     mismatched = MutationRecoveryAssessment(
-        journal_id=journal.journal_id,
-        current_state=MutationJournalState.EFFECT_INTENT_RECORDED,
-        disposition=MutationRecoveryDisposition.HOLD_UNKNOWN_EFFECT,
-        effect_may_exist=True,
-        recovery_hold=True,
+        transaction_id=journal.transaction_id,
+        current_state=MutationJournalState.EXECUTION_INTENT_RECORDED,
+        disposition=MutationRecoveryDisposition.HOLD_AMBIGUOUS_EFFECT,
+        repository_mutation_may_exist=True,
     )
 
     with pytest.raises(MutationResultBindingError, match="journal state"):
