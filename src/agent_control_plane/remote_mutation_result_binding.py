@@ -11,13 +11,13 @@ from enum import Enum
 import hashlib
 import json
 
-from .remote_mutation_postcondition import MutationPostconditionRecord
-from .remote_mutation_recovery_journal import (
+from .remote_mutation_journal import (
+    MutationJournalRecord,
     MutationJournalState,
     MutationRecoveryAssessment,
     MutationRecoveryDisposition,
-    MutationRecoveryJournalRecord,
 )
+from .remote_mutation_postcondition import MutationPostconditionRecord
 
 MUTATION_RESULT_BINDING_SCHEMA_VERSION = (
     "agent-control-plane.remote-mutation-result-binding.v0-candidate"
@@ -124,9 +124,7 @@ def canonical_mutation_result_receipt_bytes(
     ).encode("utf-8")
 
 
-def mutation_result_receipt_sha256(
-    receipt: MutationExternalResultReceipt,
-) -> str:
+def mutation_result_receipt_sha256(receipt: MutationExternalResultReceipt) -> str:
     return hashlib.sha256(canonical_mutation_result_receipt_bytes(receipt)).hexdigest()
 
 
@@ -173,15 +171,23 @@ class MutationResultBindingRecord:
             )
 
 
+_HOLD_DISPOSITIONS = {
+    MutationRecoveryDisposition.HOLD_AMBIGUOUS_EFFECT,
+    MutationRecoveryDisposition.HOLD_POSTCONDITION_REQUIRED,
+    MutationRecoveryDisposition.HOLD_ROLLBACK_AMBIGUOUS,
+    MutationRecoveryDisposition.HOLD_FAILED_AFTER_EXECUTION_INTENT,
+}
+
+
 def bind_mutation_execution_result(
-    journal: MutationRecoveryJournalRecord,
+    journal: MutationJournalRecord,
     assessment: MutationRecoveryAssessment,
     receipt: MutationExternalResultReceipt,
     *,
     postcondition: MutationPostconditionRecord | None = None,
 ) -> MutationResultBindingRecord:
-    if not isinstance(journal, MutationRecoveryJournalRecord):
-        raise TypeError("journal must be MutationRecoveryJournalRecord")
+    if not isinstance(journal, MutationJournalRecord):
+        raise TypeError("journal must be MutationJournalRecord")
     if not isinstance(assessment, MutationRecoveryAssessment):
         raise TypeError("assessment must be MutationRecoveryAssessment")
     if not isinstance(receipt, MutationExternalResultReceipt):
@@ -197,9 +203,9 @@ def bind_mutation_execution_result(
         and receipt.resource_id == journal.resource_id
         and receipt.operation_id == journal.operation_id
         and receipt.plan_sha256 == journal.plan_sha256
-        and receipt.journal_id == journal.journal_id
+        and receipt.journal_id == journal.transaction_id
         and receipt.rollback_descriptor_sha256 == journal.rollback_descriptor_sha256
-        and receipt.rollback_custody_ref == journal.rollback_custody_ref
+        and receipt.rollback_custody_ref == journal.custody_ref
     )
     if not identity:
         raise MutationResultBindingError(
@@ -207,10 +213,9 @@ def bind_mutation_execution_result(
         )
 
     if (
-        assessment.journal_id != journal.journal_id
+        assessment.transaction_id != journal.transaction_id
         or assessment.current_state is not journal.current_state
-        or assessment.execution_enabled is not False
-        or assessment.mutation_executed is not False
+        or assessment.new_execution_authorization_required is not True
     ):
         raise MutationResultBindingError(
             "recovery assessment does not match journal state"
@@ -223,10 +228,9 @@ def bind_mutation_execution_result(
             or postcondition.resource_id != journal.resource_id
             or postcondition.operation_id != journal.operation_id
             or postcondition.plan_sha256 != journal.plan_sha256
-            or postcondition.requested_path != journal.requested_path
             or postcondition.rollback_descriptor_sha256
             != journal.rollback_descriptor_sha256
-            or postcondition.rollback_custody_ref != journal.rollback_custody_ref
+            or postcondition.rollback_custody_ref != journal.custody_ref
         ):
             raise MutationResultBindingError(
                 "postcondition does not match journal identity"
@@ -243,20 +247,20 @@ def bind_mutation_execution_result(
             "receipt references postcondition but none was supplied"
         )
 
-    journal_confirms_postcondition = journal.current_state in {
-        MutationJournalState.POSTCONDITION_VERIFIED,
-        MutationJournalState.CLOSED_VERIFIED,
-    }
-    assessment_confirms_effect = assessment.disposition in {
-        MutationRecoveryDisposition.VERIFIED_EFFECT,
-        MutationRecoveryDisposition.CLEAN_VERIFIED,
-    }
+    recovery_hold = assessment.disposition in _HOLD_DISPOSITIONS
+    journal_confirms_postcondition = (
+        journal.current_state is MutationJournalState.POSTCONDITION_VERIFIED
+    )
+    assessment_confirms_effect = (
+        assessment.disposition
+        is MutationRecoveryDisposition.CLEAN_POSTCONDITION_VERIFIED
+    )
     success_established = (
         receipt.outcome is MutationExternalOutcome.SUCCEEDED
         and postcondition_correlated
         and journal_confirms_postcondition
         and assessment_confirms_effect
-        and assessment.recovery_hold is False
+        and recovery_hold is False
     )
 
     return MutationResultBindingRecord(
@@ -272,5 +276,5 @@ def bind_mutation_execution_result(
         receipt_bound=True,
         success_established=success_established,
         postcondition_correlated=postcondition_correlated,
-        recovery_hold=assessment.recovery_hold,
+        recovery_hold=recovery_hold,
     )
