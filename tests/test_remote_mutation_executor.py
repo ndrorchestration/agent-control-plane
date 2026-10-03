@@ -190,7 +190,7 @@ def prepare(
     }
 
 
-def execute(ctx, *, content_marker=True):
+def execute(ctx, *, content_marker=True, **executor_kwargs):
     content = (
         ctx["after"]
         if ctx["plan"].operation_id == "repo.write_text_file" and content_marker
@@ -212,6 +212,7 @@ def execute(ctx, *, content_marker=True):
         execution_intent_at="2026-09-27T11:00:31Z",
         external_effect_at="2026-09-27T11:00:32Z",
         postcondition_at="2026-09-27T11:00:33Z",
+        **executor_kwargs,
     )
 
 
@@ -422,3 +423,20 @@ def test_prior_authorization_cannot_authorize_second_effect(tmp_path):
         execute(ctx)
 
     assert ctx["target"].read_bytes() == b"after"
+
+
+def test_chained_effect_requires_explicit_fresh_adjudication(tmp_path):
+    first_ctx = prepare(tmp_path / "first", prior=b"before", after=b"after")
+    first = execute(first_ctx)
+    assert first.closure.closed is True
+
+    second_ctx = prepare(tmp_path / "second", prior=b"before-2", after=b"after-2")
+    with pytest.raises(RepositoryMutationExecutorError, match="fresh adjudication is required"):
+        execute(second_ctx, prior_closure=first.closure)
+
+    assert second_ctx["target"].read_bytes() == b"before-2"
+    pending = second_ctx["auth_store"].get("authz-executor-1")
+    assert pending is not None and pending.consumed is False
+    journal = second_ctx["journal_store"].get("tx-executor-1")
+    assert journal is not None
+    assert journal.current_state is MutationJournalState.PREPARED
