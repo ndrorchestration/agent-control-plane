@@ -19,6 +19,7 @@ from agent_control_plane.remote_mutation_journal import (
     MutationJournalState,
     RemoteMutationJournal,
 )
+from agent_control_plane.remote_mutation_lineage import RemoteMutationLineageStore
 from agent_control_plane.remote_mutation_path_safety import (
     inspect_repository_mutation_path,
 )
@@ -156,6 +157,7 @@ def prepare(
     auth_store = RemoteMutationExecutionAuthorizationStore(
         tmp_path / "authorization.sqlite3"
     )
+    lineage_store = RemoteMutationLineageStore(tmp_path / "lineage.sqlite3")
     authorization = auth_store.issue(
         authorization_id="authz-executor-1",
         executor_id=DEFAULT_REPOSITORY_MUTATION_EXECUTOR_ID,
@@ -184,6 +186,7 @@ def prepare(
         "custody": custody,
         "journal_store": journal_store,
         "auth_store": auth_store,
+        "lineage_store": lineage_store,
         "authorization": authorization,
         "executor": executor,
         "after": after,
@@ -200,6 +203,7 @@ def execute(ctx, *, content_marker=True, **executor_kwargs):
         authorization_store=ctx["auth_store"],
         authorization_id=ctx["authorization"].authorization_id,
         journal_store=ctx["journal_store"],
+        lineage_store=ctx["lineage_store"],
         composition=ctx["composition"],
         plan=ctx["plan"],
         prior_path_safety=ctx["path_safety"],
