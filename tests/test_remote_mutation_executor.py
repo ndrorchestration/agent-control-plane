@@ -323,7 +323,7 @@ def test_consumed_authorization_prevents_replay(tmp_path):
 
     with pytest.raises(
         (RepositoryMutationExecutorError, ValueError),
-        match="already consumed|journal must be PREPARED",
+        match="already consumed|journal must be PREPARED|fresh adjudication is required",
     ):
         execute(ctx)
 
@@ -425,7 +425,7 @@ def test_prior_authorization_cannot_authorize_second_effect(tmp_path):
 
     with pytest.raises(
         (RepositoryMutationExecutorError, ValueError),
-        match="already consumed|journal must be PREPARED",
+        match="already consumed|journal must be PREPARED|fresh adjudication is required",
     ):
         execute(ctx)
 
