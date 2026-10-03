@@ -1,8 +1,8 @@
 # ACP bounded local-test mutation executor
 
-Status: **CANDIDATE / DISPOSABLE-REPOSITORY ONLY / REAL-PROJECT MUTATION NOT AUTHORIZED**
+Status: **ESTABLISHED FOR TESTED DISPOSABLE SCOPE / REAL-PROJECT MUTATION NOT AUTHORIZED**
 
-This document defines the implementation boundary for issue #154.
+This document defines the bounded implementation merged through PR #156 as protected-main commit `b975aeb178b07551869ea6e80421e473ecb48593`, completing issue #154's reconstruction scope.
 
 ## Accepted profile
 
@@ -64,7 +64,7 @@ Rollback remains separately authorized; forward execution does not grant rollbac
 
 ## Retained ceilings
 
-This candidate does not establish:
+This bounded implementation does not establish:
 
 - `FINAL_PATH_TO_SYSCALL_TOCTOU=ELIMINATED`;
 - hostile-local-actor resistance;
@@ -77,8 +77,10 @@ This candidate does not establish:
 - independent validation;
 - High-Assurance.
 
-A successful current-main rebuild may establish only:
+Exact-head hosted verification for PR #156 succeeded on Python 3.10, 3.11, 3.12, 3.13, and 3.14; the Python 3.12 full suite reported **932 passed / 17 skipped**.
+
+The resulting bounded classification is:
 
 `BOUNDED_LOCAL_TEST_EXECUTOR=ESTABLISHED_FOR_TESTED_DISPOSABLE_SCOPE`
 
-and only after exact-head tests and hosted integration checks support that bounded classification.
+This classification applies only to the tested disposable-repository profile described above and does not transfer to any stronger execution lane.
