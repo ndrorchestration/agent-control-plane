@@ -30,21 +30,21 @@ This means the current profile intentionally retains, rather than solves:
 
 The selected profile is `BOUNDED_LOCAL_TEST`.
 
-## Active controller
+## Completed bounded reconstruction
 
-Issue #154 controls any fresh executor reconstruction.
+Issue #154 is completed by merged PR #156 at protected-main commit `b975aeb178b07551869ea6e80421e473ecb48593`.
 
-A #154 implementation must:
+The accepted bounded implementation:
 
-1. start from exact current protected `main`;
-2. import only the minimum useful disposable-repository side-effect layer;
-3. remain explicit opt-in;
-4. prohibit ACP, DGAF, Aetherwake, and all other real project repositories as targets;
-5. preserve exact allowlists, `.git` exclusion, reparse/symlink/hardlink controls, authorization-consumption ordering, durable intent/journal semantics, postcondition verification, and fail-closed recovery;
-6. keep forward-mutation and rollback authorization distinct;
-7. preserve the #149 residual-risk ceilings;
-8. add adversarial disposable/temp-repository tests;
-9. require fresh admission/adjudication and new authorization before any consequential follow-on action.
+1. starts from the reconciled current-main interfaces;
+2. imports only the minimum disposable-repository side-effect layer;
+3. remains explicit opt-in and exact-root allowlisted;
+4. requires an explicit disposable-test repository marker and leaves real-project mutation unauthorized;
+5. preserves path-safety revalidation, authorization-consumption ordering, durable intent/journal semantics, postcondition verification, evidence binding, closure, and fail-closed recovery;
+6. keeps forward-mutation and rollback authorization distinct;
+7. preserves the #149 residual-risk ceilings;
+8. is covered by hosted disposable/temp-repository tests;
+9. emits non-transferable authority semantics and requires typed fresh-adjudication binding for explicitly supplied chained lineage.
 
 ## Post-execution rule
 
@@ -58,16 +58,16 @@ This aligns ACP with DGAF PR #1257 without promoting either system's claim state
 
 1. Keep #1210/#1256 external-human DGAF evidence collection independent of ACP engineering.
 2. Keep ACP simulations as the canonical non-side-effect validation lane.
-3. Reconstruct #154 only when a tested execution environment is available.
-4. Validate any #154 candidate exclusively against disposable repositories.
-5. Do not advance rollback execution until the forward disposable-only contract is clean and independently separated by authorization.
-6. Consider stronger production/High-Assurance process and filesystem properties only under a new deployment-bound gate.
+3. Keep the merged #156 executor restricted to disposable repositories and treat `BOUNDED_LOCAL_TEST_EXECUTOR=ESTABLISHED_FOR_TESTED_DISPOSABLE_SCOPE` as the ceiling.
+4. Do not advance rollback execution until a separate rollback-executor gate is explicitly opened and independently authorized.
+5. Open a new deployment-bound controller before considering real-project, production, or High-Assurance execution.
+6. Preserve durable cross-invocation resource/effect lineage as a future stronger-profile requirement rather than implying it exists in #156.
 
 ## Evidence ceiling
 
 - `ACP_QUEUE_RECONCILED=TRUE`
 - `BOUNDED_LOCAL_TEST_PROFILE=SELECTED`
-- `BOUNDED_LOCAL_TEST_EXECUTOR=NOT_YET_ESTABLISHED_ON_CURRENT_MAIN`
+- `BOUNDED_LOCAL_TEST_EXECUTOR=ESTABLISHED_FOR_TESTED_DISPOSABLE_SCOPE`
 - `LIVE_REPOSITORY_MUTATION=NOT_AUTHORIZED`
 - `ROLLBACK_EXECUTION=NOT_AUTHORIZED`
 - `PRODUCTION_EXECUTOR=NOT_ESTABLISHED`

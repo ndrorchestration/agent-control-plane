@@ -8,7 +8,7 @@ This file is the current public-facing frontier pointer for Agent Control Plane 
 
 ## Current protected-main state
 
-Current protected `main` is `7c89db2d54c6ff5b7bd9d1a5cf1af2b4416ecbb2`, through merged PR #152.
+Current protected `main` is `b975aeb178b07551869ea6e80421e473ecb48593`, through merged PR #156.
 
 Accepted current-main capabilities include:
 
@@ -22,9 +22,11 @@ Accepted current-main capabilities include:
 - read-only postcondition verification;
 - execution/result-evidence binding;
 - forward-mutation simulation;
+- bounded disposable-repository mutation execution under the `BOUNDED_LOCAL_TEST` profile;
+- typed fresh-adjudication binding for explicitly chained mutation lineage;
 - rollback planning, authorization, revalidation, journaling, material readback, and simulation.
 
-Current `main` does **not** contain a live repository mutation executor or rollback executor.
+Current `main` contains the bounded disposable-repository executor from PR #156. It does **not** contain a rollback executor, and it does not authorize mutation of ACP, DGAF, Aetherwake, or other real project repositories.
 
 ## Current executor profile
 
@@ -48,7 +50,7 @@ Retained ceilings include:
 - `PRODUCTION_EXECUTOR=NOT_ESTABLISHED`
 - `HIGH_ASSURANCE=NOT_AUTHORIZED`
 
-Issue #154 is the current controller for any fresh current-main reconstruction of a bounded disposable-repository executor.
+Issue #154's reconstruction scope is completed by PR #156. The established state is `BOUNDED_LOCAL_TEST_EXECUTOR=ESTABLISHED_FOR_TESTED_DISPOSABLE_SCOPE`; any broader executor profile requires a new deployment-bound controller.
 
 ## Post-execution authority invariant
 
@@ -60,7 +62,7 @@ ACP must preserve the same invariant in any executor or orchestration compositio
 
 An execution result, verified postcondition, receipt, journal closure, or successful result binding is evidence. It is not continuing authority for another consequential action.
 
-A future #154 executor reconstruction must therefore fail closed against chained protected effects unless the follow-on action has independently completed fresh admission/adjudication and obtained a new current authorization.
+The merged #156 executor fails closed for explicitly supplied chained lineage unless the follow-on action carries a typed fresh-adjudication binding to a distinct current authorization. The bounded implementation does not claim a global resource/effect lineage oracle for concealed prior history.
 
 This cross-system rule does not itself authorize execution.
 
@@ -74,7 +76,7 @@ Historical executor/recovery PRs are no longer current merge surfaces:
 - #137 closed unmerged; historical rollback executor retained only as evidence.
 - #139 closed unmerged; historical consolidated hardening retained only as evidence.
 
-Use issue #154 for any executor reconstruction and current `main` for all interface assumptions.
+Treat issue #154 and PR #156 as the completed bounded-reconstruction record, and use current `main` for all interface assumptions. Any stronger executor profile requires a new controller rather than reinterpretation of #154.
 
 ## Public boundary
 

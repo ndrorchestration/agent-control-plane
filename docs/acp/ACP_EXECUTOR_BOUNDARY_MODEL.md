@@ -139,7 +139,7 @@ As of 2026-10-03:
 - Non-executing mutation governance stack: present on protected `main`.
 - Forward mutation simulation: present.
 - Rollback simulation: present.
-- Bounded local-test executor on current main: not yet established; issue #154 controls reconstruction.
+- Bounded local-test executor on current main: `ESTABLISHED_FOR_TESTED_DISPOSABLE_SCOPE` through PR #156 / `b975aeb178b07551869ea6e80421e473ecb48593`.
 - Live real-project repository mutation: NOT AUTHORIZED.
 - Rollback execution: NOT AUTHORIZED.
 - Production executor: NOT ESTABLISHED.
@@ -147,7 +147,9 @@ As of 2026-10-03:
 
 ## 8. Promotion rule
 
-A #154 candidate may advance only as a disposable-repository local-test executor and only after exact-head tests demonstrate the accepted safeguards and ceilings.
+PR #156 satisfied the #154 bounded reconstruction gate with an exact-head hosted matrix on Python 3.10-3.14; the Python 3.12 full suite reported 932 passed / 17 skipped.
+
+That evidence supports only `BOUNDED_LOCAL_TEST_EXECUTOR=ESTABLISHED_FOR_TESTED_DISPOSABLE_SCOPE`.
 
 Passing those tests cannot establish:
 
@@ -158,4 +160,4 @@ Passing those tests cannot establish:
 - independent validation;
 - High-Assurance.
 
-Any stronger profile requires a new deployment-bound gate rather than reinterpretation of `BOUNDED_LOCAL_TEST`.
+Any stronger profile requires a new deployment-bound gate rather than reinterpretation of `BOUNDED_LOCAL_TEST`. The current executor also does not claim a global resource/effect lineage oracle for concealed prior execution history.
