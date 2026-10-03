@@ -2,127 +2,160 @@
 
 ## Purpose
 
-This document defines the minimum boundary model required before ACP executor or rollback executor work can advance beyond draft/HOLD.
+This document defines ACP's current executor boundary after the `BOUNDED_LOCAL_TEST` residual-risk decision.
 
-ACP currently distinguishes between:
+ACP distinguishes:
 
-1. Read-only observation
-2. Non-executing journal or result binding
-3. Mutation intent
-4. Live mutation execution
-5. Rollback execution
+1. read-only observation/execution;
+2. non-executing admission, journal, evidence, and simulation;
+3. bounded disposable-repository execution;
+4. real-project mutation;
+5. rollback execution;
+6. production / High-Assurance execution.
 
-Only the first two categories may advance before this boundary model is complete.
+These categories are not interchangeable.
 
-## 1. Filesystem object identity / TOCTOU
+## 1. Current profile
 
-Tracked by issue #117.
+Merged PR #149 selected:
 
-### Problem
+`BOUNDED_LOCAL_TEST`
 
-An executor must not rely only on a path string when deciding what object it is about to mutate. A path may refer to a different object between inspection and execution.
+Issues #117 and #118 are therefore closed by retained-risk decision, not by implementation of their strongest proposed controls.
 
-### Required model
+The current profile permits engineering evaluation against synthetic/disposable repositories only.
 
-Before mutation, ACP must define how it identifies the target object.
+It does not authorize ACP, DGAF, Aetherwake, or any other real project repository as a mutation target.
 
-Candidate identity evidence may include:
+## 2. Filesystem object identity / TOCTOU
 
-- Canonical path
-- File ID / inode or platform-equivalent object identifier
-- Content hash
-- Size
-- Last modified timestamp
-- Open handle identity where applicable
-- Repository state / commit identity where applicable
+### Established bounded controls
 
-### Required fail-closed behavior
+Current evidence includes:
 
-ACP must refuse mutation when:
+- canonical path and repository-containment checks;
+- `.git` exclusion;
+- symlink/reparse-point rejection;
+- multi-hardlink rejection policy;
+- parent/target identity snapshots and rechecks in historical hardening evidence;
+- Windows handle-derived identity probes;
+- repeated revalidation before side-effect primitives;
+- adversarial disposable/temp-repository race tests in historical evidence.
 
-- The object inspected is not the object about to be mutated.
-- The object changed after inspection.
-- Identity evidence is missing.
-- Identity evidence conflicts.
-- The executor cannot prove that the mutation target matches the authorized target.
+### Retained gap
 
-## 2. Trusted process boundary / identity / isolation
+Final handle-bound atomic write replacement is not established.
 
-Tracked by issue #118.
+Therefore:
 
-### Problem
+- `FINAL_PATH_TO_SYSCALL_TOCTOU=NOT_ELIMINATED`
+- `HOSTILE_LOCAL_ACTOR_RESISTANCE=NOT_ESTABLISHED`
 
-A live executor must prove that the process performing mutation is authorized, isolated, and operating within its declared capability boundary.
+A future production or High-Assurance profile must reopen this boundary.
 
-### Required model
+## 3. Trusted process boundary / identity / isolation
 
-ACP must define:
+### Established bounded controls
 
-- What process is trusted.
-- How the process identity is established.
-- What credentials or capabilities it holds.
-- What repository or filesystem scope it may mutate.
-- What environment it runs in.
-- What isolation boundary prevents unintended mutation.
-- How pre-mutation and post-mutation evidence is emitted.
+Current evidence distinguishes:
 
-### Required fail-closed behavior
+- application-level executor identifiers;
+- self-reported local process identity evidence;
+- interpreter path/hash/user checks in historical hardening evidence;
+- local-test versus High-Assurance assessment;
+- read-only Windows boundary/ACL inspection.
 
-ACP must refuse mutation when:
+### Retained gap
 
-- The process identity is unknown.
-- The process is outside the trusted execution boundary.
-- The process has broader authority than declared.
-- The execution environment cannot be bound to the evidence record.
-- The mutation cannot be attributed to the authorized executor.
+The current profile does not establish:
 
-## 3. Mutation evidence contract
+- OS-attested executor identity;
+- trusted launcher/binary identity;
+- least-privilege service identity;
+- ACL-separated authorization/journal/custody/repository stores;
+- authenticated IPC;
+- OS sandbox/isolation;
+- peer-process tamper resistance.
 
-Before live mutation, ACP must emit evidence for:
+Therefore:
 
-- Requested action
-- Authorized target
-- Pre-mutation object identity
-- Executor identity
-- Execution boundary
-- Capability scope
-- Mutation result
-- Post-mutation object identity
-- Error or refusal state
-- Rollback availability, if applicable
+- `TRUSTED_PROCESS_IDENTITY=NOT_ESTABLISHED`
+- `PEER_PROCESS_TAMPER_RESISTANCE=NOT_ESTABLISHED`
+- `HIGH_ASSURANCE_PROCESS_BOUNDARY=NOT_ESTABLISHED`
 
-## 4. Rollback evidence contract
+## 4. Mutation evidence contract
 
-Rollback is also mutation.
+Any disposable-only executor candidate must retain evidence for:
 
-Rollback ACP work must not be treated as lower risk than forward mutation.
+- requested action;
+- exact plan/action digest;
+- authorized target;
+- pre-mutation path/object evidence;
+- executor identifier and declared profile;
+- authorization identity and consumption;
+- durable execution intent;
+- mutation result;
+- postcondition evidence;
+- journal/recovery state;
+- result/evidence binding;
+- closure;
+- explicit non-transfer of authority.
+
+## 5. Post-execution authority boundary
+
+Execution success does not create continuing authority.
+
+For every consequential follow-on action, ACP must require a fresh admission/adjudication path and a new current authorization.
+
+The required conceptual sequence is:
+
+`ACTION -> AUTHORIZATION -> EXECUTION -> EVIDENCE -> FRESH ADJUDICATION -> NEW AUTHORIZATION -> NEXT ACTION`
+
+A result receipt, successful postcondition, evidence binding, or transaction closure may be an input to the next adjudication. It cannot itself satisfy that adjudication or authorize the next action.
+
+This aligns ACP with DGAF PR #1257.
+
+## 6. Rollback boundary
+
+Rollback is also mutation and is separately authorized.
+
+A forward mutation authorization cannot be reused as rollback authorization.
 
 Rollback evidence must include:
 
-- Original mutation reference
-- Rollback target
-- Pre-rollback object identity
-- Rollback executor identity
-- Rollback action
-- Post-rollback object identity
-- Residual risk or irreversibility notes
+- original mutation reference;
+- rollback plan/custody identity;
+- rollback authorization identity;
+- pre-rollback state;
+- durable rollback intent;
+- rollback effect;
+- post-rollback verification;
+- residual state and recovery outcome.
 
-## 5. Current authorization state
+## 7. Current authorization state
 
-As of 2026-09-30:
+As of 2026-10-03:
 
-- Non-executing rollback-recovery journal semantics: may be rebuilt for review.
-- Non-executing result binding: may be rebuilt for review.
-- Live repository mutation executor: HOLD.
-- Rollback executor: HOLD.
-- Consolidated executor hardening: HOLD / review surface only.
+- Non-executing mutation governance stack: present on protected `main`.
+- Forward mutation simulation: present.
+- Rollback simulation: present.
+- Bounded local-test executor on current main: not yet established; issue #154 controls reconstruction.
+- Live real-project repository mutation: NOT AUTHORIZED.
+- Rollback execution: NOT AUTHORIZED.
+- Production executor: NOT ESTABLISHED.
+- High-Assurance executor: NOT AUTHORIZED.
 
-## 6. Promotion rule
+## 8. Promotion rule
 
-Executor promotion requires explicit resolution, scoping, or accepted residual-risk treatment for #117 and #118. Passing synthetic repository tests is not sufficient to establish production executor authority, real-project repository authorization, or High-Assurance status.
+A #154 candidate may advance only as a disposable-repository local-test executor and only after exact-head tests demonstrate the accepted safeguards and ceilings.
 
-## 7. Current residual-risk decision
+Passing those tests cannot establish:
 
-The current decision record is `docs/acp/ACP_EXECUTOR_RESIDUAL_RISK_DECISION_2026-10-01.md`.
+- real-project mutation authority;
+- production readiness;
+- hostile-local-actor resistance;
+- trusted process identity;
+- independent validation;
+- High-Assurance.
 
-It selects `BOUNDED_LOCAL_TEST` rather than a stronger production/High-Assurance executor profile. Final path-to-syscall TOCTOU elimination, trusted OS process identity, peer-process tamper resistance, production execution, rollback execution, and real-project mutation remain not established or not authorized.
+Any stronger profile requires a new deployment-bound gate rather than reinterpretation of `BOUNDED_LOCAL_TEST`.
