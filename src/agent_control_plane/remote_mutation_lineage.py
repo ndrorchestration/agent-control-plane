@@ -352,7 +352,8 @@ class RemoteMutationLineageStore:
         if current is None:
             raise MutationLineageError("mutation lineage transaction not found")
         if (
-            current.authorization_id != closure.authorization_id
+            current.transaction_id != closure.transaction_id
+            or current.authorization_id != closure.authorization_id
             or current.request_id != closure.request_id
             or current.resource_id != closure.resource_id
             or current.operation_id != closure.operation_id
