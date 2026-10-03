@@ -214,6 +214,7 @@ class RemoteMutationLineageStore:
         request_id: str,
         operation_id: str,
         plan_sha256: str,
+        expected_prior_record_sha256: str | None = None,
     ) -> MutationLineageRecord:
         txid = _required(transaction_id, "transaction_id")
         resource = _required(resource_id, "resource_id")
@@ -241,6 +242,34 @@ class RemoteMutationLineageStore:
                 ):
                     raise MutationLineageError("transaction_id lineage conflict")
                 return current
+
+            prior = connection.execute(
+                """
+                SELECT * FROM remote_mutation_lineage
+                WHERE resource_id = ?
+                  AND repository_root_sha256 = ?
+                  AND state != ?
+                ORDER BY sequence DESC LIMIT 1
+                """,
+                (resource, root_sha, STATE_ABORTED_PRE_EXECUTION),
+            ).fetchone()
+            expected_prior = (
+                None
+                if expected_prior_record_sha256 is None
+                else _sha256(
+                    expected_prior_record_sha256,
+                    "expected_prior_record_sha256",
+                )
+            )
+            if prior is None:
+                if expected_prior is not None:
+                    raise MutationLineageError(
+                        "expected lineage predecessor is no longer current"
+                    )
+            elif expected_prior is None or prior["record_sha256"] != expected_prior:
+                raise MutationLineageError(
+                    "lineage predecessor changed before mutation attempt"
+                )
 
             cursor = connection.execute(
                 """
