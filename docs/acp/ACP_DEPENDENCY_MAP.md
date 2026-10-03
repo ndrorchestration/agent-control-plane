@@ -34,9 +34,9 @@ These controls define and test mutation semantics but do not themselves perform 
 
 ### 3. Bounded disposable-repository executor
 
-Controller: issue #154.
+Controller record: issue #154, completed by PR #156.
 
-Status: not yet established on current `main`.
+Status: `ESTABLISHED_FOR_TESTED_DISPOSABLE_SCOPE` on current `main` at `b975aeb178b07551869ea6e80421e473ecb48593`.
 
 Dependencies:
 
@@ -53,7 +53,7 @@ Dependencies:
 - fail-closed recovery;
 - no authority transfer to follow-on actions.
 
-A successful #154 rebuild may establish only:
+The completed #154/#156 rebuild establishes only:
 
 `BOUNDED_LOCAL_TEST_EXECUTOR=ESTABLISHED_FOR_TESTED_DISPOSABLE_SCOPE`
 
@@ -95,8 +95,8 @@ non-executing mutation governance on main
   -> postcondition / result binding
   -> closure
 
-#154 bounded local-test executor
-  -> exact current main
+#154/#156 bounded local-test executor
+  -> current-main implementation
   -> #149 BOUNDED_LOCAL_TEST profile
   -> disposable-repository proof
   -> side effect
@@ -132,12 +132,12 @@ ACP must preserve this property:
 
 | Dependency | Type | Current state |
 |---|---|---|
-| Current protected main | Source identity | `7c89db2d54c6ff5b7bd9d1a5cf1af2b4416ecbb2` |
+| Current protected main | Source identity | `b975aeb178b07551869ea6e80421e473ecb48593` |
 | #149 residual-risk decision | Profile dependency | Accepted: `BOUNDED_LOCAL_TEST` |
-| #154 executor reconstruction | Implementation dependency | Open / not yet established |
+| #154 executor reconstruction | Implementation dependency | Completed by #156: established for tested disposable scope |
 | Forward simulation | Engineering evidence | Present |
 | Rollback simulation | Engineering evidence | Present |
-| Post-execution fresh-adjudication invariant | Governance dependency | Required for any future executor composition |
+| Post-execution fresh-adjudication invariant | Governance dependency | Implemented for explicitly supplied chained lineage; concealed-history/global-lineage detection not established |
 | Real-project mutation authority | Authorization dependency | NOT AUTHORIZED |
 | Production executor | Assurance dependency | NOT ESTABLISHED |
 | High-Assurance executor | Assurance dependency | NOT AUTHORIZED |
