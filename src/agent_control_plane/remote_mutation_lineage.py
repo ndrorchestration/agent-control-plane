@@ -403,10 +403,12 @@ class RemoteMutationLineageStore:
             row = connection.execute(
                 """
                 SELECT * FROM remote_mutation_lineage
-                WHERE resource_id = ? AND repository_root_sha256 = ?
+                WHERE resource_id = ?
+                  AND repository_root_sha256 = ?
+                  AND state != ?
                 ORDER BY sequence DESC LIMIT 1
                 """,
-                (resource, root_sha),
+                (resource, root_sha, STATE_ABORTED_PRE_EXECUTION),
             ).fetchone()
         return None if row is None else self._from_row(row)
 
