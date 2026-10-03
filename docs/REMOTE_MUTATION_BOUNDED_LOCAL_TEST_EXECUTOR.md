@@ -48,6 +48,18 @@ A successful executor result fixes:
 
 The consumed authorization cannot authorize a second effect. A later consequential mutation requires a fresh admission/adjudication path and a distinct current authorization.
 
+For explicitly chained execution, ACP now uses a typed follow-on binding that requires:
+- the prior execution closure to be terminal and non-authorizing;
+- the prior evidence digest to be preserved;
+- a fresh admitted mutation record with decision and policy identity;
+- a distinct request identity;
+- a distinct, unconsumed current execution authorization;
+- exact admission/authorization identity agreement.
+
+The bounded executor fails closed when a prior closure is supplied without that fresh-adjudication binding.
+
+This mechanism does **not** claim a global resource/effect lineage oracle. If a caller hides prior execution lineage entirely, this local executor cannot infer that omitted history from the invocation alone. A future stronger profile would require durable cross-invocation resource/effect lineage outside this bounded tranche.
+
 Rollback remains separately authorized; forward execution does not grant rollback authority.
 
 ## Retained ceilings
