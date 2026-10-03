@@ -38,7 +38,6 @@ from .remote_mutation_journal import (
 )
 from .remote_mutation_lineage import (
     RemoteMutationLineageStore,
-    STATE_ABORTED_PRE_EXECUTION,
     STATE_PENDING,
     STATE_RECOVERY_HOLD,
     STATE_TERMINAL,
