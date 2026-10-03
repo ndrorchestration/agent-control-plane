@@ -160,7 +160,27 @@ class AuthorizedRepositoryMutationExecutor:
                 raise RepositoryMutationExecutorError(
                     "allowed repository roots must be absolute"
                 )
-            roots.append(path.resolve(strict=True))
+            resolved = path.resolve(strict=True)
+            if not (resolved / ".git").exists():
+                raise RepositoryMutationExecutorError(
+                    "allowed repository root lacks .git marker"
+                )
+            marker = resolved / DISPOSABLE_TEST_REPOSITORY_MARKER
+            if not marker.is_file():
+                raise RepositoryMutationExecutorError(
+                    "allowed repository root is not explicitly marked as disposable test repository"
+                )
+            try:
+                marker_text = marker.read_text(encoding="utf-8")
+            except OSError as exc:
+                raise RepositoryMutationExecutorError(
+                    "disposable-test repository marker cannot be read"
+                ) from exc
+            if marker_text != DISPOSABLE_TEST_REPOSITORY_MARKER_CONTENT:
+                raise RepositoryMutationExecutorError(
+                    "disposable-test repository marker content is invalid"
+                )
+            roots.append(resolved)
         if not roots:
             raise RepositoryMutationExecutorError(
                 "at least one allowed repository root is required"
