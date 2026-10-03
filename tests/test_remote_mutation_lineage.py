@@ -208,6 +208,8 @@ def test_aborted_attempt_does_not_hide_prior_terminal_lineage(tmp_path):
         ),
     )
 
+    predecessor = store.latest(resource_id="repo:test", repository_root=root)
+    assert predecessor is not None
     store.begin_attempt(
         transaction_id="tx-aborted",
         resource_id="repo:test",
@@ -216,6 +218,7 @@ def test_aborted_attempt_does_not_hide_prior_terminal_lineage(tmp_path):
         request_id="req-aborted",
         operation_id="repo.write_text_file",
         plan_sha256="e" * 64,
+        expected_prior_record_sha256=predecessor.record_sha256,
     )
     store.mark_aborted_pre_execution(
         "tx-aborted",
@@ -226,4 +229,32 @@ def test_aborted_attempt_does_not_hide_prior_terminal_lineage(tmp_path):
     assert latest is not None
     assert latest.transaction_id == "tx-terminal"
     assert latest.state == STATE_TERMINAL
+
+def test_begin_attempt_fails_if_observed_predecessor_changed(tmp_path):
+    root = disposable_root(tmp_path)
+    store = RemoteMutationLineageStore(tmp_path / "lineage.sqlite3")
+
+    assert store.latest(resource_id="repo:test", repository_root=root) is None
+
+    store.begin_attempt(
+        transaction_id="tx-other",
+        resource_id="repo:test",
+        repository_root=root,
+        authorization_id="authz-other",
+        request_id="req-other",
+        operation_id="repo.write_text_file",
+        plan_sha256=A,
+    )
+
+    with pytest.raises(MutationLineageError, match="predecessor changed"):
+        store.begin_attempt(
+            transaction_id="tx-racing",
+            resource_id="repo:test",
+            repository_root=root,
+            authorization_id="authz-racing",
+            request_id="req-racing",
+            operation_id="repo.write_text_file",
+            plan_sha256="f" * 64,
+            expected_prior_record_sha256=None,
+        )
 
