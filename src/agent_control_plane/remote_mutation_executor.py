@@ -36,6 +36,12 @@ from .remote_mutation_journal import (
     MutationJournalState,
     RemoteMutationJournal,
 )
+from .remote_mutation_lineage import (
+    RemoteMutationLineageStore,
+    STATE_PENDING,
+    STATE_RECOVERY_HOLD,
+    STATE_TERMINAL,
+)
 from .remote_mutation_path_safety import (
     MutationPathSafetyRecord,
     inspect_repository_mutation_path,
@@ -353,6 +359,7 @@ class AuthorizedRepositoryMutationExecutor:
         authorization_store: RemoteMutationExecutionAuthorizationStore,
         authorization_id: str,
         journal_store: RemoteMutationJournal,
+        lineage_store: RemoteMutationLineageStore,
         composition: MutationCompositionRecord,
         plan: MutationPlan,
         prior_path_safety: MutationPathSafetyRecord,
@@ -374,6 +381,34 @@ class AuthorizedRepositoryMutationExecutor:
             raise RepositoryMutationExecutorError(
                 "mutation execution authorization not found"
             )
+
+        latest_lineage = lineage_store.latest(
+            resource_id=plan.resource_id,
+            repository_root=root,
+        )
+        if latest_lineage is not None and latest_lineage.state in {
+            STATE_PENDING,
+            STATE_RECOVERY_HOLD,
+        }:
+            raise RepositoryMutationExecutorError(
+                "prior mutation lineage requires recovery reconciliation"
+            )
+        if latest_lineage is not None and latest_lineage.state == STATE_TERMINAL:
+            if prior_closure is None or follow_on_adjudication is None:
+                raise RepositoryMutationExecutorError(
+                    "fresh adjudication is required for durable prior mutation lineage"
+                )
+            if (
+                latest_lineage.authorization_id != prior_closure.authorization_id
+                or latest_lineage.request_id != prior_closure.request_id
+                or latest_lineage.resource_id != prior_closure.resource_id
+                or latest_lineage.operation_id != prior_closure.operation_id
+                or latest_lineage.plan_sha256 != prior_closure.plan_sha256
+                or latest_lineage.evidence_sha256 != prior_closure.evidence_sha256
+            ):
+                raise RepositoryMutationExecutorError(
+                    "supplied prior closure is not the latest durable mutation lineage"
+                )
 
         if prior_closure is not None and follow_on_adjudication is None:
             raise RepositoryMutationExecutorError(
@@ -449,13 +484,33 @@ class AuthorizedRepositoryMutationExecutor:
         self._verify_rollback_precondition(plan, rollback_descriptor, target)
         self._validate_operation_input(plan, content=content)
 
-        authorization = authorization_store.consume(
-            authorization_id,
-            executor_id=self.executor_id,
+        lineage_store.begin_attempt(
             transaction_id=journal_before.transaction_id,
+            resource_id=plan.resource_id,
+            repository_root=root,
+            authorization_id=pending_authorization.authorization_id,
+            request_id=plan.request_id,
+            operation_id=plan.operation_id,
             plan_sha256=plan.plan_sha256,
-            now=authorization_consumed_at,
+            expected_prior_record_sha256=(
+                latest_lineage.record_sha256 if latest_lineage is not None else None
+            ),
         )
+
+        try:
+            authorization = authorization_store.consume(
+                authorization_id,
+                executor_id=self.executor_id,
+                transaction_id=journal_before.transaction_id,
+                plan_sha256=plan.plan_sha256,
+                now=authorization_consumed_at,
+            )
+        except Exception as exc:
+            lineage_store.mark_aborted_pre_execution(
+                journal_before.transaction_id,
+                reason=f"{type(exc).__name__}: {exc}",
+            )
+            raise
 
         journal_store.append(
             journal_before.transaction_id,
@@ -564,6 +619,11 @@ class AuthorizedRepositoryMutationExecutor:
                     "authorized execution failed terminal closure"
                 )
 
+            lineage_store.mark_terminal(
+                journal_before.transaction_id,
+                closure,
+            )
+
             return RepositoryMutationExecutionResult(
                 execution_id=execution_id,
                 executor_id=self.executor_id,
@@ -601,6 +661,19 @@ class AuthorizedRepositoryMutationExecutor:
                     )
                 except Exception:
                     pass
+            lineage = lineage_store.get(journal_before.transaction_id)
+            if lineage is not None and lineage.state == STATE_PENDING:
+                current_authorization = authorization_store.get(authorization_id)
+                if current_authorization is not None and current_authorization.consumed:
+                    lineage_store.mark_recovery_hold(
+                        journal_before.transaction_id,
+                        reason=f"{type(exc).__name__}: {exc}",
+                    )
+                else:
+                    lineage_store.mark_aborted_pre_execution(
+                        journal_before.transaction_id,
+                        reason=f"{type(exc).__name__}: {exc}",
+                    )
             if isinstance(exc, RepositoryMutationExecutorError):
                 raise
             raise RepositoryMutationExecutorError(

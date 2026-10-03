@@ -8,6 +8,9 @@ from agent_control_plane.remote_mutation_composition import MutationCompositionR
 from agent_control_plane.remote_mutation_execution_authorization import (
     RemoteMutationExecutionAuthorizationStore,
 )
+from agent_control_plane.remote_mutation_execution_closure import (
+    MutationExecutionClosureRecord,
+)
 from agent_control_plane.remote_mutation_executor import (
     AuthorizedRepositoryMutationExecutor,
     DEFAULT_REPOSITORY_MUTATION_EXECUTOR_ID,
@@ -19,6 +22,7 @@ from agent_control_plane.remote_mutation_journal import (
     MutationJournalState,
     RemoteMutationJournal,
 )
+from agent_control_plane.remote_mutation_lineage import RemoteMutationLineageStore
 from agent_control_plane.remote_mutation_path_safety import (
     inspect_repository_mutation_path,
 )
@@ -156,6 +160,7 @@ def prepare(
     auth_store = RemoteMutationExecutionAuthorizationStore(
         tmp_path / "authorization.sqlite3"
     )
+    lineage_store = RemoteMutationLineageStore(tmp_path / "lineage.sqlite3")
     authorization = auth_store.issue(
         authorization_id="authz-executor-1",
         executor_id=DEFAULT_REPOSITORY_MUTATION_EXECUTOR_ID,
@@ -184,6 +189,7 @@ def prepare(
         "custody": custody,
         "journal_store": journal_store,
         "auth_store": auth_store,
+        "lineage_store": lineage_store,
         "authorization": authorization,
         "executor": executor,
         "after": after,
@@ -200,6 +206,7 @@ def execute(ctx, *, content_marker=True, **executor_kwargs):
         authorization_store=ctx["auth_store"],
         authorization_id=ctx["authorization"].authorization_id,
         journal_store=ctx["journal_store"],
+        lineage_store=ctx["lineage_store"],
         composition=ctx["composition"],
         plan=ctx["plan"],
         prior_path_safety=ctx["path_safety"],
@@ -316,7 +323,7 @@ def test_consumed_authorization_prevents_replay(tmp_path):
 
     with pytest.raises(
         (RepositoryMutationExecutorError, ValueError),
-        match="already consumed|journal must be PREPARED",
+        match="already consumed|journal must be PREPARED|fresh adjudication is required",
     ):
         execute(ctx)
 
@@ -418,7 +425,7 @@ def test_prior_authorization_cannot_authorize_second_effect(tmp_path):
 
     with pytest.raises(
         (RepositoryMutationExecutorError, ValueError),
-        match="already consumed|journal must be PREPARED",
+        match="already consumed|journal must be PREPARED|fresh adjudication is required",
     ):
         execute(ctx)
 
@@ -440,3 +447,70 @@ def test_chained_effect_requires_explicit_fresh_adjudication(tmp_path):
     journal = second_ctx["journal_store"].get("tx-executor-1")
     assert journal is not None
     assert journal.current_state is MutationJournalState.PREPARED
+
+def test_durable_prior_lineage_cannot_be_concealed_from_executor(tmp_path):
+    ctx = prepare(tmp_path, prior=b"before", after=b"after")
+    prior_plan = "b" * 64
+    ctx["lineage_store"].begin_attempt(
+        transaction_id="tx-prior",
+        resource_id=ctx["plan"].resource_id,
+        repository_root=ctx["root"],
+        authorization_id="authz-prior",
+        request_id="req-prior",
+        operation_id=ctx["plan"].operation_id,
+        plan_sha256=prior_plan,
+    )
+    prior_closure = MutationExecutionClosureRecord(
+        authorization_id="authz-prior",
+        authorization_sha256="c" * 64,
+        evidence_sha256="d" * 64,
+        executor_id=DEFAULT_REPOSITORY_MUTATION_EXECUTOR_ID,
+        execution_id="exec-prior",
+        transaction_id="tx-prior",
+        request_id="req-prior",
+        resource_id=ctx["plan"].resource_id,
+        operation_id=ctx["plan"].operation_id,
+        plan_sha256=prior_plan,
+        closed=True,
+        reason="prior terminal bounded mutation",
+    )
+    ctx["lineage_store"].mark_terminal("tx-prior", prior_closure)
+
+    with pytest.raises(
+        RepositoryMutationExecutorError,
+        match="fresh adjudication is required for durable prior mutation lineage",
+    ):
+        execute(ctx)
+
+    auth = ctx["auth_store"].get("authz-executor-1")
+    assert auth is not None and auth.consumed is False
+    journal = ctx["journal_store"].get("tx-executor-1")
+    assert journal is not None
+    assert journal.current_state is MutationJournalState.PREPARED
+
+
+def test_durable_recovery_hold_blocks_new_effect_before_authorization_consumption(tmp_path):
+    ctx = prepare(tmp_path, prior=b"before", after=b"after")
+    ctx["lineage_store"].begin_attempt(
+        transaction_id="tx-prior",
+        resource_id=ctx["plan"].resource_id,
+        repository_root=ctx["root"],
+        authorization_id="authz-prior",
+        request_id="req-prior",
+        operation_id=ctx["plan"].operation_id,
+        plan_sha256="b" * 64,
+    )
+    ctx["lineage_store"].mark_recovery_hold(
+        "tx-prior",
+        reason="ambiguous prior effect",
+    )
+
+    with pytest.raises(
+        RepositoryMutationExecutorError,
+        match="requires recovery reconciliation",
+    ):
+        execute(ctx)
+
+    auth = ctx["auth_store"].get("authz-executor-1")
+    assert auth is not None and auth.consumed is False
+
