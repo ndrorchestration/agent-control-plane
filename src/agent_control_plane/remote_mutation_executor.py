@@ -29,6 +29,9 @@ from .remote_mutation_execution_evidence import (
     MutationExecutionEvidenceReceipt,
     bind_mutation_execution_evidence,
 )
+from .remote_mutation_follow_on_adjudication import (
+    MutationFollowOnAdjudicationRecord,
+)
 from .remote_mutation_journal import (
     MutationJournalState,
     RemoteMutationJournal,
@@ -362,6 +365,8 @@ class AuthorizedRepositoryMutationExecutor:
         execution_intent_at: str,
         external_effect_at: str,
         postcondition_at: str,
+        prior_closure: MutationExecutionClosureRecord | None = None,
+        follow_on_adjudication: MutationFollowOnAdjudicationRecord | None = None,
     ) -> RepositoryMutationExecutionResult:
         root = self._allowed_root(repository_root)
         pending_authorization = authorization_store.get(authorization_id)
@@ -369,6 +374,46 @@ class AuthorizedRepositoryMutationExecutor:
             raise RepositoryMutationExecutorError(
                 "mutation execution authorization not found"
             )
+
+        if prior_closure is not None and follow_on_adjudication is None:
+            raise RepositoryMutationExecutorError(
+                "fresh adjudication is required for chained mutation after prior execution"
+            )
+        if prior_closure is None and follow_on_adjudication is not None:
+            raise RepositoryMutationExecutorError(
+                "follow-on adjudication requires the prior execution closure"
+            )
+        if prior_closure is not None and follow_on_adjudication is not None:
+            if prior_closure.closed is not True:
+                raise RepositoryMutationExecutorError(
+                    "prior execution must be closed before chained mutation"
+                )
+            if follow_on_adjudication.fresh_adjudication_established is not True:
+                raise RepositoryMutationExecutorError(
+                    "fresh follow-on adjudication is not established"
+                )
+            if (
+                follow_on_adjudication.prior_authorization_id
+                != prior_closure.authorization_id
+                or follow_on_adjudication.prior_evidence_sha256
+                != prior_closure.evidence_sha256
+                or follow_on_adjudication.prior_request_id
+                != prior_closure.request_id
+            ):
+                raise RepositoryMutationExecutorError(
+                    "follow-on adjudication does not bind the supplied prior closure"
+                )
+            if (
+                follow_on_adjudication.fresh_authorization_id
+                != pending_authorization.authorization_id
+                or follow_on_adjudication.fresh_request_id
+                != pending_authorization.request_id
+                or follow_on_adjudication.fresh_authority_id
+                != pending_authorization.authority_id
+            ):
+                raise RepositoryMutationExecutorError(
+                    "follow-on adjudication does not bind the current authorization"
+                )
         journal_before = journal_store.get(pending_authorization.transaction_id)
         if journal_before is None:
             raise RepositoryMutationExecutorError(
