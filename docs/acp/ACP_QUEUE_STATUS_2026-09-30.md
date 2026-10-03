@@ -1,44 +1,73 @@
-# ACP Queue Status — 2026-09-30
+# ACP Queue Status — Reconciled 2026-10-03
 
 ## State
 
-ACP queue verification completed. The open ACP PR queue is classified, and no current open ACP PR should be treated as an unqualified merge candidate.
+The historical 2026-09-30 PR queue has been resolved. No historical executor branch should be treated as a current merge surface.
 
-This record is a documentation and governance reconciliation artifact. It does not authorize live repository mutation, rollback execution, production deployment, DGAF High-Assurance status, or independent validation.
+This record does not authorize live repository mutation, rollback execution, production deployment, DGAF High-Assurance status, or independent validation.
 
-## Open PR classification
+## Historical PR disposition
 
-| PR | Classification | Current action |
+| PR | Historical classification | Current disposition |
 |---|---|---|
-| #109 | Non-executing result-binding tranche | Keep draft/open. Absent from `main`; rebuild cleanly if desired. |
-| #110 | Live repository mutation executor candidate | Keep draft/HOLD. Requires boundary resolution before advancement. |
-| #111 | Non-executing rollback-recovery journal semantics | Keep draft/open. Useful semantic candidate, but rebuild cleanly from `main` and do not treat as rollback execution. |
-| #137 | Rollback executor candidate | Keep draft/HOLD. Rollback is also a privileged mutation surface. |
-| #139 | Consolidated executor-hardening surface | Keep draft/HOLD. Review surface only until boundary model is explicit. |
+| #109 | Non-executing result-binding tranche | Closed. Superseded by current-main rebuild #152, merged as `7c89db2d54c6ff5b7bd9d1a5cf1af2b4416ecbb2`. |
+| #110 | Forward repository mutation executor candidate | Closed. Historical evidence only; do not merge/reopen as the current executor surface. |
+| #111 | Rollback-recovery journal semantics | Closed. Historical branch superseded by current-main journal/recovery semantics. |
+| #137 | Rollback executor candidate | Closed unmerged. Historical evidence only. |
+| #139 | Consolidated executor-hardening surface | Closed unmerged. Historical evidence only. |
 
-## Active blockers
+## Residual-risk disposition
 
-| Issue | Boundary concern | Applies to |
-|---|---|---|
-| #117 | Filesystem object identity / TOCTOU | #110, #137, #139 |
-| #118 | Trusted process boundary / identity / isolation | #110, #137, #139 |
+Issues #117 and #118 are closed by the explicit residual-risk decision merged through PR #149.
 
-## Advancement rule
+This means the current profile intentionally retains, rather than solves:
 
-Non-executing rollback-recovery journal semantics and non-executing result-binding work may proceed only after clean rebuilds from protected `main` and verification that they do not grant or imply live mutation authority.
+- final path-to-syscall TOCTOU;
+- hostile same-privilege local actor risk;
+- lack of OS-attested executor identity;
+- lack of peer-process tamper resistance;
+- lack of a High-Assurance process boundary.
 
-Live repository mutation, rollback execution, and executor-hardening work remain held until filesystem identity, TOCTOU, trusted-process, identity, and isolation boundaries are documented and reviewed.
+The selected profile is `BOUNDED_LOCAL_TEST`.
+
+## Active controller
+
+Issue #154 controls any fresh executor reconstruction.
+
+A #154 implementation must:
+
+1. start from exact current protected `main`;
+2. import only the minimum useful disposable-repository side-effect layer;
+3. remain explicit opt-in;
+4. prohibit ACP, DGAF, Aetherwake, and all other real project repositories as targets;
+5. preserve exact allowlists, `.git` exclusion, reparse/symlink/hardlink controls, authorization-consumption ordering, durable intent/journal semantics, postcondition verification, and fail-closed recovery;
+6. keep forward-mutation and rollback authorization distinct;
+7. preserve the #149 residual-risk ceilings;
+8. add adversarial disposable/temp-repository tests;
+9. require fresh admission/adjudication and new authorization before any consequential follow-on action.
+
+## Post-execution rule
+
+Successful execution does not carry authority forward.
+
+ACP must interpret execution receipts/results, postconditions, journal closure, and result binding as **evidence only**. Any subsequent consequential action requires fresh adjudication and a new current authorization.
+
+This aligns ACP with DGAF PR #1257 without promoting either system's claim state.
 
 ## Smallest safe advancement order
 
-1. Rebuild #111 cleanly from `main` if the recovery-journal semantics are still desired.
-2. Rebuild #109 cleanly from `main` if the non-executing result-binding tranche is still desired.
-3. Keep #110, #137, and #139 in HOLD.
-4. Resolve or explicitly scope #117 and #118 before executor promotion.
+1. Keep #1210/#1256 external-human DGAF evidence collection independent of ACP engineering.
+2. Keep ACP simulations as the canonical non-side-effect validation lane.
+3. Reconstruct #154 only when a tested execution environment is available.
+4. Validate any #154 candidate exclusively against disposable repositories.
+5. Do not advance rollback execution until the forward disposable-only contract is clean and independently separated by authorization.
+6. Consider stronger production/High-Assurance process and filesystem properties only under a new deployment-bound gate.
 
 ## Evidence ceiling
 
 - `ACP_QUEUE_RECONCILED=TRUE`
+- `BOUNDED_LOCAL_TEST_PROFILE=SELECTED`
+- `BOUNDED_LOCAL_TEST_EXECUTOR=NOT_YET_ESTABLISHED_ON_CURRENT_MAIN`
 - `LIVE_REPOSITORY_MUTATION=NOT_AUTHORIZED`
 - `ROLLBACK_EXECUTION=NOT_AUTHORIZED`
 - `PRODUCTION_EXECUTOR=NOT_ESTABLISHED`
