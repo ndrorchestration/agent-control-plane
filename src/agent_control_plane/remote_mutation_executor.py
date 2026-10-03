@@ -492,6 +492,9 @@ class AuthorizedRepositoryMutationExecutor:
             request_id=plan.request_id,
             operation_id=plan.operation_id,
             plan_sha256=plan.plan_sha256,
+            expected_prior_record_sha256=(
+                latest_lineage.record_sha256 if latest_lineage is not None else None
+            ),
         )
 
         try:
