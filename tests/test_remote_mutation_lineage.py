@@ -176,3 +176,54 @@ def test_terminal_transition_rejects_mismatched_closure(tmp_path):
             "tx-1",
             closure(authorization_id="authz-other"),
         )
+
+def test_aborted_attempt_does_not_hide_prior_terminal_lineage(tmp_path):
+    root = disposable_root(tmp_path)
+    store = RemoteMutationLineageStore(tmp_path / "lineage.sqlite3")
+
+    store.begin_attempt(
+        transaction_id="tx-terminal",
+        resource_id="repo:test",
+        repository_root=root,
+        authorization_id="authz-terminal",
+        request_id="req-terminal",
+        operation_id="repo.write_text_file",
+        plan_sha256=A,
+    )
+    store.mark_terminal(
+        "tx-terminal",
+        MutationExecutionClosureRecord(
+            authorization_id="authz-terminal",
+            authorization_sha256="c" * 64,
+            evidence_sha256="d" * 64,
+            executor_id="executor:test",
+            execution_id="exec-terminal",
+            transaction_id="tx-terminal",
+            request_id="req-terminal",
+            resource_id="repo:test",
+            operation_id="repo.write_text_file",
+            plan_sha256=A,
+            closed=True,
+            reason="terminal",
+        ),
+    )
+
+    store.begin_attempt(
+        transaction_id="tx-aborted",
+        resource_id="repo:test",
+        repository_root=root,
+        authorization_id="authz-aborted",
+        request_id="req-aborted",
+        operation_id="repo.write_text_file",
+        plan_sha256="e" * 64,
+    )
+    store.mark_aborted_pre_execution(
+        "tx-aborted",
+        reason="authorization expired before execution",
+    )
+
+    latest = store.latest(resource_id="repo:test", repository_root=root)
+    assert latest is not None
+    assert latest.transaction_id == "tx-terminal"
+    assert latest.state == STATE_TERMINAL
+
