@@ -37,6 +37,13 @@ from .context_model_request import (
     canonical_model_request_manifest_bytes,
     model_request_manifest_sha256,
 )
+from .context_openai_transport import (
+    OPENAI_COMPATIBLE_RECEIPT_SCHEMA,
+    OPENAI_COMPATIBLE_REQUEST_SCHEMA,
+    OpenAICompatibleHttpReceipt,
+    OpenAICompatibleRequest,
+    send_openai_compatible_request,
+)
 from .context_paired_evaluation import (
     PAIRED_BLOCKED_DYNAMIC_EXPOSURE_UNOBSERVED,
     PAIRED_BLOCKED_PRESERVATION_FAILURE,
@@ -79,6 +86,10 @@ __all__ = [
     "MODEL_REQUEST_RECEIPT_SCHEMA",
     "ModelRequestManifest",
     "ModelTransportReceipt",
+    "OPENAI_COMPATIBLE_RECEIPT_SCHEMA",
+    "OPENAI_COMPATIBLE_REQUEST_SCHEMA",
+    "OpenAICompatibleHttpReceipt",
+    "OpenAICompatibleRequest",
     "PAIRED_BLOCKED_DYNAMIC_EXPOSURE_UNOBSERVED",
     "PAIRED_BLOCKED_PRESERVATION_FAILURE",
     "PAIRED_ELIGIBLE",
@@ -115,6 +126,7 @@ __all__ = [
     "evaluate_treatment",
     "model_request_manifest_sha256",
     "restore_task_budget_checkpoint",
+    "send_openai_compatible_request",
     "task_budget_checkpoint_sha256",
     "tool_catalog_snapshot_from_mapping",
     "tool_catalog_snapshot_sha256",
