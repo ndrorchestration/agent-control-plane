@@ -32,6 +32,10 @@ from agent_control_plane.context_openai_transport import (
     OpenAICompatibleRequest,
     send_openai_compatible_request,
 )
+from agent_control_plane.context_prebound_execution import (
+    PreboundToolExecution,
+    prebound_tool_execution_sha256,
+)
 from agent_control_plane.context_tool_exposure import canonical_tool_catalog_bytes
 from agent_control_plane.context_transport_profile import TransportProfile
 
@@ -57,6 +61,11 @@ PREFLIGHT_PATH = ROOT / (
     "experiments/context_efficiency/results/"
     "model-request-ab-preflight-2026-10-04.json"
 )
+BINDING_PATH = ROOT / (
+    "experiments/context_efficiency/bindings/"
+    "github-status-pr164-head-001.json"
+)
+ENCODING = "o200k_base"
 
 EXPECTED_CONTROL_SHA = (
     "f9d463a1c8519061087cba30bd648b68357949f20ce932c61c3f99821663b82e"
@@ -88,6 +97,21 @@ def _load_profile() -> TransportProfile:
 
 def _load_catalog(path: Path) -> ToolCatalogSnapshot:
     return tool_catalog_snapshot_from_mapping(_load_json(path))
+
+
+def _load_binding() -> PreboundToolExecution:
+    raw = _load_json(BINDING_PATH)
+    binding = PreboundToolExecution(
+        binding_id=str(raw["binding_id"]),
+        tool_name=str(raw["tool_name"]),
+        arguments=dict(raw["arguments"]),
+    )
+    expected_sha = raw.get("sha256")
+    if prebound_tool_execution_sha256(binding) != expected_sha:
+        raise ValueError("pre-bound execution identity drift")
+    if binding.tool_name != EXPECTED_TOOL:
+        raise ValueError("pre-bound execution tool drift")
+    return binding
 
 
 def _task_and_prompt() -> tuple[str, str]:
@@ -178,6 +202,21 @@ def _request_summary(prepared: OpenAICompatibleRequest) -> dict[str, object]:
     }
 
 
+def _exact_sent_tool_tokens(
+    prepared: OpenAICompatibleRequest,
+    tokenizer,
+) -> int:
+    encoding = tokenizer.get_encoding(ENCODING)
+    tool_payload = json.dumps(
+        prepared.to_mapping()["tools"],
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+    return len(encoding.encode(tool_payload))
+
+
 def _transport_summary(receipt) -> dict[str, object]:
     return {
         "request_manifest_sha256": receipt.request_manifest_sha256,
@@ -203,11 +242,13 @@ def run_pair(
     environ: Mapping[str, str],
     opener: Callable[..., object] = urllib_request.urlopen,
     order: tuple[str, str] = ("control", "treatment"),
+    tokenizer=None,
 ) -> dict[str, object]:
     profile = _load_profile()
     control = _load_catalog(CONTROL_PATH)
     treatment = _load_catalog(TREATMENT_PATH)
     token_result = _validate_frozen_inputs(control, treatment)
+    binding = _load_binding()
     task_contract, prompt = _task_and_prompt()
 
     prepared = {
@@ -236,16 +277,21 @@ def run_pair(
         "task_contract": task_contract,
         "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
         "order": list(order),
-        "token_derivation": {
-            "basis": (
-                "FROZEN_CATALOG_SERIALIZATION_PLUS_ATTESTED_EXACT_REQUEST_"
-                "AND_PROVIDER_TOOL_CALL"
-            ),
+        "frozen_catalog_characterization": {
             "encoding": token_result["encoding"],
             "tiktoken_version": token_result["tiktoken_version"],
             "control_catalog_tokens": token_result["baseline_tokens"],
             "treatment_catalog_tokens": token_result["treatment_tokens"],
-            "provider_reported_tool_tokens": False,
+            "claim_boundary": (
+                "Historical canonical-catalog serialization only; not reused as "
+                "the live sent-tool token endpoint."
+            ),
+        },
+        "prebound_execution": {
+            "binding_id": binding.binding_id,
+            "binding_sha256": prebound_tool_execution_sha256(binding),
+            "tool_name": binding.tool_name,
+            "arguments": dict(binding.arguments),
         },
         "execution_effect": "NONE",
         "routing_effect": "NONE",
@@ -283,6 +329,30 @@ def run_pair(
                 "environment; do not write it into repository artifacts."
             ),
         }
+
+    if tokenizer is None:
+        try:
+            import tiktoken as tokenizer
+        except ImportError:
+            return {
+                **base,
+                "status": "BLOCKED_MEASUREMENT_DEPENDENCY_MISSING",
+                "credential_env": profile.api_key_env,
+                "credential_read": True,
+                "required_dependency": "tiktoken==0.14.0",
+                "network_request_sent": False,
+                "control": _request_summary(prepared["control"]),
+                "treatment": _request_summary(prepared["treatment"]),
+                "next_gate": (
+                    "Install the pinned context-measure dependency before any "
+                    "provider request is sent."
+                ),
+            }
+
+    exact_tool_tokens = {
+        arm: _exact_sent_tool_tokens(prepared[arm], tokenizer)
+        for arm in ("control", "treatment")
+    }
 
     receipts: dict[str, dict[str, object]] = {}
     for arm in order:
@@ -335,15 +405,21 @@ def run_pair(
         "control": {
             **control_receipt,
             "catalog_sha256": EXPECTED_CONTROL_SHA,
-            "derived_model_visible_tool_tokens": (
-                token_result["baseline_tokens"] if both_observed else None
+            "model_visible_tool_tokens": (
+                exact_tool_tokens["control"] if both_observed else None
+            ),
+            "model_visible_tool_token_basis": (
+                "TOKENIZED_EXACT_SENT_TOOLS_JSON" if both_observed else None
             ),
         },
         "treatment": {
             **treatment_receipt,
             "catalog_sha256": EXPECTED_TREATMENT_SHA,
-            "derived_model_visible_tool_tokens": (
-                token_result["treatment_tokens"] if both_observed else None
+            "model_visible_tool_tokens": (
+                exact_tool_tokens["treatment"] if both_observed else None
+            ),
+            "model_visible_tool_token_basis": (
+                "TOKENIZED_EXACT_SENT_TOOLS_JSON" if both_observed else None
             ),
         },
         "next_gate": next_gate,
