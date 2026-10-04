@@ -51,3 +51,21 @@ The selector:
 
 A later live-catalog experiment must additionally preserve task acceptance,
 evidence sufficiency, authority boundaries, and exact tool semantics.
+
+
+## Canonical byte-cost measurement
+
+The harness now also serializes the exposed descriptor set deterministically and
+measures exact UTF-8 byte size. This provides a tokenizer-independent context
+cost proxy before model-specific tokenization is introduced.
+
+Interpretation boundary:
+
+- descriptor count measures catalog breadth;
+- canonical UTF-8 bytes measure serialized exposure size;
+- neither is equivalent to model tokens;
+- no token-reduction percentage may be claimed until a named tokenizer/version
+  is applied reproducibly to the same canonical bytes.
+
+A later tokenizer-specific experiment must record the tokenizer/model family and
+version/configuration as part of the measurement identity.
