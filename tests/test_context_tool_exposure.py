@@ -78,3 +78,28 @@ def test_canonical_exposure_bytes_are_deterministic_and_smaller_when_gated() -> 
     reduction = byte_reduction_fraction(full, gated)
     assert reduction is not None
     assert 0 < reduction < 1
+
+
+
+def test_synthetic_fixture_has_frozen_byte_measurement() -> None:
+    from agent_control_plane.context_tool_exposure import (
+        byte_reduction_fraction,
+        exposure_bytes,
+    )
+
+    full = tuple(
+        ToolDescriptor(
+            tool.name,
+            tool.capabilities,
+            schema_text=f'{{"name":"{tool.name}","args":["example"]}}',
+        )
+        for tool in catalog()
+    )
+    gated = gate_by_required_capabilities(
+        full,
+        required_capabilities=frozenset({"github.status"}),
+    )
+
+    assert exposure_bytes(full) == 1025
+    assert exposure_bytes(gated) == 141
+    assert byte_reduction_fraction(full, gated) == 884 / 1025
