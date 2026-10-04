@@ -37,6 +37,19 @@ from .context_model_request import (
     canonical_model_request_manifest_bytes,
     model_request_manifest_sha256,
 )
+from .context_openai_transport import (
+    OPENAI_COMPATIBLE_RECEIPT_SCHEMA,
+    OPENAI_COMPATIBLE_REQUEST_SCHEMA,
+    OpenAICompatibleHttpReceipt,
+    OpenAICompatibleRequest,
+    send_openai_compatible_request,
+)
+from .context_prebound_execution import (
+    PREBOUND_TOOL_EXECUTION_SCHEMA,
+    PreboundToolExecution,
+    canonical_prebound_tool_execution_bytes,
+    prebound_tool_execution_sha256,
+)
 from .context_paired_evaluation import (
     PAIRED_BLOCKED_DYNAMIC_EXPOSURE_UNOBSERVED,
     PAIRED_BLOCKED_PRESERVATION_FAILURE,
@@ -79,6 +92,12 @@ __all__ = [
     "MODEL_REQUEST_RECEIPT_SCHEMA",
     "ModelRequestManifest",
     "ModelTransportReceipt",
+    "OPENAI_COMPATIBLE_RECEIPT_SCHEMA",
+    "OPENAI_COMPATIBLE_REQUEST_SCHEMA",
+    "OpenAICompatibleHttpReceipt",
+    "OpenAICompatibleRequest",
+    "PREBOUND_TOOL_EXECUTION_SCHEMA",
+    "PreboundToolExecution",
     "PAIRED_BLOCKED_DYNAMIC_EXPOSURE_UNOBSERVED",
     "PAIRED_BLOCKED_PRESERVATION_FAILURE",
     "PAIRED_ELIGIBLE",
@@ -106,6 +125,7 @@ __all__ = [
     "canonical_baseline_observation_bytes",
     "canonical_context_state_bytes",
     "canonical_model_request_manifest_bytes",
+    "canonical_prebound_tool_execution_bytes",
     "canonical_task_budget_checkpoint_bytes",
     "canonical_tool_catalog_snapshot_bytes",
     "checkpoint_task_budget",
@@ -114,7 +134,9 @@ __all__ = [
     "context_state_to_mapping",
     "evaluate_treatment",
     "model_request_manifest_sha256",
+    "prebound_tool_execution_sha256",
     "restore_task_budget_checkpoint",
+    "send_openai_compatible_request",
     "task_budget_checkpoint_sha256",
     "tool_catalog_snapshot_from_mapping",
     "tool_catalog_snapshot_sha256",
