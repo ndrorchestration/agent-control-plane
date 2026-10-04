@@ -1,0 +1,35 @@
+{
+  "schema": "agent-control-plane.model-request-ab-preflight.v0-candidate",
+  "source_head_sha": "5447882d6bab633fcb2016e8d051472e4e02481d",
+  "source_workflow_run": 37213543335,
+  "source_job": 111469375240,
+  "task_contract": "Verify exact-head workflow status with equivalent evidence and acceptance under full GitHub catalog exposure versus the frozen one-tool treatment.",
+  "task_contract_sha256": "4532f8e5400c65a4d40fd2c92579da78a0780c2c6da659934e56ce2a0c46560d",
+  "prompt": "Inspect the exact-head workflow status and report the observed run status and conclusion without widening scope.",
+  "prompt_sha256": "f8935319dd767acae447a6eeb153826b4aea78d8bdc23a9cd28b2183867e9fd3",
+  "status": "BLOCKED_TRANSPORT_NOT_CONFIGURED",
+  "dynamic_exposure_observed": false,
+  "control": {
+    "catalog_sha256": "f9d463a1c8519061087cba30bd648b68357949f20ce932c61c3f99821663b82e",
+    "tool_count": 89,
+    "tool_payload_bytes": 121325,
+    "tool_payload_sha256": "009d25ea4db448c385cb9597a1ae840813f9a35e3a47ee667d106ed10d00ab27",
+    "manifest_sha256": "fdce70b53f428090df9556de523954747da60514a34bd5d3d901cd10204871a9",
+    "transport": "NOT_CONFIGURED",
+    "sent": false,
+    "provider_request_id": null,
+    "response_sha256": null
+  },
+  "treatment": {
+    "catalog_sha256": "c9dc0dfa022e4d367ce57f58cecac075c4bff419e7a4cd14cd358344b9b17cbb",
+    "tool_count": 1,
+    "tool_payload_bytes": 1021,
+    "tool_payload_sha256": "24f6852981e1f52f59a97e9a8969126f1c2ec17052f916082efe7ae951406c96",
+    "manifest_sha256": "c21186d26472cc90ecfaafb6f1e9bc98a57989ecb6c3ee3339bb7af5a477277a",
+    "transport": "NOT_CONFIGURED",
+    "sent": false,
+    "provider_request_id": null,
+    "response_sha256": null
+  },
+  "claim_boundary": "Exact request manifests are constructed and hashed, but no model transport is configured or sent."
+}
