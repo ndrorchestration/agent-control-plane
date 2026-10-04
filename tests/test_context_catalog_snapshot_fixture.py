@@ -50,3 +50,18 @@ def test_exact_status_descriptor_is_data_only() -> None:
     assert not hasattr(descriptor, "invoke")
     assert not hasattr(descriptor, "credentials")
     assert not hasattr(descriptor, "authority")
+
+
+
+def test_gated_catalog_preserves_observed_baseline_operational_tool() -> None:
+    snapshot = load_snapshot()
+    control_names = {tool.name for tool in snapshot.descriptors}
+    gated = gate_by_required_capabilities(
+        snapshot.descriptors,
+        required_capabilities=frozenset({"github.status.commit_workflow_runs"}),
+    )
+    gated_names = {tool.name for tool in gated}
+
+    assert gated_names < control_names
+    assert gated_names == {"mcp__GitHub__fetch_commit_workflow_runs"}
+    assert "mcp__GitHub__fetch_commit_workflow_runs" in control_names
