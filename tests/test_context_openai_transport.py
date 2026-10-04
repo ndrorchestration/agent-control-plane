@@ -59,7 +59,15 @@ class FakeResponse:
             {
                 "id": "provider-request-001",
                 "model": "test-model",
-                "choices": [],
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {"function": {"name": "cep_tool_001"}}
+                            ]
+                        }
+                    }
+                ],
             }
         ).encode("utf-8")
 
@@ -86,6 +94,8 @@ def test_transport_receipt_binds_sent_body_without_recording_secret() -> None:
     assert value["provider_request_id"] == "provider-request-001"
     assert value["provider_model"] == "test-model"
     assert value["model_visible_exposure_observed"] is True
+    assert value["selected_alias"] == "cep_tool_001"
+    assert value["selected_tool"] == "mcp__GitHub__fetch_commit_workflow_runs"
     assert value["tool_count"] == 1
     assert "secret-not-recorded" not in json.dumps(value)
 
@@ -109,3 +119,27 @@ def test_non_model_echo_transport_does_not_claim_model_visible_exposure() -> Non
     assert receipt.model_visible_exposure_observed is False
     assert receipt.provider_request_id is None
     assert receipt.provider_model is None
+
+
+
+class ProviderWithoutToolCall:
+    status = 200
+
+    def read(self):
+        return json.dumps(
+            {"id": "provider-request-002", "model": "test-model", "choices": []}
+        ).encode("utf-8")
+
+
+def test_provider_identity_without_tool_call_does_not_attest_exposure() -> None:
+    receipt = send_openai_compatible_request(
+        prepared(),
+        endpoint="http://127.0.0.1:9997/v1/chat/completions",
+        api_key=None,
+        opener=lambda req, timeout: ProviderWithoutToolCall(),
+    )
+
+    assert receipt.sent is True
+    assert receipt.provider_request_id == "provider-request-002"
+    assert receipt.model_visible_exposure_observed is False
+    assert receipt.selected_tool is None
