@@ -1,0 +1,17 @@
+{
+  "schema": "agent-control-plane.context-tool-exposure-result.v0-candidate",
+  "experiment": "SYNTHETIC_TOOL_EXPOSURE_001",
+  "task_capability": "github.status",
+  "catalog_descriptor_count": 8,
+  "gated_descriptor_count": 1,
+  "selected_tools": ["github.workflow_runs"],
+  "canonical_serialization": "json-sort-keys-compact-utf8",
+  "baseline_bytes": 1025,
+  "treatment_bytes": 141,
+  "bytes_removed": 884,
+  "byte_reduction_fraction": 0.8624390243902439,
+  "tokenizer": null,
+  "baseline_tokens": null,
+  "treatment_tokens": null,
+  "claim_boundary": "Synthetic descriptor/byte characterization only; not a live connector or token-savings result."
+}
