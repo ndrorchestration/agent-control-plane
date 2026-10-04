@@ -49,3 +49,32 @@ def test_capability_gate_has_no_execution_surface() -> None:
     assert selected[0].name == "github.write_file"
     assert not hasattr(selected[0], "invoke")
     assert not hasattr(selected[0], "authority")
+
+
+
+def test_canonical_exposure_bytes_are_deterministic_and_smaller_when_gated() -> None:
+    from agent_control_plane.context_tool_exposure import (
+        byte_reduction_fraction,
+        canonical_tool_catalog_bytes,
+        exposure_bytes,
+    )
+
+    full = tuple(
+        ToolDescriptor(
+            tool.name,
+            tool.capabilities,
+            schema_text=f'{{"name":"{tool.name}","args":["example"]}}',
+        )
+        for tool in catalog()
+    )
+    gated = gate_by_required_capabilities(
+        full,
+        required_capabilities=frozenset({"github.status"}),
+    )
+
+    assert canonical_tool_catalog_bytes(full) == canonical_tool_catalog_bytes(full)
+    assert exposure_bytes(gated) < exposure_bytes(full)
+
+    reduction = byte_reduction_fraction(full, gated)
+    assert reduction is not None
+    assert 0 < reduction < 1
