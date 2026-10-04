@@ -10,6 +10,23 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
+class FakeEncoding:
+    def encode(self, text):
+        return list(text.encode("utf-8"))
+
+
+class FakeTokenizer:
+    __version__ = "test"
+
+    @staticmethod
+    def get_encoding(name):
+        assert name == "o200k_base"
+        return FakeEncoding()
+
+
+FAKE_TOKENIZER = FakeTokenizer()
+
+
 def exploding_opener(*args, **kwargs):
     raise AssertionError("network transport must not be called")
 
@@ -86,6 +103,7 @@ def test_valid_frozen_pair_reaches_transport_ready_only() -> None:
         send=True,
         environ={"GEMINI_API_KEY": "ephemeral-secret"},
         opener=expected_tool_opener,
+        tokenizer=FAKE_TOKENIZER,
     )
 
     assert result["status"] == "TRANSPORT_PAIR_READY_FOR_RESULT_ADJUDICATION"
@@ -93,8 +111,16 @@ def test_valid_frozen_pair_reaches_transport_ready_only() -> None:
     assert result["treatment"]["model_visible_exposure_observed"] is True
     assert result["control"]["selected_tool"] == MODULE.EXPECTED_TOOL
     assert result["treatment"]["selected_tool"] == MODULE.EXPECTED_TOOL
-    assert result["control"]["derived_model_visible_tool_tokens"] == 32471
-    assert result["treatment"]["derived_model_visible_tool_tokens"] == 268
+    assert result["control"]["model_visible_tool_tokens"] > (
+        result["treatment"]["model_visible_tool_tokens"]
+    )
+    assert result["treatment"]["model_visible_tool_tokens"] > 0
+    assert result["control"]["model_visible_tool_token_basis"] == (
+        "TOKENIZED_EXACT_SENT_TOOLS_JSON"
+    )
+    assert result["treatment"]["model_visible_tool_token_basis"] == (
+        "TOKENIZED_EXACT_SENT_TOOLS_JSON"
+    )
     assert result["control"]["catalog_sha256"] == MODULE.EXPECTED_CONTROL_SHA
     assert result["treatment"]["catalog_sha256"] == MODULE.EXPECTED_TREATMENT_SHA
     assert result["execution_effect"] == "NONE"
@@ -117,13 +143,14 @@ def test_provider_identity_without_tool_call_remains_unobserved() -> None:
         send=True,
         environ={"GEMINI_API_KEY": "ephemeral-secret"},
         opener=provider_without_tool_call,
+        tokenizer=FAKE_TOKENIZER,
     )
 
     assert result["status"] == "BLOCKED_DYNAMIC_EXPOSURE_UNOBSERVED"
     assert result["control"]["model_visible_exposure_observed"] is False
     assert result["treatment"]["model_visible_exposure_observed"] is False
-    assert result["control"]["derived_model_visible_tool_tokens"] is None
-    assert result["treatment"]["derived_model_visible_tool_tokens"] is None
+    assert result["control"]["model_visible_tool_tokens"] is None
+    assert result["treatment"]["model_visible_tool_tokens"] is None
 
 
 def first_tool_opener(req, timeout):
@@ -151,6 +178,7 @@ def test_wrong_control_tool_selection_blocks_pair() -> None:
         send=True,
         environ={"GEMINI_API_KEY": "ephemeral-secret"},
         opener=first_tool_opener,
+        tokenizer=FAKE_TOKENIZER,
     )
 
     assert result["control"]["model_visible_exposure_observed"] is True
@@ -166,6 +194,7 @@ def test_treatment_first_order_is_recorded_without_changing_pair_identity() -> N
         environ={"GEMINI_API_KEY": "ephemeral-secret"},
         opener=expected_tool_opener,
         order=("treatment", "control"),
+        tokenizer=FAKE_TOKENIZER,
     )
 
     assert result["order"] == ["treatment", "control"]
