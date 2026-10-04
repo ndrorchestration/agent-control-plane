@@ -69,3 +69,18 @@ def test_baseline_observation_requires_non_empty_acceptance_and_outcome() -> Non
             outcome="",
             acceptance="accepted",
         )
+
+
+
+def test_baseline_observation_envelope_carries_external_identity() -> None:
+    original = observation()
+    envelope = __import__(
+        "agent_control_plane.context_baseline",
+        fromlist=["baseline_observation_envelope"],
+    ).baseline_observation_envelope(original)
+
+    assert envelope["observation_sha256"] == __import__(
+        "agent_control_plane.context_baseline",
+        fromlist=["baseline_observation_sha256"],
+    ).baseline_observation_sha256(original)
+    assert envelope["observation"]["observation_id"] == "obs-001"
