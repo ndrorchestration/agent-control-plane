@@ -143,3 +143,46 @@ def test_provider_identity_without_tool_call_does_not_attest_exposure() -> None:
     assert receipt.provider_request_id == "provider-request-002"
     assert receipt.model_visible_exposure_observed is False
     assert receipt.selected_tool is None
+
+
+def test_loopback_http_echo_is_sent_but_not_model_attested() -> None:
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    captured = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers["Content-Length"])
+            captured["body"] = self.rfile.read(length)
+            captured["authorization"] = self.headers.get("Authorization")
+            response = b'{"echo":true}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(response)
+
+        def log_message(self, format, *args):
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.handle_request)
+    thread.start()
+    try:
+        receipt = send_openai_compatible_request(
+            prepared(),
+            endpoint=f"http://127.0.0.1:{server.server_port}/echo",
+            api_key="loopback-secret",
+            timeout_seconds=5.0,
+        )
+    finally:
+        thread.join(timeout=5.0)
+        server.server_close()
+
+    assert receipt.sent is True
+    assert receipt.http_status == 200
+    assert receipt.model_visible_exposure_observed is False
+    assert captured["authorization"] == "Bearer loopback-secret"
+    assert receipt.request_body_sha256 == hashlib.sha256(captured["body"]).hexdigest()
+    assert "loopback-secret" not in json.dumps(receipt.to_mapping())
