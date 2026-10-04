@@ -129,8 +129,13 @@ def test_treatment_is_eligible_only_after_preservation_and_reduction() -> None:
     assert result.status == ELIGIBLE_FOR_BOUNDED_ADVANCEMENT
     assert result.baseline_metric == 10
     assert result.treatment_metric == 1
-    assert result.to_mapping()["authority_effect"] == "NONE"
-    assert result.to_mapping()["scientific_n_increment"] == 0
+    mapping = result.to_mapping()
+    assert mapping["evaluation_scope"] == "BOUNDED_CONTEXT_COST_PRESERVATION_ONLY"
+    assert mapping["authority_effect"] == "NONE"
+    assert mapping["scientific_n_increment"] == 0
+    assert mapping["efficacy_effect"] == "NONE"
+    assert mapping["independent_validation_effect"] == "NONE"
+    assert mapping["high_assurance_effect"] == "NONE"
 
 
 @pytest.mark.parametrize(
