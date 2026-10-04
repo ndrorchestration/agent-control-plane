@@ -75,6 +75,14 @@ def baseline_observation_sha256(observation: BaselineObservation) -> str:
     return hashlib.sha256(canonical_baseline_observation_bytes(observation)).hexdigest()
 
 
+def baseline_observation_envelope(observation: BaselineObservation) -> dict[str, object]:
+    """Return an export envelope that carries, but does not self-hash, its identity."""
+    return {
+        "observation_sha256": baseline_observation_sha256(observation),
+        "observation": observation.to_mapping(),
+    }
+
+
 def baseline_observation_from_mapping(
     value: Mapping[str, object],
     *,
