@@ -4,6 +4,7 @@ from .budget import BudgetExceeded, BudgetUsage, ExecutionBudget
 from .context_baseline import (
     BASELINE_OBSERVATION_SCHEMA,
     BaselineObservation,
+    baseline_observation_envelope,
     baseline_observation_from_mapping,
     baseline_observation_sha256,
     canonical_baseline_observation_bytes,
@@ -44,6 +45,7 @@ __all__ = [
     "TASK_BUDGET_CHECKPOINT_SCHEMA",
     "Task",
     "TaskState",
+    "baseline_observation_envelope",
     "baseline_observation_from_mapping",
     "baseline_observation_sha256",
     "canonical_baseline_observation_bytes",
