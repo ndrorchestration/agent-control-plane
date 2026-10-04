@@ -10,6 +10,7 @@ requires-python = ">=3.10"
 
 [project.optional-dependencies]
 crypto = ["cryptography>=46,<52"]
+context-measure = ["tiktoken==0.14.0"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
