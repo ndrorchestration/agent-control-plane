@@ -6,6 +6,8 @@ on:
       - "pyproject.toml"
       - "scripts/measure_context_tool_tokens.py"
       - "scripts/measure_catalog_snapshot_tokens.py"
+      - "scripts/report_paired_exposure_gap.py"
+      - "scripts/report_paired_exposure_gap.py"
       - "src/agent_control_plane/context_tool_exposure.py"
       - "src/agent_control_plane/context_catalog_snapshot.py"
       - "experiments/context_efficiency/catalogs/**"
@@ -33,3 +35,5 @@ jobs:
         run: python scripts/measure_context_tool_tokens.py
       - name: Measure frozen GitHub connector catalog
         run: python scripts/measure_catalog_snapshot_tokens.py
+      - name: Report paired dynamic-exposure eligibility
+        run: python scripts/report_paired_exposure_gap.py
