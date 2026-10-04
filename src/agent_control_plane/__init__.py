@@ -10,6 +10,13 @@ from .context_baseline import (
     canonical_baseline_observation_bytes,
 )
 from .context_comparison import COMPARISON_PLAN_SCHEMA, ComparisonPlan
+from .context_catalog_snapshot import (
+    TOOL_CATALOG_SNAPSHOT_SCHEMA,
+    ToolCatalogSnapshot,
+    canonical_tool_catalog_snapshot_bytes,
+    tool_catalog_snapshot_from_mapping,
+    tool_catalog_snapshot_sha256,
+)
 from .context_metrics import ContextTelemetry
 from .context_state import (
     CONTEXT_STATE_SCHEMA,
@@ -34,6 +41,8 @@ __all__ = [
     "BaselineObservation",
     "COMPARISON_PLAN_SCHEMA",
     "ComparisonPlan",
+    "TOOL_CATALOG_SNAPSHOT_SCHEMA",
+    "ToolCatalogSnapshot",
     "BudgetExceeded",
     "BudgetUsage",
     "CONTEXT_STATE_SCHEMA",
@@ -50,6 +59,7 @@ __all__ = [
     "baseline_observation_sha256",
     "canonical_baseline_observation_bytes",
     "canonical_context_state_bytes",
+    "canonical_tool_catalog_snapshot_bytes",
     "canonical_task_budget_checkpoint_bytes",
     "checkpoint_task_budget",
     "context_state_from_mapping",
@@ -57,4 +67,6 @@ __all__ = [
     "context_state_to_mapping",
     "restore_task_budget_checkpoint",
     "task_budget_checkpoint_sha256",
+    "tool_catalog_snapshot_from_mapping",
+    "tool_catalog_snapshot_sha256",
 ]
