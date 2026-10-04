@@ -19,7 +19,6 @@ import json
 import os
 from pathlib import Path
 
-import tiktoken
 
 from agent_control_plane.context_catalog_snapshot import (
     tool_catalog_snapshot_from_mapping,
@@ -107,6 +106,8 @@ def make_request(label: str, catalog, profile: TransportProfile) -> OpenAICompat
 
 
 def tool_tokens(request: OpenAICompatibleRequest) -> int:
+    import tiktoken
+
     encoding = tiktoken.get_encoding(ENCODING)
     tool_payload = json.dumps(
         request.to_mapping()["tools"],
