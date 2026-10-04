@@ -1,7 +1,7 @@
 {
   "schema": "agent-control-plane.context-state.v0-candidate",
   "task_id": "cep-baseline-001",
-  "objective": "Verify exact-head CEP baseline plumbing and record directly observable workflow measurements without estimating unavailable model-token fields.",
+  "objective": "Verify whether GitHub Actions completed successfully for exact head 50da6cef8307f82003ebbe5f282b67de12a14a00 using the commit workflow-runs endpoint.",
   "authority_boundaries": [
     "SCIENTIFIC_N_INCREMENT=0",
     "INDEPENDENT_VALIDATION=NOT_ESTABLISHED",
@@ -25,10 +25,10 @@
   ],
   "unresolved": [
     "Authoritative model input-token counts are not exposed by the current connector workflow.",
-    "Authoritative tool-definition token exposure is not exposed by the current connector workflow."
+    "Authoritative tool-definition exposure is not exposed by the current connector workflow."
   ],
   "recent_delta": [
-    "Baseline recorder and frozen-control comparison plumbing verified green at exact head 50da6cef8307f82003ebbe5f282b67de12a14a00."
+    "Workflow-runs lookup returned one completed test run with conclusion success for the exact head."
   ],
-  "next_action": "Freeze a partial observed baseline and then design an instrumented treatment harness that can measure exposed tool definitions directly."
+  "next_action": "Freeze this partial observed control record and use an instrumented harness for measurements unavailable from the connector."
 }
