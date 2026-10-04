@@ -23,26 +23,31 @@ def _non_empty(value: str, name: str) -> str:
     return value
 
 
+def _optional_non_empty(value: str | None, name: str) -> None:
+    if value is not None:
+        _non_empty(value, name)
+
+
 @dataclass(frozen=True)
 class PairedTaskArm:
     """One control or treatment arm from a paired task evaluation."""
 
     catalog_sha256: str
     model_visible_exposure_observed: bool
-    model_visible_tool_count: int | None
-    model_visible_tool_tokens: int | None
-    selected_tool: str
-    normalized_result_sha256: str
-    evidence_sha256: str
-    acceptance: str
+    model_visible_tool_count: int | None = None
+    model_visible_tool_tokens: int | None = None
+    selected_tool: str | None = None
+    normalized_result_sha256: str | None = None
+    evidence_sha256: str | None = None
+    acceptance: str | None = None
     latency_ms: int | None = None
 
     def __post_init__(self) -> None:
         _non_empty(self.catalog_sha256, "catalog_sha256")
-        _non_empty(self.selected_tool, "selected_tool")
-        _non_empty(self.normalized_result_sha256, "normalized_result_sha256")
-        _non_empty(self.evidence_sha256, "evidence_sha256")
-        _non_empty(self.acceptance, "acceptance")
+        _optional_non_empty(self.selected_tool, "selected_tool")
+        _optional_non_empty(self.normalized_result_sha256, "normalized_result_sha256")
+        _optional_non_empty(self.evidence_sha256, "evidence_sha256")
+        _optional_non_empty(self.acceptance, "acceptance")
         for name in (
             "model_visible_tool_count",
             "model_visible_tool_tokens",
@@ -54,13 +59,18 @@ class PairedTaskArm:
             ):
                 raise ValueError(f"{name} must be a non-negative integer or None")
         if self.model_visible_exposure_observed:
-            if self.model_visible_tool_count is None:
+            required = {
+                "model_visible_tool_count": self.model_visible_tool_count,
+                "model_visible_tool_tokens": self.model_visible_tool_tokens,
+                "selected_tool": self.selected_tool,
+                "normalized_result_sha256": self.normalized_result_sha256,
+                "evidence_sha256": self.evidence_sha256,
+                "acceptance": self.acceptance,
+            }
+            missing = [name for name, value in required.items() if value is None]
+            if missing:
                 raise ValueError(
-                    "observed model-visible exposure requires model_visible_tool_count"
-                )
-            if self.model_visible_tool_tokens is None:
-                raise ValueError(
-                    "observed model-visible exposure requires model_visible_tool_tokens"
+                    "observed model-visible exposure requires: " + ", ".join(missing)
                 )
 
 
@@ -139,6 +149,8 @@ class PairedTaskEvaluation:
             "control_model_visible_tool_tokens": self.control.model_visible_tool_tokens,
             "treatment_model_visible_tool_tokens": self.treatment.model_visible_tool_tokens,
             "selected_tool": self.control.selected_tool,
+            "control_latency_ms": self.control.latency_ms,
+            "treatment_latency_ms": self.treatment.latency_ms,
             "authority_effect": "NONE",
             "scientific_n_increment": 0,
             "efficacy_effect": "NONE",
