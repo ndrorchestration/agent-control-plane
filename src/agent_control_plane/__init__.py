@@ -29,6 +29,15 @@ from .context_comparison import (
     evaluate_treatment,
 )
 from .context_metrics import ContextTelemetry
+from .context_paired_evaluation import (
+    PAIRED_BLOCKED_DYNAMIC_EXPOSURE_UNOBSERVED,
+    PAIRED_BLOCKED_PRESERVATION_FAILURE,
+    PAIRED_ELIGIBLE,
+    PAIRED_NO_MEASURED_REDUCTION,
+    PAIRED_TASK_EVALUATION_SCHEMA,
+    PairedTaskArm,
+    PairedTaskEvaluation,
+)
 from .context_state import (
     CONTEXT_STATE_SCHEMA,
     ContextState,
@@ -58,6 +67,13 @@ __all__ = [
     "ComparisonResult",
     "ContextState",
     "ContextTelemetry",
+    "PAIRED_BLOCKED_DYNAMIC_EXPOSURE_UNOBSERVED",
+    "PAIRED_BLOCKED_PRESERVATION_FAILURE",
+    "PAIRED_ELIGIBLE",
+    "PAIRED_NO_MEASURED_REDUCTION",
+    "PAIRED_TASK_EVALUATION_SCHEMA",
+    "PairedTaskArm",
+    "PairedTaskEvaluation",
     "ControlPlane",
     "ELIGIBLE_FOR_BOUNDED_ADVANCEMENT",
     "EvidenceReference",
