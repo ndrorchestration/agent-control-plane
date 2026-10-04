@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 from typing import Mapping
 
 from .context_metrics import ContextTelemetry
@@ -53,6 +55,24 @@ class BaselineObservation:
             "acceptance": self.acceptance,
             "notes": self.notes,
         }
+
+
+def canonical_baseline_observation_bytes(observation: BaselineObservation) -> bytes:
+    """Return deterministic bytes for control identity; this is not authentication."""
+    if not isinstance(observation, BaselineObservation):
+        raise TypeError("observation must be BaselineObservation")
+    return json.dumps(
+        observation.to_mapping(),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def baseline_observation_sha256(observation: BaselineObservation) -> str:
+    """Return deterministic SHA-256 identity for one frozen baseline observation."""
+    return hashlib.sha256(canonical_baseline_observation_bytes(observation)).hexdigest()
 
 
 def baseline_observation_from_mapping(
