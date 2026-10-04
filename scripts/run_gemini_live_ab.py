@@ -14,6 +14,7 @@ step so connector evidence can be attached explicitly rather than inferred.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -138,7 +139,38 @@ def arm_result(label: str, prepared: OpenAICompatibleRequest, receipt, tiktoken_
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--send",
+        action="store_true",
+        help=(
+            "Send the frozen control/treatment requests. Without --send the "
+            "runner performs no credential read and no network request."
+        ),
+    )
+    args = parser.parse_args()
+
     profile = load_profile()
+    if not args.send:
+        print(
+            json.dumps(
+                {
+                    "schema": "agent-control-plane.live-model-ab.v0-candidate",
+                    "status": "BLOCKED_SEND_NOT_REQUESTED",
+                    "profile_id": profile.profile_id,
+                    "required_env": profile.api_key_env,
+                    "credential_read": False,
+                    "network_request_sent": False,
+                    "scientific_n_increment": 0,
+                    "efficacy_effect": "NONE",
+                    "independent_validation_effect": "NONE",
+                    "high_assurance_effect": "NONE",
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+
     api_key = os.environ.get(profile.api_key_env)
     if not api_key:
         print(
