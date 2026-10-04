@@ -1,0 +1,636 @@
+{
+  "schema": "agent-control-plane.tool-catalog-snapshot.v0-candidate",
+  "source": "chatgpt-runtime://GitHub/connector-catalog",
+  "collected_at": "2026-10-04",
+  "descriptors": [
+    {
+      "name": "mcp__GitHub__add_comment_to_issue",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Create a top-level PR Conversation comment (Issue comment).\n\n```ts\nmcp__GitHub__add_comment_to_issue(args: // add_comment_to_issue_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Comment\n//\n// Top-level comment body to add to the issue thread.\ncomment: string,\n}): Promise<// add_comment_to_issue_output\n{\n// GithubCommentResponse\nresult: {\n// Id\n//\n// Identifier of the created GitHub comment.\nid: integer,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__add_issue_assignees",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Add assignees to an issue or pull request. Returns a normalized issue snapshot after the mutation. Docs: https://docs.github.com/en/rest/issues/assignees?apiVersion=2022-11-28#add-assignees-to-an-issue\n\n```ts\nmcp__GitHub__add_issue_assignees(args: // add_issue_assignees_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Issue Number\n//\n// Issue number in the repository.\nissue_number: integer,\n// Assignees\n//\n// GitHub usernames to add as assignees. GitHub's endpoint supports up to 10 assignees and adds to the existing set.\nassignees: string[],\n}): Promise<// add_issue_assignees_output\n{\n// WriteIssueResponse\nresult: {\n// Issue\n//\n// GitHub issue payload after the write operation.\nissue: { [key: string]: any },\n// Url\n//\n// Canonical URL for the GitHub issue.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the GitHub issue.\ntitle?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__add_issue_labels",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Add labels to an issue or pull request. Returns a normalized issue snapshot after the mutation. Docs: https://docs.github.com/en/rest/issues/labels?apiVersion=2022-11-28#add-labels-to-an-issue\n\n```ts\nmcp__GitHub__add_issue_labels(args: // add_issue_labels_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Issue Number\n//\n// Issue number in the repository.\nissue_number: integer,\n// Labels\n//\n// Labels to add to the issue or pull request. This is additive, unlike `update_issue(labels=...)` which replaces the full set.\nlabels: string[],\n}): Promise<// add_issue_labels_output\n{\n// WriteIssueResponse\nresult: {\n// Issue\n//\n// GitHub issue payload after the write operation.\nissue: { [key: string]: any },\n// Url\n//\n// Canonical URL for the GitHub issue.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the GitHub issue.\ntitle?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__add_reaction_to_issue_comment",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Add a reaction to an issue comment.\n\n```ts\nmcp__GitHub__add_reaction_to_issue_comment(args: // add_reaction_to_issue_comment_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Comment Id\n//\n// Numeric issue or review comment ID.\ncomment_id: integer,\n// Reaction\n//\n// Reaction identifier such as `+1` or `eyes`.\nreaction: string,\n}): Promise<// add_reaction_to_issue_comment_output\n{\n// GithubReaction\n//\n// Reaction on an issue or pull request.\nresult: {\n// Id\nid: integer,\n// Node Id\nnode_id: string,\n// GithubUser\nuser: {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n},\n// Content\ncontent: string,\n// Created At\ncreated_at: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__add_reaction_to_pr",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Add a reaction to a GitHub pull request.\n\n```ts\nmcp__GitHub__add_reaction_to_pr(args: // add_reaction_to_pr_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Reaction\n//\n// Reaction identifier such as `+1` or `eyes`.\nreaction: string,\n}): Promise<// add_reaction_to_pr_output\n{\n// GithubReaction\n//\n// Reaction on an issue or pull request.\nresult: {\n// Id\nid: integer,\n// Node Id\nnode_id: string,\n// GithubUser\nuser: {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n},\n// Content\ncontent: string,\n// Created At\ncreated_at: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__add_reaction_to_pr_review_comment",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Add a reaction to a pull request review comment.\n\n```ts\nmcp__GitHub__add_reaction_to_pr_review_comment(args: // add_reaction_to_pr_review_comment_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Comment Id\n//\n// Numeric issue or review comment ID.\ncomment_id: integer,\n// Reaction\n//\n// Reaction identifier such as `+1` or `eyes`.\nreaction: string,\n}): Promise<// add_reaction_to_pr_review_comment_output\n{\n// GithubReaction\n//\n// Reaction on an issue or pull request.\nresult: {\n// Id\nid: integer,\n// Node Id\nnode_id: string,\n// GithubUser\nuser: {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n},\n// Content\ncontent: string,\n// Created At\ncreated_at: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__add_review_to_pr",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Add a review to a GitHub pull request. review is required for REQUEST_CHANGES and COMMENT events.\n\n```ts\nmcp__GitHub__add_review_to_pr(args: // add_review_to_pr_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// GithubReviewAction\n//\n// Review action to take. `review` is required for `COMMENT` and `REQUEST_CHANGES`.\naction: \"COMMENT\" | \"APPROVE\" | \"REQUEST_CHANGES\",\n// Review\n//\n// Review body to submit. Required when requesting changes or leaving a comment.\nreview?: string | null, // default: null\n// File Comments\n//\n// Optional inline file comments to include with the review.\n// default: null\nfile_comments?:\n | Array<\n// GithubFileComment\n{\n// Path\n//\n// Repository path of the file to comment on.\npath: string,\n// Position\n//\n// The position in the diff where you want to add a review comment. Note this value is not the same as the line number in the file. The position value equals the number of lines down from the first \"@@\" hunk header in the file you want to add a comment. The line just below the \"@@\" line is position 1, the next line is position 2, and so on. The position in the diff continues to increase through lines of whitespace and additional hunks until the beginning of a new file.\nposition?: integer | null, // default: null\n// Body\n//\n// Body text for the review comment.\nbody: string,\n// Line\n//\n// File line number for line-based review comments.\nline?: integer | null, // default: null\n// Side\n//\n// Diff side for `line`, such as `LEFT` or `RIGHT`.\nside?: string | null, // default: null\n// Start Line\n//\n// Starting line number for a multi-line review comment range.\nstart_line?: integer | null, // default: null\n// Start Side\n//\n// Diff side for `start_line`, such as `LEFT` or `RIGHT`.\nstart_side?: string | null, // default: null\n}\n>\n | null\n,\n// Commit Id\n//\n// Optional commit SHA to anchor the review.\ncommit_id?: string | null, // default: null\n}): Promise<// add_review_to_pr_output\n{\n// GithubReviewResponse\nresult: {\n// Success\n//\n// Whether the review operation completed successfully.\nsuccess: boolean,\n// Review Id\n//\n// Identifier of the created or updated review, when available.\nreview_id?: string | integer | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__compare_commits",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Compare two commits/refs and return per-file stats plus compare metadata. This is a thin wrapper around `GithubPlugin.compare_commits` to provide a stable, compact response shape to connector consumers.\n\n```ts\nmcp__GitHub__compare_commits(args: // compare_commits_input\n{\n// Repo Full Name\nrepo_full_name: string,\n// Base\nbase: string,\n// Head\nhead: string,\n}): Promise<// compare_commits_output\n{\n// GithubCompareCommitsResult\n//\n// Minimal, stable subset of `GET /repos/{owner}/{repo}/compare/{base}...{head}`.\n//\n// Consumers generally only need commit refs + ahead/behind counts and per-file stats\n// (changes/additions/deletions).\nresult: {\n// Repository Full Name\nrepository_full_name: string,\n// Base\nbase: string,\n// Head\nhead: string,\n// Status\nstatus?: string | null, // default: null\n// Ahead By\nahead_by?: integer | null, // default: null\n// Behind By\nbehind_by?: integer | null, // default: null\n// Total Commits\ntotal_commits?: integer | null, // default: null\n// Too Large\ntoo_large?: boolean | null, // default: null\n// default: null\nbase_commit?:\n// GithubCompareCommitRef\n//\n// A lightweight commit reference used by compare endpoints.\n | {\n// Sha\nsha: string,\n// Url\nurl?: string | null, // default: null\n// Html Url\nhtml_url?: string | null, // default: null\n}\n | null\n,\n// default: null\nmerge_base_commit?:\n// GithubCompareCommitRef\n//\n// A lightweight commit reference used by compare endpoints.\n | {\n// Sha\nsha: string,\n// Url\nurl?: string | null, // default: null\n// Html Url\nhtml_url?: string | null, // default: null\n}\n | null\n,\n// Files\n// default: []\nfiles?: Array<\n// GithubCompareFileStats\n//\n// Per-file change stats returned by the compare endpoint.\n{\n// Filename\nfilename: string,\n// Status\nstatus?: string | null, // default: null\n// Additions\nadditions?: integer | null, // default: null\n// Deletions\ndeletions?: integer | null, // default: null\n// Changes\nchanges?: integer | null, // default: null\n// Previous Filename\nprevious_filename?: string | null, // default: null\n}\n>,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__convert_pull_request_to_draft",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Convert an open pull request back to draft state. Returns the connector's normalized PR snapshot after the transition. Docs: https://docs.github.com/en/graphql/reference/mutations#convertpullrequesttodraft\n\n```ts\nmcp__GitHub__convert_pull_request_to_draft(args: // convert_pull_request_to_draft_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n}): Promise<// convert_pull_request_to_draft_output\n{\n// _PullRequest\nresult: {\n// Url\nurl: string,\n// Number\nnumber: integer,\n// State\nstate: string,\n// Merged\nmerged: boolean,\n// Mergeable\nmergeable: boolean,\n// Draft\ndraft: boolean,\n// Body\nbody?: string | null, // default: null\n// Title\ntitle?: string | null, // default: null\n// Base\nbase?: string | null, // default: null\n// Base Sha\nbase_sha?: string | null, // default: null\n// Head\nhead?: string | null, // default: null\n// Head Sha\nhead_sha?: string | null, // default: null\n// Head Repo Id\nhead_repo_id?: integer | null, // default: null\n// Head Repo Full Name\nhead_repo_full_name?: string | null, // default: null\n// Merge Commit Sha\nmerge_commit_sha?: string | null, // default: null\n// default: null\nuser?:\n// GithubUser\n | {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n | null\n,\n// Requested Reviewers\n// default: null\nrequested_reviewers?:\n | Array<\n// GithubUser\n{\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n>\n | null\n,\n// Requested Team Reviewers\n// default: null\nrequested_team_reviewers?:\n | Array<\n// GithubTeamReviewer\n{\n// Slug\nslug: string,\n// Name\nname?: string | null, // default: null\n}\n>\n | null\n,\n// Diff\n//\n// Not included in this metadata response.\ndiff?: null, // default: null\n// Comments\n//\n// Not included in this metadata response.\ncomments?: null, // default: null\n// Created At\ncreated_at?: string | null, // default: null\n// Updated At\nupdated_at?: string | null, // default: null\n// Closed At\nclosed_at?: string | null, // default: null\n// Merged At\nmerged_at?: string | null, // default: null\n// Commits\ncommits?: integer | null, // default: null\n// Changed Files\nchanged_files?: integer | null, // default: null\n// Additions\nadditions?: integer | null, // default: null\n// Deletions\ndeletions?: integer | null, // default: null\n// Display Url\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_url: string,\n// Display Title\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__create_blob",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Create a blob in the repository and return its SHA.\n\n```ts\nmcp__GitHub__create_blob(args: // create_blob_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Content\n//\n// Blob content to store in the repository.\ncontent: string,\n// Encoding\n//\n// One of utf-8 or base64. Default is utf-8.\nencoding?: \"utf-8\" | \"base64\", // default: \"utf-8\"\n}): Promise<// create_blob_output\n{\n// _Sha\nresult: {\n// Sha\n//\n// SHA of the created Git object.\nsha: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__create_branch",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Create a new branch from exactly one existing commit SHA or base ref.\n\n```ts\nmcp__GitHub__create_branch(args: // create_branch_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Branch Name\n//\n// Branch name to create or update.\nbranch_name: string,\n// Sha\n//\n// Existing commit SHA to use as the new branch's starting point. Provide exactly one of `sha` or `base_ref`.\nsha?: string | null, // default: null\n// Base Ref\n//\n// Existing branch, tag, or commit ref to use as the new branch's starting point. Provide exactly one of `base_ref` or `sha`.\nbase_ref?: string | null, // default: null\n}): Promise<// create_branch_output\n{\n// _Branch\nresult: {\n// Branch\n//\n// Name of the created branch.\nbranch: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__create_commit",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Create a commit pointing to tree_sha with one or more parents.\n\n```ts\nmcp__GitHub__create_commit(args: // create_commit_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Message\n//\n// Commit message to use for the new commit.\nmessage: string,\n// Tree Sha\n//\n// Tree SHA to point the new commit at.\ntree_sha: string,\n// Parent Sha\n//\n// Parent commit SHA for the new commit.\nparent_sha: string,\n// Additional Parent Shas\n//\n// Additional ordered commit parent SHAs. Defaults to no additional parents.\nadditional_parent_shas?: string[] | null, // default: null\n}): Promise<// create_commit_output\n{\n// _Sha\nresult: {\n// Sha\n//\n// SHA of the created Git object.\nsha: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__create_file",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Create a new UTF-8 text file through GitHub's contents API. Returns only the resulting commit SHA, not GitHub's full content/commit payload. Docs: https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents\n\n```ts\nmcp__GitHub__create_file(args: // create_file_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Path\n//\n// New file path within the repository. The path must not already exist on the target branch. To replace an existing file, call fetch_file first and pass its current blob SHA to update_file.\npath: string,\n// Content\n//\n// Complete UTF-8 text contents to write. This wrapper base64-encodes the text for GitHub's contents API.\ncontent: string,\n// Message\n//\n// Commit message for the new file.\nmessage: string,\n// Branch\n//\n// Optional existing branch to create the file on. Leave null to use the default branch. This action never creates a branch; use create_branch first when needed.\nbranch?: string | null, // default: null\n}): Promise<// create_file_output\n{\n// _FileCommit\nresult: {\n// Commit Sha\n//\n// SHA of the commit that changed the file.\ncommit_sha: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__create_issue",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Create a GitHub issue. Returns a normalized issue snapshot, not GitHub's raw REST payload. Docs: https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#create-an-issue\n\n```ts\nmcp__GitHub__create_issue(args: // create_issue_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Title\n//\n// Issue title.\ntitle: string,\n// Body\n//\n// Optional Markdown body for the issue.\nbody?: string | null, // default: null\n// Assignees\n//\n// Optional GitHub usernames to assign when creating the issue.\nassignees?: string[] | null, // default: null\n// Labels\n//\n// Optional labels to apply when creating the issue.\nlabels?: string[] | null, // default: null\n// Milestone\n//\n// Optional milestone number to associate with the issue.\nmilestone?: integer | null, // default: null\n}): Promise<// create_issue_output\n{\n// WriteIssueResponse\nresult: {\n// Issue\n//\n// GitHub issue payload after the write operation.\nissue: { [key: string]: any },\n// Url\n//\n// Canonical URL for the GitHub issue.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the GitHub issue.\ntitle?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__create_pull_request",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Open a pull request in the repository. Returns the connector's normalized PR snapshot, not the full REST response payload. Docs: https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#create-a-pull-request\n\n```ts\nmcp__GitHub__create_pull_request(args: // create_pull_request_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Title\n//\n// Title for the new pull request. Required unless `issue` is supplied.\ntitle?: string | null, // default: null\n// Body\n//\n// Pull request description or summary. GitHub allows omitting this field.\nbody?: string | null, // default: null\n// Head Branch\n//\n// Compatibility alias for `head`, the branch containing the proposed changes.\nhead_branch?: string | null, // default: null\n// Base Branch\n//\n// Compatibility alias for `base`, the target branch for the pull request.\nbase_branch?: string | null, // default: null\n// Draft\n//\n// Create the pull request as a draft.\ndraft?: boolean, // default: false\n// Head\n//\n// GitHub REST `head` branch containing the proposed changes.\nhead?: string | null, // default: null\n// Base\n//\n// GitHub REST `base` branch that the pull request targets.\nbase?: string | null, // default: null\n// Issue\n//\n// Existing issue number to convert into a pull request.\nissue?: integer | null, // default: null\n// Head Repo\n//\n// Repository where the head branch lives. Required by GitHub for some same-organization cross-repository pull requests.\nhead_repo?: string | null, // default: null\n// Maintainer Can Modify\n//\n// Whether maintainers may modify the pull request branch.\nmaintainer_can_modify?: boolean | null, // default: null\n}): Promise<// create_pull_request_output\n{\n// _PullRequest\nresult: {\n// Url\nurl: string,\n// Number\nnumber: integer,\n// State\nstate: string,\n// Merged\nmerged: boolean,\n// Mergeable\nmergeable: boolean,\n// Draft\ndraft: boolean,\n// Body\nbody?: string | null, // default: null\n// Title\ntitle?: string | null, // default: null\n// Base\nbase?: string | null, // default: null\n// Base Sha\nbase_sha?: string | null, // default: null\n// Head\nhead?: string | null, // default: null\n// Head Sha\nhead_sha?: string | null, // default: null\n// Head Repo Id\nhead_repo_id?: integer | null, // default: null\n// Head Repo Full Name\nhead_repo_full_name?: string | null, // default: null\n// Merge Commit Sha\nmerge_commit_sha?: string | null, // default: null\n// default: null\nuser?:\n// GithubUser\n | {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n | null\n,\n// Requested Reviewers\n// default: null\nrequested_reviewers?:\n | Array<\n// GithubUser\n{\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n>\n | null\n,\n// Requested Team Reviewers\n// default: null\nrequested_team_reviewers?:\n | Array<\n// GithubTeamReviewer\n{\n// Slug\nslug: string,\n// Name\nname?: string | null, // default: null\n}\n>\n | null\n,\n// Diff\n//\n// Not included in this metadata response.\ndiff?: null, // default: null\n// Comments\n//\n// Not included in this metadata response.\ncomments?: null, // default: null\n// Created At\ncreated_at?: string | null, // default: null\n// Updated At\nupdated_at?: string | null, // default: null\n// Closed At\nclosed_at?: string | null, // default: null\n// Merged At\nmerged_at?: string | null, // default: null\n// Commits\ncommits?: integer | null, // default: null\n// Changed Files\nchanged_files?: integer | null, // default: null\n// Additions\nadditions?: integer | null, // default: null\n// Deletions\ndeletions?: integer | null, // default: null\n// Display Url\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_url: string,\n// Display Title\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__create_tree",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Create a tree object in the repository from the given elements.\n\n```ts\nmcp__GitHub__create_tree(args: // create_tree_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Tree Elements\n//\n// Tree entries to include in the new tree object.\ntree_elements: { [key: string]: any }[],\n// Base Tree Sha\n//\n// Optional base tree SHA to build on. Leave null to create from scratch.\nbase_tree_sha?: string | null, // default: null\n}): Promise<// create_tree_output\n{\n// _Sha\nresult: {\n// Sha\n//\n// SHA of the created Git object.\nsha: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__delete_file",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Delete a file through GitHub's contents API. Returns only the resulting commit SHA. Docs: https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#delete-a-file\n\n```ts\nmcp__GitHub__delete_file(args: // delete_file_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Path\n//\n// Path for the existing file within the repository.\npath: string,\n// Message\n//\n// Commit message for the file deletion.\nmessage: string,\n// Sha\n//\n// Current blob SHA of the file being deleted, usually from `fetch_file`.\nsha: string,\n// Branch\n//\n// Optional branch to update. Leave null to use the default branch.\nbranch?: string | null, // default: null\n}): Promise<// delete_file_output\n{\n// _FileCommit\nresult: {\n// Commit Sha\n//\n// SHA of the commit that changed the file.\ncommit_sha: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__dismiss_pull_request_review",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Dismiss a submitted pull request review. Returns the normalized review snapshot after dismissal. Docs: https://docs.github.com/en/graphql/reference/mutations#dismisspullrequestreview\n\n```ts\nmcp__GitHub__dismiss_pull_request_review(args: // dismiss_pull_request_review_input\n{\n// Review Id\n//\n// GraphQL pull request review node ID.\nreview_id: string,\n// Message\n//\n// Dismissal message explaining why the review is being dismissed.\nmessage: string,\n}): Promise<// dismiss_pull_request_review_output\n{\n// DismissPullRequestReviewResponse\nresult: {\n// Review\n//\n// Dismissed review payload returned by GitHub.\nreview: { [key: string]: any },\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__download_user_content",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Download a GitHub private user image attachment URL. Use this only for private-user-images.githubusercontent.com URLs, such as GitHub issue or pull request image uploads. Use fetch or fetch_file for repository files.\n\n```ts\nmcp__GitHub__download_user_content(args: // download_user_content_input\n{\n// Url\n//\n// GitHub private user image attachment URL to download. Only https://private-user-images.githubusercontent.com URLs are supported; use fetch or fetch_file for repository files.\nurl: string,\n}): Promise<// download_user_content_output\n{\n// _Content\nresult: {\n// Content\n//\n// Fetched content.\ncontent: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__download_workflow_artifact",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Download a GitHub Actions workflow artifact ZIP archive. GitHub serves this endpoint through a temporary redirect; the underlying client follows that redirect before returning a reusable file reference for the ZIP bytes. Docs: https://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28#download-an-artifact\n\n```ts\nmcp__GitHub__download_workflow_artifact(args: // download_workflow_artifact_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Artifact Id\n//\n// GitHub Actions workflow artifact ID.\nartifact_id: integer,\n// File Name\n//\n// Optional ZIP file name for the returned file reference.\nfile_name?: string | null, // default: null\n}): Promise<// download_workflow_artifact_output\n{\n// DownloadWorkflowArtifactResponse\nresult: {\n// File reference for the downloaded GitHub Actions artifact ZIP.\nfile_uri:\n// ConnectorFileReference\n//\n// Connector-local file reference payload used for upload/download handoff.\n & {\n// Download Url\ndownload_url: string,\n// File Id\nfile_id: string,\n// Mime Type\nmime_type?: string | null, // default: null\n// File Name\nfile_name?: string | null, // default: null\n}\n,\n// Artifact Id\n//\n// GitHub Actions workflow artifact ID.\nartifact_id: integer,\n// File Name\n//\n// Materialized artifact ZIP file name.\nfile_name: string,\n// Mime Type\n//\n// MIME type for the materialized artifact ZIP.\nmime_type: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__enable_auto_merge",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Enable auto-merge for a pull request. This wrapper infers the merge method from repository settings and returns only `success`. Docs: https://docs.github.com/en/graphql/reference/mutations#enablepullrequestautomerge\n\n```ts\nmcp__GitHub__enable_auto_merge(args: // enable_auto_merge_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n}): Promise<// enable_auto_merge_output\n{\n// _Success\nresult: {\n// Success\n//\n// Whether the operation succeeded.\nsuccess: boolean,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch approved public GitHub repository resources and repository files. Supports repositories, directories, code and issue search, and blob or raw file URLs. Pull requests, issues, commits, branches, workflow runs, releases, Git data, commit statuses, and rulesets include their collections and subresources via GET only, including branch-protection and ruleset reads. The active connection's repository permissions still apply. Managed GitHub App installation connections exclude administration access, so they cannot read branch-protection endpoints that require that permission. Unlisted API endpoints and non-public-GitHub hosts are rejected. Sensitive endpoint families, such as user, organization, and secrets APIs, are not supported. Contents URLs without a ref use the repository's default branch. JSON responses are returned unchanged; oversized or non-UTF-8 responses are rejected, so binary downloads are not supported.\n\n```ts\nmcp__GitHub__fetch(args: // fetch_input\n{\n// Url\n//\n// Approved public GitHub repository, file, directory, issue, pull request, commit, branch, blob, README, workflow run, release, Git data, commit status, ruleset, code-search, or issue-search URL. Includes collections and subresources of pull requests, issues, commits, branches, workflow runs, releases, Git data, statuses, and rulesets. Responses must contain UTF-8 text. Supports github.com, GitHub REST API (api.github.com), and raw.githubusercontent.com URLs. Examples: https://github.com/owner/repo/blob/main/README.md, https://api.github.com/repos/owner/repo/contents/README.md, and https://raw.githubusercontent.com/owner/repo/main/README.md. Contents URLs without a ref use the repository's default branch.\nurl: string,\n}): Promise<// fetch_output\n{\n// FetchResponse\nresult: {\n// Content\n//\n// Fetched document or page content.\ncontent: string,\n// Title\n//\n// Title inferred for the fetched content.\ntitle?: string | null, // default: null\n// Modified Date\n//\n// Last modified timestamp for the fetched content, when available.\nmodified_date?: string | null, // default: null\n// Url\n//\n// Canonical GitHub URL for the fetched content.\nurl?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_blob",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch blob content by SHA from the given repository.\n\n```ts\nmcp__GitHub__fetch_blob(args: // fetch_blob_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Blob Sha\n//\n// Blob SHA returned by GitHub.\nblob_sha: string,\n}): Promise<// fetch_blob_output\n{\n// _Content\nresult: {\n// Content\n//\n// Fetched content.\ncontent: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_commit",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch a commit with its metadata, diff, and canonical URL.\n\n```ts\nmcp__GitHub__fetch_commit(args: // fetch_commit_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Commit Sha\n//\n// Commit SHA.\ncommit_sha: string,\n}): Promise<// fetch_commit_output\n{\n// FetchCommitResponse\nresult: {\n// Commit\n//\n// Fetched GitHub commit payload.\ncommit: { [key: string]: any },\n// Url\n//\n// Canonical URL for the commit.\nurl?: string | null, // default: null\n// Title\n//\n// Display title for the commit.\ntitle?: string | null, // default: null\n// Diff\n//\n// Unified diff for the commit, when requested.\ndiff?: string | null, // default: null\n// Display Url\n//\n// Browser URL for this GitHub commit; empty when unavailable.\n// Additional JSON Schema constraints: readOnly=true\ndisplay_url: string,\n// Display Title\n//\n// Display title for this GitHub commit.\n// Additional JSON Schema constraints: readOnly=true\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_commit_workflow_runs",
+      "capabilities": [
+        "github.read",
+        "github.status.commit_workflow_runs"
+      ],
+      "schema_text": "Fetch GitHub Actions workflow runs associated with a commit SHA. This wrapper currently filters to pull-request-triggered runs and returns the first page only. Docs: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#list-workflow-runs-for-a-repository\n\n```ts\nmcp__GitHub__fetch_commit_workflow_runs(args: // fetch_commit_workflow_runs_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Commit Sha\n//\n// Commit SHA.\ncommit_sha: string,\n}): Promise<// fetch_commit_workflow_runs_output\n{\n// FetchCommitWorkflowRunsResponse\nresult: {\n// Workflow Runs\n//\n// Workflow runs associated with the commit.\nworkflow_runs: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_file",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch file content by repository path, using the default branch when ref is omitted.\n\n```ts\nmcp__GitHub__fetch_file(args: // fetch_file_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Path\n//\n// Repository path for the file to fetch.\npath: string,\n// Ref\n//\n// Optional branch, tag, or commit ref to read from. Omit this unless the ref is known; the repository default branch will be used when omitted.\nref?: string | null, // default: null\n// Encoding\n//\n// One of utf-8 or base64. Default is utf-8.\nencoding?: \"utf-8\" | \"base64\", // default: \"utf-8\"\n// Start Line\n//\n// Optional 1-based first line to return.\n// default: null\nstart_line?:\n | integer // exclusiveMinimum: 0\n | null\n,\n// End Line\n//\n// Optional 1-based last line to return.\n// default: null\nend_line?:\n | integer // exclusiveMinimum: 0\n | null\n,\n}): Promise<// fetch_file_output\n{\n// _File\nresult: {\n// Content\n//\n// Fetched content.\ncontent: string,\n// Encoding\n//\n// Encoding of the file content.\nencoding: string,\n// Sha\n//\n// Blob SHA of the fetched file.\nsha: string,\n// Display Url\n//\n// Browser URL for the file.\ndisplay_url: string,\n// Display Title\n//\n// File name for display.\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_issue",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch a GitHub issue. You must populate exactly one of `repository_full_name`, `repository_id`, or `repository_url` to select the issue's repository.\n\n```ts\nmcp__GitHub__fetch_issue(args: // fetch_issue_input\n{\n// Issue Number\n//\n// Issue number in the repository.\nissue_number: integer,\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name?: string | null, // default: null\n// Repository Id\n//\n// Numeric GitHub repository ID, such as `1296269`. Use this only when the stable repository `id` from a GitHub repository object is available: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_id?: integer | null, // default: null\n// Repository Url\n//\n// GitHub repository URL, or a nested repository URL such as a pull request, issue, branch, or file URL. Examples: `https://github.com/openai/openai/pulls/123`, `https://api.github.com/repos/openai/openai`, `https://github.example.com/api/v3/repos/octo/repo`. Supports GitHub Enterprise Server custom hostnames and GHE.com API hosts. Docs: https://docs.github.com/en/rest/repos/repos#get-a-repository and https://docs.github.com/en/enterprise-server@latest/rest/using-the-rest-api/getting-started-with-the-rest-api and https://docs.github.com/en/enterprise-cloud@latest/admin/data-residency/about-github-enterprise-cloud-with-data-residency#api-access\nrepository_url?: string | null, // default: null\n}): Promise<// fetch_issue_output\n{\n// FetchIssueResponse\nresult: {\n// Issue\n//\n// Fetched GitHub issue payload.\nissue: { [key: string]: any },\n// Url\n//\n// Canonical URL for the GitHub issue.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the GitHub issue.\ntitle?: string | null, // default: null\n// Display Url\n//\n// Browser URL for this GitHub issue; empty when unavailable.\n// Additional JSON Schema constraints: readOnly=true\ndisplay_url: string,\n// Display Title\n//\n// Display title for this GitHub issue.\n// Additional JSON Schema constraints: readOnly=true\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_issue_comments",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch comments for a GitHub issue across all pages.\n\n```ts\nmcp__GitHub__fetch_issue_comments(args: // fetch_issue_comments_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Issue Number\n//\n// Issue number in the repository.\nissue_number: integer,\n}): Promise<// fetch_issue_comments_output\n{\n// FetchPrCommentsResponse\nresult: {\n// Comments\n//\n// Comments associated with the pull request.\ncomments: Array<\n{\n// Native GitHub browser URL for this individual issue comment, pull-request comment, or review; empty when unavailable.\nurl?: string,\n[key: string]: any,\n}\n>,\n// Url\n//\n// Canonical URL for the pull request.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the pull request.\ntitle?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_pr",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch a pull request with its diff, metadata, and optionally comments.\n\n```ts\nmcp__GitHub__fetch_pr(args: // fetch_pr_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n}): Promise<// fetch_pr_output\n{\n// FetchPullRequestResponse\nresult: {\n// Pull Request\n//\n// Fetched GitHub pull request payload.\npull_request: { [key: string]: any },\n// Url\n//\n// Canonical URL for the pull request.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the pull request.\ntitle?: string | null, // default: null\n// Diff\n//\n// Unified diff for the pull request, when requested.\ndiff?: string | null, // default: null\n// Comments\n//\n// Pull request comments included in the response, when requested.\ncomments?: { [key: string]: any }[] | null, // default: null\n// Display Url\n//\n// Browser URL for this GitHub pull request; empty when unavailable.\n// Additional JSON Schema constraints: readOnly=true\ndisplay_url: string,\n// Display Title\n//\n// Display title for this GitHub pull request.\n// Additional JSON Schema constraints: readOnly=true\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_pr_comments",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch a merged PR discussion timeline. The returned list combines issue comments, inline review comments, and review submissions into one normalized array. Docs: https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28 Docs: https://docs.github.com/en/rest/pulls/comments?apiVersion=2022-11-28 Docs: https://docs.github.com/en/rest/pulls/reviews?apiVersion=2022-11-28\n\n```ts\nmcp__GitHub__fetch_pr_comments(args: // fetch_pr_comments_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n}): Promise<// fetch_pr_comments_output\n{\n// FetchPrCommentsResponse\nresult: {\n// Comments\n//\n// Comments associated with the pull request.\ncomments: Array<\n{\n// Native GitHub browser URL for this individual issue comment, pull-request comment, or review; empty when unavailable.\nurl?: string,\n[key: string]: any,\n}\n>,\n// Url\n//\n// Canonical URL for the pull request.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the pull request.\ntitle?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_pr_file_patch",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch the patch for one validated changed file in an accessible pull request. Call `list_pr_changed_filenames` first, then pass an exact returned path. A valid pull request that does not contain the path returns `patch=null`. A 404 means GitHub could not resolve the repository or pull request; do not retry other paths.\n\n```ts\nmcp__GitHub__fetch_pr_file_patch(args: // fetch_pr_file_patch_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Path\n//\n// Exact changed-file path returned by `list_pr_changed_filenames` for this pull request. Do not guess paths or use this action to discover changed files.\npath: string,\n}): Promise<// fetch_pr_file_patch_output\n{\n// FetchPrFilePatchSingleResponse\nresult: {\n// Patch for the requested pull request file, if GitHub returned one.\n// default: null\npatch?:\n// GithubFilePatch\n | {\n// Filename\nfilename?: string | null, // default: null\n// Patch\npatch?: string | null, // default: null\n}\n | null\n,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_pr_patch",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch the patch for a GitHub pull request across all changed-file pages.\n\n```ts\nmcp__GitHub__fetch_pr_patch(args: // fetch_pr_patch_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n}): Promise<// fetch_pr_patch_output\n{\n// FetchPrPatchResponse\nresult: {\n// Patches\n//\n// Per-file patches for the pull request.\npatches: Array<\n// GithubFilePatch\n{\n// Filename\nfilename?: string | null, // default: null\n// Patch\npatch?: string | null, // default: null\n}\n>,\n// Url\n//\n// Canonical URL for the pull request.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the pull request.\ntitle?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_workflow_job_logs",
+      "capabilities": [
+        "github.read",
+        "github.status"
+      ],
+      "schema_text": "Fetch decoded logs for a GitHub Actions workflow job. GitHub serves this endpoint through a temporary redirect; the underlying client follows that redirect before decoding the bytes. Docs: https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2022-11-28#download-job-logs-for-a-workflow-run-job\n\n```ts\nmcp__GitHub__fetch_workflow_job_logs(args: // fetch_workflow_job_logs_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Job Id\n//\n// GitHub Actions workflow job ID.\njob_id: integer,\n}): Promise<// fetch_workflow_job_logs_output\n{\n// FetchWorkflowJobLogsResponse\nresult: {\n// Content\n//\n// Raw log content for the GitHub workflow job.\ncontent: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_workflow_job_steps",
+      "capabilities": [
+        "github.read",
+        "github.status"
+      ],
+      "schema_text": "Fetch steps for a GitHub Actions workflow job. Returns only step summaries, not the full job payload. Docs: https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2022-11-28#get-a-job-for-a-workflow-run\n\n```ts\nmcp__GitHub__fetch_workflow_job_steps(args: // fetch_workflow_job_steps_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Job Id\n//\n// GitHub Actions workflow job ID.\njob_id: integer,\n}): Promise<// fetch_workflow_job_steps_output\n{\n// FetchWorkflowJobStepsResponse\nresult: {\n// Steps\n//\n// Steps belonging to the selected GitHub workflow job.\nsteps: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_workflow_run_artifacts",
+      "capabilities": [
+        "github.read",
+        "github.status"
+      ],
+      "schema_text": "Fetch artifacts for a GitHub Actions workflow run. This wrapper returns the first page only. Docs: https://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28#list-workflow-run-artifacts\n\n```ts\nmcp__GitHub__fetch_workflow_run_artifacts(args: // fetch_workflow_run_artifacts_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Run Id\n//\n// GitHub Actions workflow run ID.\nrun_id: integer,\n// Name\n//\n// Optional artifact name to filter by.\nname?: string | null, // default: null\n}): Promise<// fetch_workflow_run_artifacts_output\n{\n// FetchWorkflowRunArtifactsResponse\nresult: {\n// Artifacts\n//\n// Artifacts belonging to the selected GitHub workflow run.\nartifacts: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__fetch_workflow_run_jobs",
+      "capabilities": [
+        "github.read",
+        "github.status"
+      ],
+      "schema_text": "Fetch jobs for a GitHub Actions workflow run. This wrapper returns the latest attempt's jobs from the first page only. Docs: https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2022-11-28#list-jobs-for-a-workflow-run\n\n```ts\nmcp__GitHub__fetch_workflow_run_jobs(args: // fetch_workflow_run_jobs_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Run Id\n//\n// GitHub Actions workflow run ID.\nrun_id: integer,\n}): Promise<// fetch_workflow_run_jobs_output\n{\n// FetchWorkflowRunJobsResponse\nresult: {\n// Jobs\n//\n// Jobs belonging to the selected GitHub workflow run.\njobs: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_commit_combined_status",
+      "capabilities": [
+        "github.read",
+        "github.status"
+      ],
+      "schema_text": "Fetch the combined CI status and individual status checks for a commit.\n\n```ts\nmcp__GitHub__get_commit_combined_status(args: // get_commit_combined_status_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Commit Sha\n//\n// Commit SHA.\ncommit_sha: string,\n}): Promise<// get_commit_combined_status_output\n{\n// FetchCommitCombinedStatusResponse\nresult: {\n// Statuses\n//\n// Combined status checks reported for the commit.\nstatuses: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_issue_comment_reactions",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch reactions for an issue comment.\n\n```ts\nmcp__GitHub__get_issue_comment_reactions(args: // get_issue_comment_reactions_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Comment Id\n//\n// Numeric issue or review comment ID.\ncomment_id: integer,\n// Per Page\n//\n// Maximum number of results to return.\nper_page?: integer | null, // default: null\n// Page\n//\n// 1-based page number for pagination.\npage?: integer | null, // default: null\n}): Promise<// get_issue_comment_reactions_output\n{\n// GithubReactionsResponse\nresult: {\n// Reactions\n//\n// Reactions returned for the requested GitHub entity.\nreactions: Array<\n// GithubReaction\n//\n// Reaction on an issue or pull request.\n{\n// Id\nid: integer,\n// Node Id\nnode_id: string,\n// GithubUser\nuser: {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n},\n// Content\ncontent: string,\n// Created At\ncreated_at: string,\n}\n>,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_pr_diff",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch just the diff or patch text for a pull request.\n\n```ts\nmcp__GitHub__get_pr_diff(args: // get_pr_diff_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Format\n//\n// Output format to return. Use `diff` for unified diff or `patch` for patch text.\nformat?: \"diff\" | \"patch\", // default: \"diff\"\n}): Promise<// get_pr_diff_output\n{\n// GetPrDiffResponse\nresult: {\n// Diff\n//\n// Unified diff for the pull request.\ndiff: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_pr_info",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Get metadata (title, description, refs, and status) for a pull request. This action does *not* include the actual code changes. If you need the diff or per-file patches, call `fetch_pr_patch` instead (or use `get_users_recent_prs_in_repo` with ``include_diff=True`` when listing the user's own PRs).\n\n```ts\nmcp__GitHub__get_pr_info(args: // get_pr_info_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n}): Promise<// get_pr_info_output\n{\n// _PullRequest\nresult: {\n// Url\nurl: string,\n// Number\nnumber: integer,\n// State\nstate: string,\n// Merged\nmerged: boolean,\n// Mergeable\nmergeable: boolean,\n// Draft\ndraft: boolean,\n// Body\nbody?: string | null, // default: null\n// Title\ntitle?: string | null, // default: null\n// Base\nbase?: string | null, // default: null\n// Base Sha\nbase_sha?: string | null, // default: null\n// Head\nhead?: string | null, // default: null\n// Head Sha\nhead_sha?: string | null, // default: null\n// Head Repo Id\nhead_repo_id?: integer | null, // default: null\n// Head Repo Full Name\nhead_repo_full_name?: string | null, // default: null\n// Merge Commit Sha\nmerge_commit_sha?: string | null, // default: null\n// default: null\nuser?:\n// GithubUser\n | {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n | null\n,\n// Requested Reviewers\n// default: null\nrequested_reviewers?:\n | Array<\n// GithubUser\n{\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n>\n | null\n,\n// Requested Team Reviewers\n// default: null\nrequested_team_reviewers?:\n | Array<\n// GithubTeamReviewer\n{\n// Slug\nslug: string,\n// Name\nname?: string | null, // default: null\n}\n>\n | null\n,\n// Diff\n//\n// Not included in this metadata response.\ndiff?: null, // default: null\n// Comments\n//\n// Not included in this metadata response.\ncomments?: null, // default: null\n// Created At\ncreated_at?: string | null, // default: null\n// Updated At\nupdated_at?: string | null, // default: null\n// Closed At\nclosed_at?: string | null, // default: null\n// Merged At\nmerged_at?: string | null, // default: null\n// Commits\ncommits?: integer | null, // default: null\n// Changed Files\nchanged_files?: integer | null, // default: null\n// Additions\nadditions?: integer | null, // default: null\n// Deletions\ndeletions?: integer | null, // default: null\n// Display Url\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_url: string,\n// Display Title\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_pr_reactions",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch reactions for a GitHub pull request.\n\n```ts\nmcp__GitHub__get_pr_reactions(args: // get_pr_reactions_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Per Page\n//\n// Maximum number of results to return.\nper_page?: integer | null, // default: null\n// Page\n//\n// 1-based page number for pagination.\npage?: integer | null, // default: null\n}): Promise<// get_pr_reactions_output\n{\n// GithubReactionsResponse\nresult: {\n// Reactions\n//\n// Reactions returned for the requested GitHub entity.\nreactions: Array<\n// GithubReaction\n//\n// Reaction on an issue or pull request.\n{\n// Id\nid: integer,\n// Node Id\nnode_id: string,\n// GithubUser\nuser: {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n},\n// Content\ncontent: string,\n// Created At\ncreated_at: string,\n}\n>,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_pr_review_comment_reactions",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Fetch reactions for a pull request review comment.\n\n```ts\nmcp__GitHub__get_pr_review_comment_reactions(args: // get_pr_review_comment_reactions_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Comment Id\n//\n// Numeric issue or review comment ID.\ncomment_id: integer,\n// Per Page\n//\n// Maximum number of results to return.\nper_page?: integer | null, // default: null\n// Page\n//\n// 1-based page number for pagination.\npage?: integer | null, // default: null\n}): Promise<// get_pr_review_comment_reactions_output\n{\n// GithubReactionsResponse\nresult: {\n// Reactions\n//\n// Reactions returned for the requested GitHub entity.\nreactions: Array<\n// GithubReaction\n//\n// Reaction on an issue or pull request.\n{\n// Id\nid: integer,\n// Node Id\nnode_id: string,\n// GithubUser\nuser: {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n},\n// Content\ncontent: string,\n// Created At\ncreated_at: string,\n}\n>,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_profile",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Retrieve the GitHub profile for the authenticated user.\n\n```ts\nmcp__GitHub__get_profile(args: // get_profile_input\nobject): Promise<// get_profile_output\n{\n// Profile\n//\n// Many connectors (especially OAuth-based) act on behalf of a user.\n// This class represents the user's profile, which is typically retrieved from\n// the connector's API during the OAuth flow.\n//\n// Implementation details for different connectors vary, so we can't guarantee\n// that all fields will be present.\nresult: {\n// Id\nid?: string | null, // default: null\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Nickname\nnickname?: string | null, // default: null\n// Picture\npicture?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_repo",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Retrieve metadata for a GitHub repository. You must populate exactly one of `repository_full_name`, `repository_id`, or `repository_url`: - `repository_full_name`: `owner/name`, such as `openai/openai`. Maps to GitHub REST `owner` and `repo` path parameters. - `repository_id`: numeric GitHub repository ID, such as `1296269`. - `repository_url`: repository URL or nested repository URL, such as a PR, issue, branch, file, REST API, GitHub Enterprise Server `/api/v3`, or GHE.com API URL. GitHub REST repository docs: https://docs.github.com/en/rest/repos/repos#get-a-repository GitHub Enterprise Server REST docs: https://docs.github.com/en/enterprise-server@latest/rest/using-the-rest-api/getting-started-with-the-rest-api GHE.com API host docs: https://docs.github.com/en/enterprise-cloud@latest/admin/data-residency/about-github-enterprise-cloud-with-data-residency#api-access\n\n```ts\nmcp__GitHub__get_repo(args: // get_repo_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name?: string | null, // default: null\n// Repository Id\n//\n// Numeric GitHub repository ID, such as `1296269`. Use this only when the stable repository `id` from a GitHub repository object is available: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_id?: integer | null, // default: null\n// Repository Url\n//\n// GitHub repository URL, or a nested repository URL such as a pull request, issue, branch, or file URL. Examples: `https://github.com/openai/openai/pulls/123`, `https://api.github.com/repos/openai/openai`, `https://github.example.com/api/v3/repos/octo/repo`. Supports GitHub Enterprise Server custom hostnames and GHE.com API hosts. Docs: https://docs.github.com/en/rest/repos/repos#get-a-repository and https://docs.github.com/en/enterprise-server@latest/rest/using-the-rest-api/getting-started-with-the-rest-api and https://docs.github.com/en/enterprise-cloud@latest/admin/data-residency/about-github-enterprise-cloud-with-data-residency#api-access\nrepository_url?: string | null, // default: null\n}): Promise<// get_repo_output\n{\n// GithubRepo\n//\n// https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#get-a-repository\nresult: {\n// Id\nid: string,\n// Name\nname: string,\n// GithubRepoOwner\nowner: {\n// Login\nlogin: string,\n// Id\nid: integer,\n// Type\ntype: string,\n// Avatar Url\navatar_url: string,\n// Url\nurl: string,\n},\n// Repository Full Name\nrepository_full_name: string,\n// GithubRepoPermissions\npermissions: {\n// Admin\nadmin: boolean,\n// Maintain\nmaintain: boolean,\n// Pull\npull: boolean,\n// Push\npush: boolean,\n// Triage\ntriage: boolean,\n},\n// Allow Auto Merge\nallow_auto_merge: boolean | null,\n// Allow Merge Commit\nallow_merge_commit: boolean | null,\n// Allow Rebase Merge\nallow_rebase_merge: boolean | null,\n// Allow Squash Merge\nallow_squash_merge: boolean | null,\n// Allow Update Branch\nallow_update_branch: boolean | null,\n// Clone Url\nclone_url: string,\n// Size\nsize: integer,\n// Default Branch\ndefault_branch: string,\n// Git Commits Url\ngit_commits_url: string,\n// Git Refs Url\ngit_refs_url: string,\n// Git Url\ngit_url: string,\n// Master Branch\nmaster_branch: string | null,\n// Visibility\nvisibility: string,\n// Archived\narchived?: boolean | null, // default: null\n// Is Code Search Indexed\nis_code_search_indexed?: boolean | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_repo_collaborator_permission",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Return the collaborator permission level for a user on a repository.\n\n```ts\nmcp__GitHub__get_repo_collaborator_permission(args: // get_repo_collaborator_permission_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Username\n//\n// GitHub username to check against the repository.\nusername: string,\n}): Promise<// get_repo_collaborator_permission_output\n{\n// RepoCollaboratorPermissionResponse\nresult: {\n// Permission\n//\n// Repository permission level for the requested collaborator.\npermission?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_user_login",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Return the GitHub login for the authenticated user.\n\n```ts\nmcp__GitHub__get_user_login(args: // get_user_login_input\nobject): Promise<// get_user_login_output\n{\n// _UserLogin\nresult: {\n// Login\n//\n// Authenticated GitHub username.\nlogin: string,\n// Id\n//\n// Numeric ID of the authenticated GitHub user.\nid: integer,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__get_users_recent_prs_in_repo",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List the user's recent GitHub pull requests in a repository. `limit` is the final number of PRs returned. The connector paginates the underlying GitHub search endpoint to satisfy larger limits.\n\n```ts\nmcp__GitHub__get_users_recent_prs_in_repo(args: // get_users_recent_prs_in_repo_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Limit\n//\n// Maximum number of results to return.\nlimit?: integer, // default: 20\n// State\n//\n// Pull request state filter such as `open`, `closed`, or `all`.\nstate?: string, // default: \"all\"\n// Include Diff\n//\n// Include the pull request diff in each result.\ninclude_diff?: boolean, // default: false\n// Include Comments\n//\n// Include pull request comments in each result.\ninclude_comments?: boolean, // default: false\n}): Promise<// get_users_recent_prs_in_repo_output\n{\n// ListPullRequestsResponse\nresult: {\n// Pull Requests\n//\n// Pull requests returned by the listing operation.\npull_requests: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__label_pr",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Label a pull request.\n\n```ts\nmcp__GitHub__label_pr(args: // label_pr_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Label\n//\n// Label to add to the pull request.\nlabel: string,\n}): Promise<// label_pr_output\n{\n// _Success\nresult: {\n// Success\n//\n// Whether the operation succeeded.\nsuccess: boolean,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_installations",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List installations, optionally limited to managed setup account types.\n\n```ts\nmcp__GitHub__list_installations(args: // list_installations_input\n{\n// Manageable Only\nmanageable_only?: boolean, // default: false\n}): Promise<// list_installations_output\n{\n// ListInstallationsResponse\nresult: {\n// Allow All Repositories For Testing\n//\n// Whether the current actor has the internal all-repository testing override.\nallow_all_repositories_for_testing?: boolean, // default: false\n// Installations\n//\n// GitHub App installations available to the account.\ninstallations: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_installed_accounts",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List all accounts that the user has installed our GitHub app on.\n\n```ts\nmcp__GitHub__list_installed_accounts(args: // list_installed_accounts_input\nobject): Promise<// list_installed_accounts_output\n{\n// ListInstalledAccountsResponse\nresult: {\n// Accounts\n//\n// GitHub accounts or installations available to the app.\naccounts: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_pr_changed_filenames",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List changed filenames for a PR across all paginated file-list pages.\n\n```ts\nmcp__GitHub__list_pr_changed_filenames(args: // list_pr_changed_filenames_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n}): Promise<// list_pr_changed_filenames_output\n{\n// ListPrChangedFilenamesResponse\nresult: {\n// Filenames\n//\n// Changed file paths in the pull request.\nfilenames: string[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_pull_request_review_threads",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List inline review threads on a pull request, including resolved state. Returns GraphQL review thread nodes, including comment bodies and resolution metadata. Docs: https://docs.github.com/en/graphql/reference/objects#pullrequestreviewthread\n\n```ts\nmcp__GitHub__list_pull_request_review_threads(args: // list_pull_request_review_threads_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n}): Promise<// list_pull_request_review_threads_output\n{\n// ListPullRequestReviewThreadsResponse\nresult: {\n// Review Threads\n//\n// Review threads associated with the pull request.\nreview_threads: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_pull_request_reviews",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List review submissions on a pull request. Returns GraphQL review nodes normalized into the connector's review model. Docs: https://docs.github.com/en/graphql/reference/objects#pullrequestreview\n\n```ts\nmcp__GitHub__list_pull_request_reviews(args: // list_pull_request_reviews_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n}): Promise<// list_pull_request_reviews_output\n{\n// ListPullRequestReviewsResponse\nresult: {\n// Reviews\n//\n// Reviews recorded for the pull request.\nreviews: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_recent_issues",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Return the most recent GitHub issues the user can access. `top_k` is the final result limit. The connector transparently paginates GitHub's issues API until that limit is reached or no more pages exist.\n\n```ts\nmcp__GitHub__list_recent_issues(args: // list_recent_issues_input\n{\n// Top K\ntop_k?: integer, // default: 20\n}): Promise<// list_recent_issues_output\n{\n// ListIssuesResponse\nresult: {\n// Issues\n//\n// Issues returned by the GitHub listing operation.\nissues: Array<\n{\n// Native GitHub browser URL for this issue or pull request; empty when unavailable.\ndisplay_url?: string,\n// Title or number to display when citing this issue or pull request.\ndisplay_title?: string,\n[key: string]: any,\n}\n>,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_repositories",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List repositories accessible to the authenticated user.\n\n```ts\nmcp__GitHub__list_repositories(args: // list_repositories_input\n{\n// Page Size\n//\n// Maximum number of results to return.\npage_size?: integer, // default: 20\n// Page Offset\n//\n// Zero-based offset into the result set.\npage_offset?: integer, // default: 0\n// Owner\n//\n// Optional owner login to filter returned repositories.\nowner?: string | null, // default: null\n// Include Search Index Status\n//\n// Include code search index availability metadata for each repo.\ninclude_search_index_status?: boolean, // default: false\n}): Promise<// list_repositories_output\n{\n// ListRepositoriesResponse\nresult: {\n// Repositories\n//\n// Repositories visible to the linked GitHub account.\nrepositories: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_repositories_by_affiliation",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List repositories accessible to the authenticated user filtered by affiliation.\n\n```ts\nmcp__GitHub__list_repositories_by_affiliation(args: // list_repositories_by_affiliation_input\n{\n// Affiliation\n//\n// GitHub affiliation filter such as `owner`, `collaborator`, or `organization_member`.\naffiliation: string,\n// Page Size\n//\n// Maximum number of results to return.\npage_size?: integer, // default: 100\n// Page Offset\n//\n// Zero-based offset into the result set.\npage_offset?: integer, // default: 0\n}): Promise<// list_repositories_by_affiliation_output\n{\n// ListRepositoriesResponse\nresult: {\n// Repositories\n//\n// Repositories visible to the linked GitHub account.\nrepositories: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_repositories_by_installation",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List repositories accessible to the authenticated user.\n\n```ts\nmcp__GitHub__list_repositories_by_installation(args: // list_repositories_by_installation_input\n{\n// Installation Id\n//\n// GitHub App installation ID to filter by.\ninstallation_id: integer,\n// Page Size\n//\n// Maximum number of results to return.\npage_size?: integer, // default: 20\n// Page Offset\n//\n// Zero-based offset into the result set.\npage_offset?: integer, // default: 0\n}): Promise<// list_repositories_by_installation_output\n{\n// ListRepositoriesResponse\nresult: {\n// Repositories\n//\n// Repositories visible to the linked GitHub account.\nrepositories: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_user_org_memberships",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List the authenticated user's organization memberships.\n\n```ts\nmcp__GitHub__list_user_org_memberships(args: // list_user_org_memberships_input\nobject): Promise<// list_user_org_memberships_output\n{\n// _Organizations\nresult: {\n// Orgs\n//\n// Organization logins for the authenticated user.\norgs: string[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__list_user_orgs",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "List organizations the authenticated user is a member of.\n\n```ts\nmcp__GitHub__list_user_orgs(args: // list_user_orgs_input\nobject): Promise<// list_user_orgs_output\n{\n// _Organizations\nresult: {\n// Orgs\n//\n// Organization logins for the authenticated user.\norgs: string[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__lock_issue_conversation",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Lock an issue or pull request conversation. Allowed `lock_reason` values are `off-topic`, `too heated`, `resolved`, and `spam`. Docs: https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#lock-an-issue\n\n```ts\nmcp__GitHub__lock_issue_conversation(args: // lock_issue_conversation_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Issue Number\n//\n// Issue number in the repository.\nissue_number: integer,\n// Lock Reason\n//\n// Optional reason for locking the conversation.\nlock_reason?: (\"off-topic\" | \"too heated\" | \"resolved\" | \"spam\") | null, // default: null\n}): Promise<// lock_issue_conversation_output\n{\n// GithubSuccessResponse\nresult: {\n// Success\n//\n// Whether the GitHub action completed successfully.\nsuccess: boolean,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__mark_pull_request_ready_for_review",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Mark a draft pull request as ready for review. Returns the connector's normalized PR snapshot after the transition. Docs: https://docs.github.com/en/graphql/reference/mutations#markpullrequestreadyforreview\n\n```ts\nmcp__GitHub__mark_pull_request_ready_for_review(args: // mark_pull_request_ready_for_review_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n}): Promise<// mark_pull_request_ready_for_review_output\n{\n// _PullRequest\nresult: {\n// Url\nurl: string,\n// Number\nnumber: integer,\n// State\nstate: string,\n// Merged\nmerged: boolean,\n// Mergeable\nmergeable: boolean,\n// Draft\ndraft: boolean,\n// Body\nbody?: string | null, // default: null\n// Title\ntitle?: string | null, // default: null\n// Base\nbase?: string | null, // default: null\n// Base Sha\nbase_sha?: string | null, // default: null\n// Head\nhead?: string | null, // default: null\n// Head Sha\nhead_sha?: string | null, // default: null\n// Head Repo Id\nhead_repo_id?: integer | null, // default: null\n// Head Repo Full Name\nhead_repo_full_name?: string | null, // default: null\n// Merge Commit Sha\nmerge_commit_sha?: string | null, // default: null\n// default: null\nuser?:\n// GithubUser\n | {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n | null\n,\n// Requested Reviewers\n// default: null\nrequested_reviewers?:\n | Array<\n// GithubUser\n{\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n>\n | null\n,\n// Requested Team Reviewers\n// default: null\nrequested_team_reviewers?:\n | Array<\n// GithubTeamReviewer\n{\n// Slug\nslug: string,\n// Name\nname?: string | null, // default: null\n}\n>\n | null\n,\n// Diff\n//\n// Not included in this metadata response.\ndiff?: null, // default: null\n// Comments\n//\n// Not included in this metadata response.\ncomments?: null, // default: null\n// Created At\ncreated_at?: string | null, // default: null\n// Updated At\nupdated_at?: string | null, // default: null\n// Closed At\nclosed_at?: string | null, // default: null\n// Merged At\nmerged_at?: string | null, // default: null\n// Commits\ncommits?: integer | null, // default: null\n// Changed Files\nchanged_files?: integer | null, // default: null\n// Additions\nadditions?: integer | null, // default: null\n// Deletions\ndeletions?: integer | null, // default: null\n// Display Url\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_url: string,\n// Display Title\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__merge_pull_request",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Merge a pull request immediately. Returns GitHub's merge result payload (`sha`, `merged`, `message`). Docs: https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#merge-a-pull-request\n\n```ts\nmcp__GitHub__merge_pull_request(args: // merge_pull_request_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Merge Method\n//\n// Optional merge method.\nmerge_method?: (\"merge\" | \"squash\" | \"rebase\") | null, // default: null\n// Commit Title\n//\n// Optional override for the merge commit title.\ncommit_title?: string | null, // default: null\n// Commit Message\n//\n// Optional override for the merge commit message.\ncommit_message?: string | null, // default: null\n// Expected Head Sha\n//\n// Optional expected head SHA. GitHub rejects the merge if the PR head moved.\nexpected_head_sha?: string | null, // default: null\n}): Promise<// merge_pull_request_output\n{\n// MergePullRequestResponse\nresult: {\n// Sha\n//\n// Commit SHA created by the merge, when present.\nsha?: string | null, // default: null\n// Merged\n//\n// Whether GitHub reports the pull request as merged.\nmerged: boolean,\n// Message\n//\n// Status message returned by GitHub.\nmessage?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__remove_issue_assignees",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Remove assignees from an issue or pull request. Returns a normalized issue snapshot after the mutation. Docs: https://docs.github.com/en/rest/issues/assignees?apiVersion=2022-11-28#remove-assignees-from-an-issue\n\n```ts\nmcp__GitHub__remove_issue_assignees(args: // remove_issue_assignees_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Issue Number\n//\n// Issue number in the repository.\nissue_number: integer,\n// Assignees\n//\n// GitHub usernames to remove from assignees.\nassignees: string[],\n}): Promise<// remove_issue_assignees_output\n{\n// WriteIssueResponse\nresult: {\n// Issue\n//\n// GitHub issue payload after the write operation.\nissue: { [key: string]: any },\n// Url\n//\n// Canonical URL for the GitHub issue.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the GitHub issue.\ntitle?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__remove_issue_label",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Remove one label from an issue or pull request. Returns a normalized issue snapshot after the mutation. Docs: https://docs.github.com/en/rest/issues/labels?apiVersion=2022-11-28#remove-a-label-from-an-issue\n\n```ts\nmcp__GitHub__remove_issue_label(args: // remove_issue_label_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Issue Number\n//\n// Issue number in the repository.\nissue_number: integer,\n// Label\n//\n// Single label to remove from the issue or pull request.\nlabel: string,\n}): Promise<// remove_issue_label_output\n{\n// WriteIssueResponse\nresult: {\n// Issue\n//\n// GitHub issue payload after the write operation.\nissue: { [key: string]: any },\n// Url\n//\n// Canonical URL for the GitHub issue.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the GitHub issue.\ntitle?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__remove_pull_request_reviewers",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Remove individual or team reviewer requests from a pull request. Returns the connector's normalized PR snapshot after the mutation. Docs: https://docs.github.com/en/rest/pulls/review-requests?apiVersion=2022-11-28#remove-requested-reviewers-from-a-pull-request\n\n```ts\nmcp__GitHub__remove_pull_request_reviewers(args: // remove_pull_request_reviewers_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Reviewers\n//\n// Optional GitHub usernames to remove from review requests.\nreviewers?: string[] | null, // default: null\n// Team Reviewers\n//\n// Optional team slugs to remove from review requests.\nteam_reviewers?: string[] | null, // default: null\n}): Promise<// remove_pull_request_reviewers_output\n{\n// _PullRequest\nresult: {\n// Url\nurl: string,\n// Number\nnumber: integer,\n// State\nstate: string,\n// Merged\nmerged: boolean,\n// Mergeable\nmergeable: boolean,\n// Draft\ndraft: boolean,\n// Body\nbody?: string | null, // default: null\n// Title\ntitle?: string | null, // default: null\n// Base\nbase?: string | null, // default: null\n// Base Sha\nbase_sha?: string | null, // default: null\n// Head\nhead?: string | null, // default: null\n// Head Sha\nhead_sha?: string | null, // default: null\n// Head Repo Id\nhead_repo_id?: integer | null, // default: null\n// Head Repo Full Name\nhead_repo_full_name?: string | null, // default: null\n// Merge Commit Sha\nmerge_commit_sha?: string | null, // default: null\n// default: null\nuser?:\n// GithubUser\n | {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n | null\n,\n// Requested Reviewers\n// default: null\nrequested_reviewers?:\n | Array<\n// GithubUser\n{\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n>\n | null\n,\n// Requested Team Reviewers\n// default: null\nrequested_team_reviewers?:\n | Array<\n// GithubTeamReviewer\n{\n// Slug\nslug: string,\n// Name\nname?: string | null, // default: null\n}\n>\n | null\n,\n// Diff\n//\n// Not included in this metadata response.\ndiff?: null, // default: null\n// Comments\n//\n// Not included in this metadata response.\ncomments?: null, // default: null\n// Created At\ncreated_at?: string | null, // default: null\n// Updated At\nupdated_at?: string | null, // default: null\n// Closed At\nclosed_at?: string | null, // default: null\n// Merged At\nmerged_at?: string | null, // default: null\n// Commits\ncommits?: integer | null, // default: null\n// Changed Files\nchanged_files?: integer | null, // default: null\n// Additions\nadditions?: integer | null, // default: null\n// Deletions\ndeletions?: integer | null, // default: null\n// Display Url\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_url: string,\n// Display Title\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__remove_reaction_from_issue_comment",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Remove a reaction from an issue comment.\n\n```ts\nmcp__GitHub__remove_reaction_from_issue_comment(args: // remove_reaction_from_issue_comment_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Comment Id\n//\n// Numeric issue or review comment ID.\ncomment_id: integer,\n// Reaction Id\n//\n// Reaction ID to remove.\nreaction_id: integer,\n}): Promise<// remove_reaction_from_issue_comment_output\n{\n// GithubReactionActionResponse\nresult: {\n// Success\n//\n// Whether the reaction action completed successfully.\nsuccess: boolean,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__remove_reaction_from_pr",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Remove a reaction from a GitHub pull request.\n\n```ts\nmcp__GitHub__remove_reaction_from_pr(args: // remove_reaction_from_pr_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Reaction Id\n//\n// Reaction ID to remove.\nreaction_id: integer,\n}): Promise<// remove_reaction_from_pr_output\n{\n// GithubReactionActionResponse\nresult: {\n// Success\n//\n// Whether the reaction action completed successfully.\nsuccess: boolean,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__remove_reaction_from_pr_review_comment",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Remove a reaction from a pull request review comment.\n\n```ts\nmcp__GitHub__remove_reaction_from_pr_review_comment(args: // remove_reaction_from_pr_review_comment_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Comment Id\n//\n// Numeric issue or review comment ID.\ncomment_id: integer,\n// Reaction Id\n//\n// Reaction ID to remove.\nreaction_id: integer,\n}): Promise<// remove_reaction_from_pr_review_comment_output\n{\n// GithubReactionActionResponse\nresult: {\n// Success\n//\n// Whether the reaction action completed successfully.\nsuccess: boolean,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__reply_to_review_comment",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Reply to an inline review comment on a PR (Files changed thread). comment_id must be the ID of the thread’s top-level inline review comment (replies-to-replies are not supported by the API)\n\n```ts\nmcp__GitHub__reply_to_review_comment(args: // reply_to_review_comment_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Comment Id\n//\n// Numeric issue or review comment ID.\ncomment_id: integer,\n// Comment\n//\n// Reply text to post into the review thread.\ncomment: string,\n}): Promise<// reply_to_review_comment_output\n{\n// GithubCommentResponse\nresult: {\n// Id\n//\n// Identifier of the created GitHub comment.\nid: integer,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__request_pull_request_reviewers",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Request individual or team reviewers on a pull request. Returns the connector's normalized PR snapshot after the review request mutation. Docs: https://docs.github.com/en/rest/pulls/review-requests?apiVersion=2022-11-28#request-reviewers-for-a-pull-request\n\n```ts\nmcp__GitHub__request_pull_request_reviewers(args: // request_pull_request_reviewers_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Reviewers\n//\n// Optional GitHub usernames to request for review.\nreviewers?: string[] | null, // default: null\n// Team Reviewers\n//\n// Optional team slugs to request for review.\nteam_reviewers?: string[] | null, // default: null\n}): Promise<// request_pull_request_reviewers_output\n{\n// _PullRequest\nresult: {\n// Url\nurl: string,\n// Number\nnumber: integer,\n// State\nstate: string,\n// Merged\nmerged: boolean,\n// Mergeable\nmergeable: boolean,\n// Draft\ndraft: boolean,\n// Body\nbody?: string | null, // default: null\n// Title\ntitle?: string | null, // default: null\n// Base\nbase?: string | null, // default: null\n// Base Sha\nbase_sha?: string | null, // default: null\n// Head\nhead?: string | null, // default: null\n// Head Sha\nhead_sha?: string | null, // default: null\n// Head Repo Id\nhead_repo_id?: integer | null, // default: null\n// Head Repo Full Name\nhead_repo_full_name?: string | null, // default: null\n// Merge Commit Sha\nmerge_commit_sha?: string | null, // default: null\n// default: null\nuser?:\n// GithubUser\n | {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n | null\n,\n// Requested Reviewers\n// default: null\nrequested_reviewers?:\n | Array<\n// GithubUser\n{\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n>\n | null\n,\n// Requested Team Reviewers\n// default: null\nrequested_team_reviewers?:\n | Array<\n// GithubTeamReviewer\n{\n// Slug\nslug: string,\n// Name\nname?: string | null, // default: null\n}\n>\n | null\n,\n// Diff\n//\n// Not included in this metadata response.\ndiff?: null, // default: null\n// Comments\n//\n// Not included in this metadata response.\ncomments?: null, // default: null\n// Created At\ncreated_at?: string | null, // default: null\n// Updated At\nupdated_at?: string | null, // default: null\n// Closed At\nclosed_at?: string | null, // default: null\n// Merged At\nmerged_at?: string | null, // default: null\n// Commits\ncommits?: integer | null, // default: null\n// Changed Files\nchanged_files?: integer | null, // default: null\n// Additions\nadditions?: integer | null, // default: null\n// Deletions\ndeletions?: integer | null, // default: null\n// Display Url\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_url: string,\n// Display Title\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__rerun_failed_workflow_run_jobs",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Re-run all failed jobs in a GitHub Actions workflow run. Use this to retry only the failed jobs from a workflow run, instead of starting a full new attempt for successful jobs too. The linked GitHub app or token must have GitHub Actions write permission for the repository. Docs: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#re-run-failed-jobs-from-a-workflow-run\n\n```ts\nmcp__GitHub__rerun_failed_workflow_run_jobs(args: // rerun_failed_workflow_run_jobs_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Run Id\n//\n// GitHub Actions workflow run ID.\nrun_id: integer,\n}): Promise<// rerun_failed_workflow_run_jobs_output\n{\n// GithubSuccessResponse\nresult: {\n// Success\n//\n// Whether the GitHub action completed successfully.\nsuccess: boolean,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__rerun_workflow_job",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Re-run one GitHub Actions workflow job. Use this when a specific failed or cancelled job should be retried without re-running every failed job in the workflow run. The linked GitHub app or token must have GitHub Actions write permission for the repository. Docs: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#re-run-a-job-from-a-workflow-run\n\n```ts\nmcp__GitHub__rerun_workflow_job(args: // rerun_workflow_job_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Job Id\n//\n// GitHub Actions workflow job ID to re-run.\njob_id: integer,\n}): Promise<// rerun_workflow_job_output\n{\n// GithubSuccessResponse\nresult: {\n// Success\n//\n// Whether the GitHub action completed successfully.\nsuccess: boolean,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__resolve_review_thread",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Resolve an inline pull request review thread. Docs: https://docs.github.com/en/graphql/reference/mutations#resolvereviewthread\n\n```ts\nmcp__GitHub__resolve_review_thread(args: // resolve_review_thread_input\n{\n// Thread Id\n//\n// GraphQL review thread node ID.\nthread_id: string,\n}): Promise<// resolve_review_thread_output\n{\n// GithubReviewThreadResponse\nresult: {\n// Review Thread\n//\n// Single GitHub review thread payload.\nreview_thread: { [key: string]: any },\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__search",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Search GitHub files and return matching excerpts when available. Provide a plain string query, avoid GitHub query flags such as ``is:pr``. Include keywords that match file names, functions, or error messages. ``repository_name`` or ``org`` can narrow the search scope. Example: ``query=\"tokenizer bug\" repository_name=\"openai/tiktoken\"`` or ``query=\"tokenizer bug\" repository_name=\"tiktoken\" org=\"openai\"``. Fully qualified repository names keep their explicit owner even when ``org`` is set. Code search covers the default branch. Use ``fetch_file`` for full file contents. ``topn`` is the number of results to return. No results are returned if the query is empty.\n\n```ts\nmcp__GitHub__search(args: // search_input\n{\n// Query\n//\n// Search query string.\nquery: string,\n// Topn\n//\n// Maximum number of results to return.\ntopn?: integer, // default: 20\n// Repository Name\n//\n// Repository or repositories to search within, in owner/name format. Short repository names require org.\nrepository_name?: string | string[] | null, // default: null\n// Org\n//\n// GitHub organization to search, or owner for short repository names.\norg?: string | null, // default: null\n}): Promise<// search_output\n{\n// SearchResponse\nresult: {\n// Results\n//\n// GitHub search results with file links and text_matches excerpts when available. Match indices are offsets within each fragment, not file line numbers.\nresults: Array<\n{\n// Native GitHub browser URL for this matching file.\ndisplay_url?: string,\n[key: string]: any,\n}\n>,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__search_branches",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Search GitHub branches within a repository.\n\n```ts\nmcp__GitHub__search_branches(args: // search_branches_input\n{\n// Owner\n//\n// GitHub repository owner or organization name.\nowner: string,\n// Repo Name\n//\n// Repository name without the owner prefix.\nrepo_name: string,\n// Query\n//\n// Search query string.\nquery: string,\n// Page Size\n//\n// Maximum number of results to return.\npage_size?: integer, // default: 20\n// Cursor\n//\n// Opaque cursor from a previous branch search.\ncursor?: string | null, // default: null\n}): Promise<// search_branches_output\n{\n// GithubBranchSearchResult\nresult: {\n// Branches\nbranches: Array<\n// GithubBranch\n{\n// Branch\nbranch: string,\n}\n>,\n// Cursor\ncursor: string | null,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__search_commits",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Search GitHub commits globally, by organization, or optionally by repository. Include at least one non-qualifier search term in the query. To list recent commits without matching text, pass an empty query with `repository_full_name` and use the default descending order.\n\n```ts\nmcp__GitHub__search_commits(args: // search_commits_input\n{\n// Query\n//\n// Commit search text. Include at least one non-qualifier search term; GitHub rejects queries made only of qualifiers such as `author:` or `committer-date:`. To list recent commits in a repository without matching text, pass an empty string with `repository_full_name` and keep the default descending order.\nquery: string,\n// Repository Full Name\n//\n// Repository or repositories in `owner/name` form to search within.\nrepository_full_name?: string | string[] | null, // default: null\n// Repository Id\n//\n// Repository ID or IDs to search within.\nrepository_id?: integer | integer[] | null, // default: null\n// Repository Url\n//\n// Repository URL or URLs to search within.\nrepository_url?: string | string[] | null, // default: null\n// Org\n//\n// Optional GitHub organization to scope the search.\norg?: string | null, // default: null\n// Topn\n//\n// Maximum number of results to return.\ntopn?: integer, // default: 20\n// Optional commit sort order.\n// default: null\nsort?:\n// GithubCommitSort\n | (\"best-match\" | \"author-date\" | \"committer-date\")\n | null\n,\n// Optional result ordering.\n// default: null\norder?:\n// GithubSearchResultOrder\n | (\"desc\" | \"asc\")\n | null\n,\n}): Promise<// search_commits_output\n{\n// SearchCommitsResponse\nresult: {\n// Commits\n//\n// Commits matching the GitHub search query.\ncommits: Array<\n{\n// Native GitHub browser URL for this commit; null when GitHub does not supply one. The separate REST URL is not a browser citation.\nhtml_url?: string | null,\n[key: string]: any,\n}\n>,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__search_installed_repositories_streaming",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Search for a repository (not a file) by name or description. To search for a file, use `search`.\n\n```ts\nmcp__GitHub__search_installed_repositories_streaming(args: // search_installed_repositories_streaming_input\n{\n// Query\n//\n// Search query string.\nquery: string,\n// Limit\n//\n// Maximum number of results to return.\nlimit?: integer, // default: 10\n// Next Token\n//\n// Opaque streaming cursor from a previous search.\nnext_token?: string | null, // default: null\n// Option Enrich Code Search Index Availability\n//\n// Include search index availability metadata in the response.\noption_enrich_code_search_index_availability?: boolean, // default: true\n// Option Enrich Code Search Index Request Concurrency Limit\n//\n// Maximum concurrent requests when enriching search index availability.\noption_enrich_code_search_index_request_concurrency_limit?: integer, // default: 10\n}): Promise<// search_installed_repositories_streaming_output\n{\n// _StreamingRepositories\nresult: {\n// Repositories\n//\n// Matching installed repositories.\nrepositories: Array<\n// _DisplayedRepository\n{\n// Id\nid: integer,\n// Name\nname: string,\n// Repository Full Name\nrepository_full_name: string,\n// Description\ndescription?: string | null, // default: null\n// Is Code Search Indexed\nis_code_search_indexed?: boolean | null, // default: null\n// GithubRepoOwner\nowner: {\n// Login\nlogin: string,\n// Id\nid: integer,\n// Type\ntype: string,\n// Avatar Url\navatar_url: string,\n// Url\nurl: string,\n},\n// Clone Url\nclone_url: string,\n// Default Branch\ndefault_branch: string,\n// Git Commits Url\ngit_commits_url: string,\n// Git Refs Url\ngit_refs_url: string,\n// Git Url\ngit_url: string,\n// Visibility\nvisibility: string,\n// Archived\narchived?: boolean | null, // default: null\n// Master Branch\nmaster_branch: string | null,\n// Allow Auto Merge\nallow_auto_merge: boolean | null,\n// Allow Merge Commit\nallow_merge_commit: boolean | null,\n// Allow Rebase Merge\nallow_rebase_merge: boolean | null,\n// Allow Squash Merge\nallow_squash_merge: boolean | null,\n// Allow Update Branch\nallow_update_branch: boolean | null,\n// Display Url\n//\n// Browser URL for the repository.\ndisplay_url: string,\n// Display Title\n//\n// Repository name for display.\ndisplay_title: string,\n}\n>,\n// Next Token\n//\n// Cursor for the next page, or null when complete.\nnext_token: string | null,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__search_installed_repositories_v2",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Search repositories within the user's installations using GitHub search.\n\n```ts\nmcp__GitHub__search_installed_repositories_v2(args: // search_installed_repositories_v2_input\n{\n// Query\n//\n// Search query string.\nquery: string,\n// Limit\n//\n// Maximum number of results to return.\nlimit?: integer, // default: 10\n// Installation Ids\n//\n// Optional GitHub App installation IDs to filter by.\ninstallation_ids?: string[] | null, // default: null\n// Page\n//\n// 1-based page number for pagination.\npage?: integer, // default: 1\n// Include Search Index Status\n//\n// Include code search index availability metadata for each repo.\ninclude_search_index_status?: boolean, // default: false\n// Include Archived\n//\n// Include archived repositories in paginated results.\ninclude_archived?: boolean, // default: true\n}): Promise<// search_installed_repositories_v2_output\n{\n// SearchRepositoriesResponse\nresult: {\n// Archive Filter Applied\n//\n// Whether archived repositories were excluded before pagination.\narchive_filter_applied?: boolean | null, // default: null\n// Repositories\n//\n// Repositories matching the GitHub search query.\nrepositories: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__search_issues",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Search one repository or every repository the linked account can access. Supply at most one repository selector. Empty lists mean no repository filter. A `repo:owner/name` query does not require a separate repository selector.\n\n```ts\nmcp__GitHub__search_issues(args: // search_issues_input\n{\n// Query\n//\n// GitHub issue search query. Supports repo:, org:, and other GitHub qualifiers. Without a repository selector, search all repositories available to the linked account.\nquery: string,\n// Repository Full Name\n//\n// Optional repository or repositories in owner/name form.\nrepository_full_name?: string | string[] | null, // default: null\n// Repository Id\n//\n// Optional GitHub repository ID or IDs.\nrepository_id?: integer | integer[] | null, // default: null\n// Repository Url\n//\n// Optional GitHub repository URL or URLs.\nrepository_url?: string | string[] | null, // default: null\n// Topn\n//\n// Maximum number of results to return.\ntopn?: integer, // default: 20\n// Optional GitHub issue result sort.\n// default: null\nsort?:\n// GithubIssueSort\n | (\"best-match\" | \"created\" | \"updated\" | \"comments\" | \"reactions\" | \"interactions\")\n | null\n,\n// Optional ascending or descending result order.\n// default: null\norder?:\n// GithubSearchResultOrder\n | (\"desc\" | \"asc\")\n | null\n,\n// State\n//\n// Optional issue state filter.\nstate?: (\"open\" | \"closed\") | null, // default: null\n}): Promise<// search_issues_output\n{\n// SearchIssuesResponse\nresult: {\n// Issues\n//\n// Issues matching the GitHub search query.\nissues: Array<\n{\n// Native GitHub browser URL for this issue or pull request; empty when unavailable.\ndisplay_url?: string,\n// Title or number to display when citing this issue or pull request.\ndisplay_title?: string,\n[key: string]: any,\n}\n>,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__search_prs",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Search GitHub pull requests globally, by organization, or optionally by repository.\n\n```ts\nmcp__GitHub__search_prs(args: // search_prs_input\n{\n// Query\n//\n// Search query string.\nquery: string,\n// Repository Full Name\n//\n// Repository or repositories in `owner/name` form to search within.\nrepository_full_name?: string | string[] | null, // default: null\n// Repository Id\n//\n// Repository ID or IDs to search within.\nrepository_id?: integer | integer[] | null, // default: null\n// Repository Url\n//\n// Repository URL or URLs to search within.\nrepository_url?: string | string[] | null, // default: null\n// Org\n//\n// Optional GitHub organization to scope the search.\norg?: string | null, // default: null\n// Topn\n//\n// Maximum number of results to return.\ntopn?: integer, // default: 20\n// Optional pull request sort order.\n// default: null\nsort?:\n// GithubIssueSort\n | (\"best-match\" | \"created\" | \"updated\" | \"comments\" | \"reactions\" | \"interactions\")\n | null\n,\n// Optional result ordering.\n// default: null\norder?:\n// GithubSearchResultOrder\n | (\"desc\" | \"asc\")\n | null\n,\n// State\n//\n// Optional pull request state filter: open, closed, or all.\nstate?: (\"open\" | \"closed\" | \"all\") | null, // default: null\n}): Promise<// search_prs_output\n{\n// SearchIssuesResponse\nresult: {\n// Issues\n//\n// Issues matching the GitHub search query.\nissues: Array<\n{\n// Native GitHub browser URL for this issue or pull request; empty when unavailable.\ndisplay_url?: string,\n// Title or number to display when citing this issue or pull request.\ndisplay_title?: string,\n[key: string]: any,\n}\n>,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__search_repositories",
+      "capabilities": [
+        "github.read"
+      ],
+      "schema_text": "Search for a repository (not a file) by name or description. To search for a file, use `search`.\n\n```ts\nmcp__GitHub__search_repositories(args: // search_repositories_input\n{\n// Query\n//\n// Search query string.\nquery: string,\n// Per Page\n//\n// Maximum number of results to return.\nper_page?: integer | null, // default: null\n// Page\n//\n// 1-based page number for pagination.\npage?: integer, // default: 1\n// Org\n//\n// Optional GitHub organization to scope the search.\norg?: string | null, // default: null\n// Topn\n//\n// Alias for `per_page` used by some callers.\ntopn?: integer | null, // default: null\n}): Promise<// search_repositories_output\n{\n// SearchRepositoriesResponse\nresult: {\n// Archive Filter Applied\n//\n// Whether archived repositories were excluded before pagination.\narchive_filter_applied?: boolean | null, // default: null\n// Repositories\n//\n// Repositories matching the GitHub search query.\nrepositories: { [key: string]: any }[],\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__unlock_issue_conversation",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Unlock an issue or pull request conversation. Docs: https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#unlock-an-issue\n\n```ts\nmcp__GitHub__unlock_issue_conversation(args: // unlock_issue_conversation_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Issue Number\n//\n// Issue number in the repository.\nissue_number: integer,\n}): Promise<// unlock_issue_conversation_output\n{\n// GithubSuccessResponse\nresult: {\n// Success\n//\n// Whether the GitHub action completed successfully.\nsuccess: boolean,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__unresolve_review_thread",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Mark an inline pull request review thread as unresolved. Docs: https://docs.github.com/en/graphql/reference/mutations#unresolvereviewthread\n\n```ts\nmcp__GitHub__unresolve_review_thread(args: // unresolve_review_thread_input\n{\n// Thread Id\n//\n// GraphQL review thread node ID.\nthread_id: string,\n}): Promise<// unresolve_review_thread_output\n{\n// GithubReviewThreadResponse\nresult: {\n// Review Thread\n//\n// Single GitHub review thread payload.\nreview_thread: { [key: string]: any },\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__update_file",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Replace a UTF-8 text file through GitHub's contents API. Returns the resulting commit SHA and content blob SHA. Use `content_sha` for a subsequent sequential update. Do not run update/delete writes for the same path in parallel. Docs: https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents\n\n```ts\nmcp__GitHub__update_file(args: // update_file_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Path\n//\n// Path for the existing file within the repository.\npath: string,\n// Content\n//\n// Complete replacement UTF-8 text contents. This wrapper base64-encodes the text for GitHub's contents API.\ncontent: string,\n// Message\n//\n// Commit message for the file update.\nmessage: string,\n// Sha\n//\n// Current blob SHA of the file being updated, usually from `fetch_file`.\nsha: string,\n// Branch\n//\n// Optional branch to update. Leave null to use the default branch.\nbranch?: string | null, // default: null\n}): Promise<// update_file_output\n{\n// _UpdatedFile\nresult: {\n// Commit Sha\n//\n// SHA of the commit that changed the file.\ncommit_sha: string,\n// Content Sha\n//\n// New blob SHA to use for the next update or deletion.\ncontent_sha: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__update_issue",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Update a GitHub issue, including title/body, state, labels, assignees, or milestone. Returns a normalized issue snapshot after the patch. Docs: https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#update-an-issue\n\n```ts\nmcp__GitHub__update_issue(args: // update_issue_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Issue Number\n//\n// Issue number in the repository.\nissue_number: integer,\n// Title\n//\n// Optional replacement issue title.\ntitle?: string | null, // default: null\n// Body\n//\n// Optional replacement Markdown body.\nbody?: string | null, // default: null\n// State\n//\n// Optional issue state. Use closed to close or open to reopen.\nstate?: (\"open\" | \"closed\") | null, // default: null\n// State Reason\n//\n// Optional state reason. GitHub uses this only with state changes. This wrapper supports `completed`, `not_planned`, `duplicate`, and `reopened`.\nstate_reason?: (\"completed\" | \"not_planned\" | \"duplicate\" | \"reopened\") | null, // default: null\n// Assignees\n//\n// Optional full assignee list to set on the issue. This replaces the assignee set rather than adding to it.\nassignees?: string[] | null, // default: null\n// Labels\n//\n// Optional full label list to set on the issue. This replaces the label set rather than adding to it.\nlabels?: string[] | null, // default: null\n// Milestone\n//\n// Optional milestone number to set on the issue. This wrapper does not expose an explicit way to clear an existing milestone.\nmilestone?: integer | null, // default: null\n}): Promise<// update_issue_output\n{\n// WriteIssueResponse\nresult: {\n// Issue\n//\n// GitHub issue payload after the write operation.\nissue: { [key: string]: any },\n// Url\n//\n// Canonical URL for the GitHub issue.\nurl?: string | null, // default: null\n// Title\n//\n// Title of the GitHub issue.\ntitle?: string | null, // default: null\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__update_issue_comment",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Update a top-level PR Conversation comment (Issue comment).\n\n```ts\nmcp__GitHub__update_issue_comment(args: // update_issue_comment_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Comment Id\n//\n// Numeric issue or review comment ID.\ncomment_id: integer,\n// Comment\n//\n// Replacement comment body.\ncomment: string,\n}): Promise<// update_issue_comment_output\n{\n// GithubCommentResponse\nresult: {\n// Id\n//\n// Identifier of the created GitHub comment.\nid: integer,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__update_pull_request",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Update PR metadata, base branch, or open/closed state. Returns the connector's normalized PR snapshot. Docs: https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#update-a-pull-request\n\n```ts\nmcp__GitHub__update_pull_request(args: // update_pull_request_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Pr Number\n//\n// Pull request number in the repository.\npr_number: integer,\n// Title\n//\n// Optional replacement pull request title.\ntitle?: string | null, // default: null\n// Body\n//\n// Optional replacement pull request body.\nbody?: string | null, // default: null\n// State\n//\n// Optional pull request state. Use closed to close or open to reopen.\nstate?: (\"open\" | \"closed\") | null, // default: null\n// Base Branch\n//\n// Optional new base branch to retarget the pull request onto.\nbase_branch?: string | null, // default: null\n// Maintainer Can Modify\n//\n// Whether maintainers may push commits to the head branch.\nmaintainer_can_modify?: boolean | null, // default: null\n}): Promise<// update_pull_request_output\n{\n// _PullRequest\nresult: {\n// Url\nurl: string,\n// Number\nnumber: integer,\n// State\nstate: string,\n// Merged\nmerged: boolean,\n// Mergeable\nmergeable: boolean,\n// Draft\ndraft: boolean,\n// Body\nbody?: string | null, // default: null\n// Title\ntitle?: string | null, // default: null\n// Base\nbase?: string | null, // default: null\n// Base Sha\nbase_sha?: string | null, // default: null\n// Head\nhead?: string | null, // default: null\n// Head Sha\nhead_sha?: string | null, // default: null\n// Head Repo Id\nhead_repo_id?: integer | null, // default: null\n// Head Repo Full Name\nhead_repo_full_name?: string | null, // default: null\n// Merge Commit Sha\nmerge_commit_sha?: string | null, // default: null\n// default: null\nuser?:\n// GithubUser\n | {\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n | null\n,\n// Requested Reviewers\n// default: null\nrequested_reviewers?:\n | Array<\n// GithubUser\n{\n// Login\nlogin: string,\n// Name\nname?: string | null, // default: null\n// Email\nemail?: string | null, // default: null\n// Avatar Url\navatar_url?: string | null, // default: null\n// Id\nid?: integer | null, // default: null\n}\n>\n | null\n,\n// Requested Team Reviewers\n// default: null\nrequested_team_reviewers?:\n | Array<\n// GithubTeamReviewer\n{\n// Slug\nslug: string,\n// Name\nname?: string | null, // default: null\n}\n>\n | null\n,\n// Diff\n//\n// Not included in this metadata response.\ndiff?: null, // default: null\n// Comments\n//\n// Not included in this metadata response.\ncomments?: null, // default: null\n// Created At\ncreated_at?: string | null, // default: null\n// Updated At\nupdated_at?: string | null, // default: null\n// Closed At\nclosed_at?: string | null, // default: null\n// Merged At\nmerged_at?: string | null, // default: null\n// Commits\ncommits?: integer | null, // default: null\n// Changed Files\nchanged_files?: integer | null, // default: null\n// Additions\nadditions?: integer | null, // default: null\n// Deletions\ndeletions?: integer | null, // default: null\n// Display Url\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_url: string,\n// Display Title\n//\n// Additional JSON Schema constraints: readOnly=true\ndisplay_title: string,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__update_ref",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Move branch ref to the given commit SHA.\n\n```ts\nmcp__GitHub__update_ref(args: // update_ref_input\n{\n// Repository Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepository_full_name: string,\n// Branch Name\n//\n// Branch name to create or update.\nbranch_name: string,\n// Sha\n//\n// Commit SHA.\nsha: string,\n// Force\n//\n// Force the ref update even if it is not a fast-forward.\nforce?: boolean, // default: false\n}): Promise<// update_ref_output\n{\n// _Success\nresult: {\n// Success\n//\n// Whether the operation succeeded.\nsuccess: boolean,\n},\n}>;\n```"
+    },
+    {
+      "name": "mcp__GitHub__update_review_comment",
+      "capabilities": [
+        "github.write"
+      ],
+      "schema_text": "Update an inline review comment (or a reply) on a PR.\n\n```ts\nmcp__GitHub__update_review_comment(args: // update_review_comment_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Comment Id\n//\n// Numeric issue or review comment ID.\ncomment_id: integer,\n// Comment\n//\n// Replacement inline review comment body.\ncomment: string,\n}): Promise<// update_review_comment_output\n{\n// GithubCommentResponse\nresult: {\n// Id\n//\n// Identifier of the created GitHub comment.\nid: integer,\n},\n}>;\n```"
+    }
+  ]
+}
