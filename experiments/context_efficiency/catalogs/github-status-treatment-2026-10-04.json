@@ -1,0 +1,15 @@
+{
+  "schema": "agent-control-plane.tool-catalog-snapshot.v0-candidate",
+  "source": "derived://github-connector-runtime-2026-10-04/exact-capability/github.status.commit_workflow_runs",
+  "collected_at": "2026-10-04",
+  "descriptors": [
+    {
+      "name": "mcp__GitHub__fetch_commit_workflow_runs",
+      "capabilities": [
+        "github.read",
+        "github.status.commit_workflow_runs"
+      ],
+      "schema_text": "Fetch GitHub Actions workflow runs associated with a commit SHA. This wrapper currently filters to pull-request-triggered runs and returns the first page only. Docs: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#list-workflow-runs-for-a-repository\n\n```ts\nmcp__GitHub__fetch_commit_workflow_runs(args: // fetch_commit_workflow_runs_input\n{\n// Repo Full Name\n//\n// Repository in `owner/name` form, such as `openai/openai`. This maps to GitHub REST `owner` and `repo` path parameters: https://docs.github.com/en/rest/repos/repos#get-a-repository\nrepo_full_name: string,\n// Commit Sha\n//\n// Commit SHA.\ncommit_sha: string,\n}): Promise<// fetch_commit_workflow_runs_output\n{\n// FetchCommitWorkflowRunsResponse\nresult: {\n// Workflow Runs\n//\n// Workflow runs associated with the commit.\nworkflow_runs: { [key: string]: any }[],\n},\n}>;\n```"
+    }
+  ]
+}
