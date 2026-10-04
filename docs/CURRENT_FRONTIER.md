@@ -1,6 +1,6 @@
 # ACP Current Frontier
 
-Date: 2026-10-03
+Date: 2026-10-04
 
 ## Purpose
 
@@ -8,7 +8,10 @@ This file is the current public-facing frontier pointer for Agent Control Plane 
 
 ## Current protected-main state
 
-Current protected `main` is `b975aeb178b07551869ea6e80421e473ecb48593`, through merged PR #156.
+Current protected `main` is `e7135323663ebbe025b18b74a13f2d99c14e2b57`, through
+merged PR #170. The bounded executor posture was established by PR #156 and
+strengthened by durable local mutation lineage in PR #159; later
+CEP/context-efficiency changes do not widen mutation authority.
 
 Accepted current-main capabilities include:
 
@@ -24,6 +27,7 @@ Accepted current-main capabilities include:
 - forward-mutation simulation;
 - bounded disposable-repository mutation execution under the `BOUNDED_LOCAL_TEST` profile;
 - typed fresh-adjudication binding for explicitly chained mutation lineage;
+- durable local mutation lineage for the tested disposable-repository scope;
 - rollback planning, authorization, revalidation, journaling, material readback, and simulation.
 
 Current `main` contains the bounded disposable-repository executor from PR #156. It does **not** contain a rollback executor, and it does not authorize mutation of ACP, DGAF, Aetherwake, or other real project repositories.
@@ -62,7 +66,13 @@ ACP must preserve the same invariant in any executor or orchestration compositio
 
 An execution result, verified postcondition, receipt, journal closure, or successful result binding is evidence. It is not continuing authority for another consequential action.
 
-The merged #156 executor fails closed for explicitly supplied chained lineage unless the follow-on action carries a typed fresh-adjudication binding to a distinct current authorization. The bounded implementation does not claim a global resource/effect lineage oracle for concealed prior history.
+The merged #156 executor fails closed for explicitly supplied chained lineage unless
+the follow-on action carries a typed fresh-adjudication binding to a distinct
+current authorization. Merged PR #159 adds durable local mutation lineage so
+known prior mutation history cannot be bypassed merely by omitting a supplied
+prior closure. That bounded lineage evidence remains scoped to the tested
+disposable-repository profile and does not establish distributed/global
+lineage, hostile-local-actor resistance, or any broader mutation authority.
 
 This cross-system rule does not itself authorize execution.
 
