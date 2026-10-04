@@ -1,6 +1,7 @@
 """Minimal executable kernel for the Agent Control Plane."""
 
 from .budget import BudgetExceeded, BudgetUsage, ExecutionBudget
+from .context_metrics import ContextTelemetry
 from .context_state import (
     CONTEXT_STATE_SCHEMA,
     ContextState,
@@ -24,6 +25,7 @@ __all__ = [
     "BudgetUsage",
     "CONTEXT_STATE_SCHEMA",
     "ContextState",
+    "ContextTelemetry",
     "ControlPlane",
     "EvidenceReference",
     "ExecutionBudget",
