@@ -1,3 +1,4 @@
+import pytest
 import hashlib
 import json
 from pathlib import Path
@@ -186,3 +187,14 @@ def test_loopback_http_echo_is_sent_but_not_model_attested() -> None:
     assert captured["authorization"] == "Bearer loopback-secret"
     assert receipt.request_body_sha256 == hashlib.sha256(captured["body"]).hexdigest()
     assert "loopback-secret" not in json.dumps(receipt.to_mapping())
+
+
+
+def test_request_rejects_prompt_drift_from_manifest() -> None:
+    req = prepared()
+    with pytest.raises(ValueError, match="prompt identity"):
+        OpenAICompatibleRequest(
+            manifest=req.manifest,
+            prompt="different prompt",
+            catalog=req.catalog,
+        )
