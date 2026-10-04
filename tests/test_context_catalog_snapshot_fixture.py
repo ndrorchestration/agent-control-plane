@@ -24,7 +24,7 @@ def test_frozen_github_connector_snapshot_has_expected_catalog_size() -> None:
 
     assert len(snapshot.descriptors) == 89
     assert snapshot.source == "chatgpt-runtime://GitHub/connector-catalog"
-    assert len(tool_catalog_snapshot_sha256(snapshot)) == 64
+    assert tool_catalog_snapshot_sha256(snapshot) == (\n        "f9d463a1c8519061087cba30bd648b68357949f20ce932c61c3f99821663b82e"\n    )
 
 
 def test_exact_head_status_capability_resolves_to_one_descriptor() -> None:
