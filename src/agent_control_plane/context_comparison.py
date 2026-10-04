@@ -124,8 +124,12 @@ class ComparisonResult:
             "primary_metric": self.primary_metric,
             "baseline_metric": self.baseline_metric,
             "treatment_metric": self.treatment_metric,
+            "evaluation_scope": "BOUNDED_CONTEXT_COST_PRESERVATION_ONLY",
             "authority_effect": "NONE",
             "scientific_n_increment": 0,
+            "efficacy_effect": "NONE",
+            "independent_validation_effect": "NONE",
+            "high_assurance_effect": "NONE",
         }
 
 
