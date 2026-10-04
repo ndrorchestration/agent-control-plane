@@ -7,9 +7,11 @@ on:
       - "scripts/measure_context_tool_tokens.py"
       - "scripts/measure_catalog_snapshot_tokens.py"
       - "scripts/report_paired_exposure_gap.py"
+      - "scripts/build_model_request_attestations.py"
       - "src/agent_control_plane/context_tool_exposure.py"
       - "src/agent_control_plane/context_catalog_snapshot.py"
       - "src/agent_control_plane/context_paired_evaluation.py"
+      - "src/agent_control_plane/context_model_request.py"
       - "experiments/context_efficiency/catalogs/**"
       - ".github/workflows/context-efficiency-tokenizer.yml"
   pull_request:
@@ -18,9 +20,11 @@ on:
       - "scripts/measure_context_tool_tokens.py"
       - "scripts/measure_catalog_snapshot_tokens.py"
       - "scripts/report_paired_exposure_gap.py"
+      - "scripts/build_model_request_attestations.py"
       - "src/agent_control_plane/context_tool_exposure.py"
       - "src/agent_control_plane/context_catalog_snapshot.py"
       - "src/agent_control_plane/context_paired_evaluation.py"
+      - "src/agent_control_plane/context_model_request.py"
       - "experiments/context_efficiency/catalogs/**"
       - ".github/workflows/context-efficiency-tokenizer.yml"
 
@@ -39,3 +43,5 @@ jobs:
         run: python scripts/measure_catalog_snapshot_tokens.py
       - name: Report paired dynamic-exposure eligibility
         run: python scripts/report_paired_exposure_gap.py
+      - name: Build model request attestations
+        run: python scripts/build_model_request_attestations.py
