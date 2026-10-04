@@ -113,6 +113,8 @@ class OpenAICompatibleHttpReceipt:
     latency_ms: int | None
     provider_request_id: str | None
     provider_model: str | None
+    selected_alias: str | None
+    selected_tool: str | None
     response_sha256: str | None
     model_visible_exposure_observed: bool
 
@@ -129,6 +131,8 @@ class OpenAICompatibleHttpReceipt:
             "latency_ms": self.latency_ms,
             "provider_request_id": self.provider_request_id,
             "provider_model": self.provider_model,
+            "selected_alias": self.selected_alias,
+            "selected_tool": self.selected_tool,
             "response_sha256": self.response_sha256,
             "model_visible_exposure_observed": self.model_visible_exposure_observed,
             "authority_effect": "NONE",
@@ -186,13 +190,30 @@ def send_openai_compatible_request(
     if not isinstance(provider_model, str):
         provider_model = None
 
-    # Direct model-visible exposure is admitted only when a provider-like response
-    # identifies both a request and a model after a successful HTTP response.
+    selected_alias: str | None = None
+    try:
+        choices = parsed["choices"]
+        message = choices[0]["message"]
+        tool_calls = message["tool_calls"]
+        candidate_alias = tool_calls[0]["function"]["name"]
+        if isinstance(candidate_alias, str):
+            selected_alias = candidate_alias
+    except (KeyError, IndexError, TypeError):
+        selected_alias = None
+
+    alias_map = prepared.alias_map()
+    selected_tool = alias_map.get(selected_alias) if selected_alias else None
+
+    # Direct model-visible exposure is admitted only when the provider identifies
+    # the request/model AND the response contains a tool-call alias from the exact
+    # request catalog. The request hash proves what was sent; the tool call proves
+    # the model acted on one member of that catalog.
     observed = (
         isinstance(status, int)
         and 200 <= status < 300
         and provider_request_id is not None
         and provider_model is not None
+        and selected_tool is not None
     )
 
     return OpenAICompatibleHttpReceipt(
@@ -206,6 +227,8 @@ def send_openai_compatible_request(
         latency_ms=elapsed_ms,
         provider_request_id=provider_request_id,
         provider_model=provider_model,
+        selected_alias=selected_alias,
+        selected_tool=selected_tool,
         response_sha256=_sha256_bytes(raw),
         model_visible_exposure_observed=observed,
     )
