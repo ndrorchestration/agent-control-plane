@@ -1,0 +1,26 @@
+{
+  "schema": "agent-control-plane.context-catalog-preservation-result.v0-candidate",
+  "snapshot_sha256": "f9d463a1c8519061087cba30bd648b68357949f20ce932c61c3f99821663b82e",
+  "required_tool": "mcp__GitHub__fetch_commit_workflow_runs",
+  "control_descriptor_count": 89,
+  "treatment_descriptor_count": 1,
+  "comparison": {
+    "schema": "agent-control-plane.context-comparison-result.v0-candidate",
+    "plan_id": "github-connector-runtime-preservation-001",
+    "baseline_observation_sha256": "b1e1083acb02953df9edc61510e663f37b777b2bd2d5ea430a25a46e8405c8f7",
+    "status": "ELIGIBLE_FOR_BOUNDED_ADVANCEMENT",
+    "reasons": [
+      "PRESERVATION_CHECKS_PASS_AND_PRIMARY_METRIC_REDUCED"
+    ],
+    "primary_metric": "tool_definitions_exposed",
+    "baseline_metric": 89,
+    "treatment_metric": 1,
+    "evaluation_scope": "BOUNDED_CONTEXT_COST_PRESERVATION_ONLY",
+    "authority_effect": "NONE",
+    "scientific_n_increment": 0,
+    "efficacy_effect": "NONE",
+    "independent_validation_effect": "NONE",
+    "high_assurance_effect": "NONE"
+  },
+  "claim_boundary": "Structural frozen-catalog preservation only; no live model task, latency/cost result, task efficacy, independent validation, execution authority, or High-Assurance."
+}

@@ -1,0 +1,29 @@
+{
+  "observation_sha256": "eebf862cd50072afa216f997ab327f70c563ed8cc7b4ea5615e14f962af6b83a",
+  "observation": {
+    "schema": "agent-control-plane.context-baseline-observation.v0-candidate",
+    "observation_id": "cep-baseline-001",
+    "task_contract": "Verify exact-head CI state for commit 50da6cef8307f82003ebbe5f282b67de12a14a00 using one commit workflow-runs lookup and report the observed run status/conclusion.",
+    "context_state_sha256": "24089d77a315bb57aca948cd4345364dc02bc911b2dfa4bceaf5dc836c1e525b",
+    "telemetry": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "tool_result_tokens": null,
+      "tool_definitions_exposed": null,
+      "tools_invoked": 1,
+      "retrieved_tokens": null,
+      "used_retrieved_tokens": null,
+      "retrieved_items": 1,
+      "cacheable_prefix_tokens": null,
+      "novel_prefix_tokens": null,
+      "decision_relevant_input_tokens": null,
+      "context_efficiency": null,
+      "retrieval_yield": null,
+      "tool_utilization": null,
+      "context_churn": null
+    },
+    "outcome": "completed",
+    "acceptance": "accepted",
+    "notes": "Partial observed baseline: one GitHub workflow-runs tool invocation returned one workflow-run item. Model-token counts and tool-definition exposure were unavailable and remain null."
+  }
+}
