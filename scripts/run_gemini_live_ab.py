@@ -105,10 +105,8 @@ def make_request(label: str, catalog, profile: TransportProfile) -> OpenAICompat
     )
 
 
-def tool_tokens(request: OpenAICompatibleRequest) -> int:
-    import tiktoken
-
-    encoding = tiktoken.get_encoding(ENCODING)
+def tool_tokens(request: OpenAICompatibleRequest, tiktoken_module) -> int:
+    encoding = tiktoken_module.get_encoding(ENCODING)
     tool_payload = json.dumps(
         request.to_mapping()["tools"],
         sort_keys=True,
@@ -119,7 +117,7 @@ def tool_tokens(request: OpenAICompatibleRequest) -> int:
     return len(encoding.encode(tool_payload))
 
 
-def arm_result(label: str, prepared: OpenAICompatibleRequest, receipt) -> dict[str, object]:
+def arm_result(label: str, prepared: OpenAICompatibleRequest, receipt, tiktoken_module) -> dict[str, object]:
     return {
         "arm": label,
         "catalog_sha256": tool_catalog_snapshot_sha256(prepared.catalog),
@@ -127,7 +125,7 @@ def arm_result(label: str, prepared: OpenAICompatibleRequest, receipt) -> dict[s
         "request_body_sha256": receipt.request_body_sha256,
         "request_body_bytes": receipt.request_body_bytes,
         "model_visible_tool_count": receipt.tool_count,
-        "model_visible_tool_tokens": tool_tokens(prepared),
+        "model_visible_tool_tokens": tool_tokens(prepared, tiktoken_module),
         "provider_request_id": receipt.provider_request_id,
         "provider_model": receipt.provider_model,
         "selected_alias": receipt.selected_alias,
@@ -160,6 +158,26 @@ def main() -> int:
         )
         return 2
 
+    try:
+        import tiktoken
+    except ImportError:
+        print(
+            json.dumps(
+                {
+                    "schema": "agent-control-plane.live-model-ab.v0-candidate",
+                    "status": "BLOCKED_MEASUREMENT_DEPENDENCY_MISSING",
+                    "required_dependency": "tiktoken==0.14.0",
+                    "network_request_sent": False,
+                    "credential_value_recorded": False,
+                    "scientific_n_increment": 0,
+                    "efficacy_effect": "NONE",
+                    "high_assurance_effect": "NONE",
+                },
+                sort_keys=True,
+            )
+        )
+        return 4
+
     control = make_request("control", load_catalog(CONTROL_PATH), profile)
     treatment = make_request("treatment", load_catalog(TREATMENT_PATH), profile)
     binding = load_binding()
@@ -177,8 +195,8 @@ def main() -> int:
         extra_headers=dict(profile.headers),
     )
 
-    control_result = arm_result("control", control, control_receipt)
-    treatment_result = arm_result("treatment", treatment, treatment_receipt)
+    control_result = arm_result("control", control, control_receipt, tiktoken)
+    treatment_result = arm_result("treatment", treatment, treatment_receipt, tiktoken)
 
     exposure_ok = (
         control_receipt.model_visible_exposure_observed
