@@ -28,6 +28,13 @@ from .context_comparison import (
     TreatmentObservation,
     evaluate_treatment,
 )
+from .context_live_pair import (
+    MEASUREMENT_BLOCKED,
+    PAIRED_TASK_RESULT_SCHEMA,
+    PairedTaskObservation,
+    evaluate_paired_task,
+    paired_task_sha256,
+)
 from .context_metrics import ContextTelemetry
 from .context_state import (
     CONTEXT_STATE_SCHEMA,
@@ -64,8 +71,11 @@ __all__ = [
     "ExecutionBudget",
     "INCONCLUSIVE_UNOBSERVED_METRIC",
     "NO_MEASURED_REDUCTION",
+    "MEASUREMENT_BLOCKED",
+    "PAIRED_TASK_RESULT_SCHEMA",
     "TASK_BUDGET_CHECKPOINT_SCHEMA",
     "TOOL_CATALOG_SNAPSHOT_SCHEMA",
+    "PairedTaskObservation",
     "Task",
     "TaskState",
     "ToolCatalogSnapshot",
@@ -83,7 +93,9 @@ __all__ = [
     "context_state_from_mapping",
     "context_state_sha256",
     "context_state_to_mapping",
+    "evaluate_paired_task",
     "evaluate_treatment",
+    "paired_task_sha256",
     "restore_task_budget_checkpoint",
     "task_budget_checkpoint_sha256",
     "tool_catalog_snapshot_from_mapping",
