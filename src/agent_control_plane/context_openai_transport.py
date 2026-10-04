@@ -148,6 +148,7 @@ def send_openai_compatible_request(
     endpoint: str,
     api_key: str | None,
     timeout_seconds: float = 30.0,
+    extra_headers: dict[str, str] | None = None,
     opener: Callable[..., object] = urllib_request.urlopen,
 ) -> OpenAICompatibleHttpReceipt:
     """Send one exact JSON request and attest only directly observed transport facts.
@@ -160,6 +161,11 @@ def send_openai_compatible_request(
         raise ValueError("endpoint must be non-empty")
     body = prepared.canonical_body_bytes()
     headers = {"Content-Type": "application/json"}
+    if extra_headers is not None:
+        for key, value in extra_headers.items():
+            if key.lower() == "authorization":
+                raise ValueError("extra_headers must not override Authorization")
+            headers[key] = value
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 

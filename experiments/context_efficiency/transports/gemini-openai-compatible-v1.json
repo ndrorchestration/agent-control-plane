@@ -1,0 +1,12 @@
+{
+  "schema": "agent-control-plane.transport-profile.v0-candidate",
+  "profile_id": "gemini-openai-compatible-v1",
+  "provider_family": "google-gemini-openai-compatible",
+  "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+  "model": "gemini-3.8-flash",
+  "api_key_env": "GEMINI_API_KEY",
+  "headers": {
+    "x-goog-api-client": "ndrorchestration-acp-cep/0.1.0"
+  },
+  "claim_boundary": "Non-secret transport configuration only. No API key value is stored or implied."
+}

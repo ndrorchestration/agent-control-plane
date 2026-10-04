@@ -198,3 +198,41 @@ def test_request_rejects_prompt_drift_from_manifest() -> None:
             prompt="different prompt",
             catalog=req.catalog,
         )
+
+
+
+def test_transport_accepts_non_secret_provider_headers() -> None:
+    captured = {}
+
+    class HeaderResponse:
+        status = 200
+
+        def read(self):
+            return b'{"echo":true}'
+
+    def opener(req, timeout):
+        captured["client"] = req.headers.get("X-goog-api-client")
+        return HeaderResponse()
+
+    receipt = send_openai_compatible_request(
+        prepared(),
+        endpoint="http://127.0.0.1:9996/echo",
+        api_key="secret",
+        extra_headers={"x-goog-api-client": "ndrorchestration-acp-cep/0.1.0"},
+        opener=opener,
+    )
+
+    assert captured["client"] == "ndrorchestration-acp-cep/0.1.0"
+    assert receipt.sent is True
+    assert receipt.model_visible_exposure_observed is False
+
+
+def test_transport_rejects_authorization_override_in_extra_headers() -> None:
+    with pytest.raises(ValueError, match="Authorization"):
+        send_openai_compatible_request(
+            prepared(),
+            endpoint="http://127.0.0.1:9995/echo",
+            api_key="secret",
+            extra_headers={"Authorization": "Bearer different"},
+            opener=fake_opener,
+        )

@@ -116,6 +116,8 @@ __all__ = [
     "Task",
     "TaskState",
     "ToolCatalogSnapshot",
+    "TRANSPORT_PROFILE_SCHEMA",
+    "TransportProfile",
     "TreatmentObservation",
     "BudgetExceeded",
     "BudgetUsage",
