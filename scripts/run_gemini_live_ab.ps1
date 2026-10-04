@@ -15,7 +15,7 @@ try {
         $createdProcessKey = $true
     }
 
-    & $Python "scripts/run_gemini_live_ab.py"
+    & $Python "scripts/run_gemini_live_ab.py" --send
     exit $LASTEXITCODE
 }
 finally {
