@@ -78,3 +78,17 @@ def test_result_or_evidence_drift_blocks_advancement() -> None:
 def test_observed_exposure_requires_count_and_token_measurement() -> None:
     with pytest.raises(ValueError):
         arm(observed=True, count=1, tokens=None)
+
+
+
+def test_unobserved_arm_keeps_unknown_fields_null() -> None:
+    unknown = PairedTaskArm(
+        catalog_sha256="catalog-unobserved",
+        model_visible_exposure_observed=False,
+    )
+    result = evaluation(unknown, unknown).evaluate()
+
+    assert result["status"] == PAIRED_BLOCKED_DYNAMIC_EXPOSURE_UNOBSERVED
+    assert result["selected_tool"] is None
+    assert result["control_model_visible_tool_tokens"] is None
+    assert result["treatment_model_visible_tool_tokens"] is None
