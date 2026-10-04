@@ -54,6 +54,9 @@ class OpenAICompatibleRequest:
             "catalog_sha256"
         ]:
             raise ValueError("request catalog does not match manifest catalog identity")
+        prompt_sha256 = hashlib.sha256(self.prompt.encode("utf-8")).hexdigest()
+        if prompt_sha256 != self.manifest.prompt_sha256:
+            raise ValueError("request prompt does not match manifest prompt identity")
 
     def alias_map(self) -> dict[str, str]:
         return {
