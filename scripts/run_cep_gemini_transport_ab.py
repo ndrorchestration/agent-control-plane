@@ -32,6 +32,7 @@ from agent_control_plane.context_openai_transport import (
     OpenAICompatibleRequest,
     send_openai_compatible_request,
 )
+from agent_control_plane.context_tool_exposure import canonical_tool_catalog_bytes
 from agent_control_plane.context_transport_profile import TransportProfile
 
 
@@ -139,10 +140,22 @@ def _validate_frozen_inputs(
     token_result = _load_json(TOKEN_RESULT_PATH)
     if token_result.get("snapshot_sha256") != control_sha:
         raise ValueError("token result is not bound to control catalog")
-    if token_result.get("treatment_snapshot_sha256") != treatment_sha:
-        raise ValueError("token result is not bound to treatment catalog")
+    control_bytes = canonical_tool_catalog_bytes(control.descriptors)
+    treatment_bytes = canonical_tool_catalog_bytes(treatment.descriptors)
+    if token_result.get("baseline_descriptor_count") != len(control.descriptors):
+        raise ValueError("token result control descriptor-count drift")
+    if token_result.get("treatment_descriptor_count") != len(treatment.descriptors):
+        raise ValueError("token result treatment descriptor-count drift")
+    if token_result.get("baseline_bytes") != len(control_bytes):
+        raise ValueError("token result control byte-count drift")
+    if token_result.get("treatment_bytes") != len(treatment_bytes):
+        raise ValueError("token result treatment byte-count drift")
     if token_result.get("selected_tools") != [EXPECTED_TOOL]:
         raise ValueError("token result selected-tool identity drift")
+    if not isinstance(token_result.get("baseline_tokens"), int):
+        raise ValueError("token result control token count unavailable")
+    if not isinstance(token_result.get("treatment_tokens"), int):
+        raise ValueError("token result treatment token count unavailable")
     return token_result
 
 
