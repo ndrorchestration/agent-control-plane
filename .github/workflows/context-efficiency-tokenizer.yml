@@ -5,19 +5,19 @@ on:
     paths:
       - "pyproject.toml"
       - "scripts/measure_context_tool_tokens.py"
+      - "scripts/measure_catalog_snapshot_tokens.py"
       - "src/agent_control_plane/context_tool_exposure.py"
       - "src/agent_control_plane/context_catalog_snapshot.py"
-      - "scripts/measure_catalog_snapshot_tokens.py"
-      - "experiments/context_efficiency/catalogs/**"
-      - "src/agent_control_plane/context_catalog_snapshot.py"
-      - "scripts/measure_catalog_snapshot_tokens.py"
       - "experiments/context_efficiency/catalogs/**"
       - ".github/workflows/context-efficiency-tokenizer.yml"
   pull_request:
     paths:
       - "pyproject.toml"
       - "scripts/measure_context_tool_tokens.py"
+      - "scripts/measure_catalog_snapshot_tokens.py"
       - "src/agent_control_plane/context_tool_exposure.py"
+      - "src/agent_control_plane/context_catalog_snapshot.py"
+      - "experiments/context_efficiency/catalogs/**"
       - ".github/workflows/context-efficiency-tokenizer.yml"
 
 jobs:
