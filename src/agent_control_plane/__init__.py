@@ -1,6 +1,11 @@
 """Minimal executable kernel for the Agent Control Plane."""
 
 from .budget import BudgetExceeded, BudgetUsage, ExecutionBudget
+from .context_baseline import (
+    BASELINE_OBSERVATION_SCHEMA,
+    BaselineObservation,
+    baseline_observation_from_mapping,
+)
 from .context_metrics import ContextTelemetry
 from .context_state import (
     CONTEXT_STATE_SCHEMA,
@@ -21,6 +26,8 @@ from .task_budget_checkpoint import (
 )
 
 __all__ = [
+    "BASELINE_OBSERVATION_SCHEMA",
+    "BaselineObservation",
     "BudgetExceeded",
     "BudgetUsage",
     "CONTEXT_STATE_SCHEMA",
@@ -32,6 +39,7 @@ __all__ = [
     "TASK_BUDGET_CHECKPOINT_SCHEMA",
     "Task",
     "TaskState",
+    "baseline_observation_from_mapping",
     "canonical_context_state_bytes",
     "canonical_task_budget_checkpoint_bytes",
     "checkpoint_task_budget",
