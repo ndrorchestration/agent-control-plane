@@ -5,7 +5,10 @@ from .context_baseline import (
     BASELINE_OBSERVATION_SCHEMA,
     BaselineObservation,
     baseline_observation_from_mapping,
+    baseline_observation_sha256,
+    canonical_baseline_observation_bytes,
 )
+from .context_comparison import COMPARISON_PLAN_SCHEMA, ComparisonPlan
 from .context_metrics import ContextTelemetry
 from .context_state import (
     CONTEXT_STATE_SCHEMA,
@@ -28,6 +31,8 @@ from .task_budget_checkpoint import (
 __all__ = [
     "BASELINE_OBSERVATION_SCHEMA",
     "BaselineObservation",
+    "COMPARISON_PLAN_SCHEMA",
+    "ComparisonPlan",
     "BudgetExceeded",
     "BudgetUsage",
     "CONTEXT_STATE_SCHEMA",
@@ -40,6 +45,8 @@ __all__ = [
     "Task",
     "TaskState",
     "baseline_observation_from_mapping",
+    "baseline_observation_sha256",
+    "canonical_baseline_observation_bytes",
     "canonical_context_state_bytes",
     "canonical_task_budget_checkpoint_bytes",
     "checkpoint_task_budget",
