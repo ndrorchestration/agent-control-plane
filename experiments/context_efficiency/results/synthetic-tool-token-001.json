@@ -1,0 +1,22 @@
+{
+  "schema": "agent-control-plane.context-tool-token-result.v0-candidate",
+  "experiment": "SYNTHETIC_TOOL_EXPOSURE_001",
+  "source_workflow_run": 37209998148,
+  "source_job": 111459061148,
+  "source_head_sha": "9e3d24fc03bdb5d84bd440b155e389d296be7c7b",
+  "python_version": "3.12.14",
+  "tiktoken_version": "0.14.0",
+  "encoding": "o200k_base",
+  "canonical_serialization": "json-sort-keys-compact-utf8",
+  "baseline_descriptor_count": 8,
+  "treatment_descriptor_count": 1,
+  "baseline_bytes": 1025,
+  "treatment_bytes": 141,
+  "bytes_removed": 884,
+  "byte_reduction_fraction": 0.8624390243902439,
+  "baseline_tokens": 255,
+  "treatment_tokens": 34,
+  "tokens_removed": 221,
+  "token_reduction_fraction": 0.8666666666666667,
+  "claim_boundary": "Synthetic pinned-tokenizer characterization only; not a live connector, latency, monetary-cost, or task-efficacy result."
+}
