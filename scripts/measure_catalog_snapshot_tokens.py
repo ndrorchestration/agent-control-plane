@@ -20,6 +20,9 @@ from agent_control_plane.context_tool_exposure import (
 SNAPSHOT = Path(
     "experiments/context_efficiency/catalogs/github-connector-runtime-2026-10-04.json"
 )
+TREATMENT_SNAPSHOT = Path(
+    "experiments/context_efficiency/catalogs/github-status-treatment-2026-10-04.json"
+)
 ENCODING = "o200k_base"
 REQUIRED = frozenset({"github.status.commit_workflow_runs"})
 
@@ -27,16 +30,21 @@ REQUIRED = frozenset({"github.status.commit_workflow_runs"})
 def main() -> int:
     raw = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
     snapshot = tool_catalog_snapshot_from_mapping(raw)
+    treatment_raw = json.loads(TREATMENT_SNAPSHOT.read_text(encoding="utf-8"))
+    treatment_snapshot = tool_catalog_snapshot_from_mapping(treatment_raw)
+
     gated = gate_by_required_capabilities(
         snapshot.descriptors,
         required_capabilities=REQUIRED,
     )
     if [tool.name for tool in gated] != ["mcp__GitHub__fetch_commit_workflow_runs"]:
         raise SystemExit("exact capability gate did not resolve to the expected single tool")
+    if gated != treatment_snapshot.descriptors:
+        raise SystemExit("frozen treatment snapshot does not match exact-capability gate")
 
     encoding = tiktoken.get_encoding(ENCODING)
     baseline_bytes_blob = canonical_tool_catalog_bytes(snapshot.descriptors)
-    treatment_bytes_blob = canonical_tool_catalog_bytes(gated)
+    treatment_bytes_blob = canonical_tool_catalog_bytes(treatment_snapshot.descriptors)
     baseline_text = baseline_bytes_blob.decode("utf-8")
     treatment_text = treatment_bytes_blob.decode("utf-8")
     baseline_tokens = len(encoding.encode(baseline_text))
@@ -46,13 +54,15 @@ def main() -> int:
         "schema": "agent-control-plane.context-live-catalog-token-result.v0-candidate",
         "experiment": "GITHUB_CONNECTOR_RUNTIME_CATALOG_2026_10_04",
         "snapshot_sha256": tool_catalog_snapshot_sha256(snapshot),
+        "treatment_snapshot_sha256": tool_catalog_snapshot_sha256(treatment_snapshot),
         "snapshot_source": snapshot.source,
         "snapshot_collected_at": snapshot.collected_at,
+        "treatment_snapshot_source": treatment_snapshot.source,
         "encoding": ENCODING,
         "tiktoken_version": tiktoken.__version__,
         "baseline_descriptor_count": len(snapshot.descriptors),
-        "treatment_descriptor_count": len(gated),
-        "selected_tools": [tool.name for tool in gated],
+        "treatment_descriptor_count": len(treatment_snapshot.descriptors),
+        "selected_tools": [tool.name for tool in treatment_snapshot.descriptors],
         "baseline_bytes": len(baseline_bytes_blob),
         "treatment_bytes": len(treatment_bytes_blob),
         "bytes_removed": len(baseline_bytes_blob) - len(treatment_bytes_blob),
@@ -71,7 +81,7 @@ def main() -> int:
             else None
         ),
         "claim_boundary": (
-            "Measured against a frozen real connector metadata snapshot, but not "
+            "Measured against frozen real connector metadata snapshots, but not "
             "a live model prompt, latency, monetary-cost, or task-efficacy result."
         ),
     }
