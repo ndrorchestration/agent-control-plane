@@ -6,12 +6,17 @@ Date: 2026-10-04
 
 This file is the current public-facing frontier pointer for Agent Control Plane (ACP). Older dated frontier notes remain historical evidence and must not be treated as the current repository state.
 
-## Current protected-main state
+## Current implementation baseline
 
-Current protected `main` is `e7135323663ebbe025b18b74a13f2d99c14e2b57`, through
-merged PR #170. The bounded executor posture was established by PR #156 and
-strengthened by durable local mutation lineage in PR #159; later
-CEP/context-efficiency changes do not widen mutation authority.
+The accepted implementation baseline for the current executor/CEP semantics is
+`e7135323663ebbe025b18b74a13f2d99c14e2b57`, through merged PR #170. Later
+documentation-only commits may advance repository `main` without changing that
+implementation baseline. Resolve mutable repository-tip identity from live
+GitHub rather than treating this file as a self-referential commit pointer.
+
+The bounded executor posture was established by PR #156 and strengthened by
+durable local mutation lineage in PR #159; later CEP/context-efficiency changes
+do not widen mutation authority.
 
 Accepted current-main capabilities include:
 
