@@ -96,6 +96,7 @@ python -m pytest
 | [`docs/REMOTE_DESKTOP_COMMANDER_ADAPTER.md`](docs/REMOTE_DESKTOP_COMMANDER_ADAPTER.md) | Experimental adapter notes requiring public-surface review before promotion. |
 | [`docs/REMOTE_MUTATION_ADMISSION.md`](docs/REMOTE_MUTATION_ADMISSION.md) | Remote mutation admission notes requiring careful authority framing. |
 | [`docs/RELEASE_AND_EVIDENCE_POLICY.md`](docs/RELEASE_AND_EVIDENCE_POLICY.md) | Release and evidence policy. |
+| [`docs/acp-differentiation-note.md`](docs/acp-differentiation-note.md) | Draft vendor-related-work comparison and post-execution authority claim boundary (unmerged research). |
 
 ## Suggested GitHub About description
 
