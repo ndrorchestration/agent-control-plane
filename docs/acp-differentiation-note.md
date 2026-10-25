@@ -1,135 +1,187 @@
-# Related Work: Stonebranch UAC 8.1 and ACP's Post-Execution Authority Boundary
+# ACP Differentiation Note — Against Stonebranch's Hybrid Orchestration Control Plane (UAC 8.1)
 
-**Status:** DRAFT — comparative engineering note, 2026-10-25. Proposed in
-[PR #174](https://github.com/ndrorchestration/agent-control-plane/pull/174);
-not merged or independently validated. Stonebranch descriptions below are
-vendor documentation and release claims, not hands-on product verification.
-ACP descriptions are derived from the current repository README, implementation
-inventory, and frontier record; source inspection is not an independent audit.
+**Status: DRAFT for Ender's review, 2026-10-25; amended 2026-10-25 per external
+critique and live verification. PR #174 open, unmerged. Not published anywhere else.**
+**Grounding:** ACP claims below are grounded in live reads of the
+`ndrorchestration/agent-control-plane` README and executor source (2026-10-25).
+Stonebranch claims are from its October 8, 2026 BusinessWire press release
+ONLY, except where platform documentation is noted — vendor claims, not
+verified against the product itself. Do not cite the release's Gartner
+statistic (95% of I&O workflows with an agentic step by 2030) as fact; it
+carries the standard no-endorsement disclaimer.
 
-## Summary
+## The thesis in one line
 
-Stonebranch's Hybrid Orchestration Control Plane, announced with Universal
-Automation Center (UAC) 8.1 on 2026-10-08, combines workflows, agent requests,
-approvals, automation and operational controls. This is evidence of **industry
-interest in separating agent reasoning from governed execution**, not evidence
-that any particular ACP security claim has been externally validated.
+Stonebranch governs workflows. ACP separates the question of **what happened**
+from the question of **what is authorized next** — and refuses to let the first
+answer the second.
 
-**ACP's narrower research focus:** an execution result or provenance receipt is
-evidence about a past action, *not authority* to perform the next consequential
-action. Its documented post-execution invariant is:
+## Three questions, answered separately (correction, 2026-10-25)
 
-```text
-ACTION -> AUTHORIZATION -> EXECUTION -> RESULT/EVIDENCE
-       -> FRESH ADJUDICATION REQUIRED -> NEW AUTHORIZATION -> FOLLOW-ON ACTION
-```
+An earlier draft of this note framed the comparison as ACP "going further"
+than Stonebranch. That overreads the evidence. The defensible framing is three
+separate questions:
 
-ACP records tested local primitives and bounded disposable-repository executor
-lineage/fresh-adjudication behavior. Its authority envelope, revocation,
-authority-state, sync and watermark surfaces include **candidate** implementations.
-This is not a production authorization system.
+- **Is ACP specialized? Yes.** Its explicit focus on post-execution authority,
+  provenance, and fail-closed admission is demonstrably specialized — see the
+  typed contract in §"Where ACP specializes" below.
+- **Is ACP specialized in ways Stonebranch does not emphasize? Yes, based on
+  the documentation reviewed** — particularly how execution receipts relate to
+  subsequent authorization. Stonebranch's release does not specify
+  follow-on authorization semantics.
+- **Has ACP demonstrated capabilities Stonebranch cannot match? Not yet.**
+  That requires comparative testing or evidence of architectural limitations
+  in Stonebranch's implementation. Technical novelty, exclusivity, and
+  comparative security superiority are **NOT ESTABLISHED** and are not claimed
+  here.
 
-## Convergence and differences in emphasis
+## Where they converge (say so plainly — convergence validates the thesis)
 
-| Question | Stonebranch UAC 8.1 (vendor-reported) | ACP (repository-documented) |
+| Shared move | Stonebranch (release claim) | ACP (implemented / designed) |
 |---|---|---|
-| Who may execute? | Agents request governed workflows; UAC applies permissions, business rules and RBAC. | Local deterministic dispatch with explicit policy decisions and rejection of unknown capabilities. |
-| How are secrets handled? | Credentials retained within UAC rather than exposed to agents by default. | Credential-broker separation is an **architectural proposal**; not an established production secret-isolation guarantee. |
-| Where does human approval sit? | Approval Tasks can pause workflow progression until configured approvers act. | Human decision and fresh-adjudication semantics are modeled in proposed architecture and bounded action contracts. No equivalent operational workflow product is claimed. |
-| How is the record kept? | Audits, task histories, AI/service logs and traceability are vendor-documented. | In-memory run-scoped provenance manifest and typed execution/evidence identity primitives; no durable external, tamper-evident audit guarantee. |
-| What governs a subsequent effect? | RBAC checks apply to actions; approvals/dependencies may control downstream workflow steps. | Typed fresh-adjudication and distinct authorization for explicitly chained mutations, demonstrated only in bounded disposable-repository scope as documented in CURRENT_FRONTIER. |
+| Deciding vs. doing split | "Agents reason and request, while governed workflows control execution." Agents call approved workflows via tool calls, never enterprise systems directly. | Deterministic dispatch gated by explicit policy allow/deny decisions; fail-closed rejection of unknown capabilities. |
+| Credential broker | "Credentials stay in UAC and are not exposed to the agent by default." | Credential broker separated from execution in the architecture (Provider → Capability → Transport/Adapter → Effect/Risk → Policy); credentials are not ambient to the agent. |
+| Human approvals first-class | Approvals run as a step type inside the end-to-end workflow. | Human decisions are a distinct step in the control-plane layer, not a bolt-on. |
+| Auditability named | "Traceable record from request to outcome," plus monitoring, retries, exception handling. | Run-scoped provenance manifests recording task identity, lifecycle, capability invoked, and policy decision. |
 
-### Important limitation on competitive differentiation
+Correction to the earlier draft: it would be incorrect to characterize
+Stonebranch as merely recording execution without enforcing authorization.
+Their platform documentation confirms roles/permissions and audit records
+generally (older Controller documentation; the 8.1 agentic surface was not
+independently verified for this note). What remains unestablished from public
+material is whether Stonebranch enforces equivalent receipt→authority
+separation internally — not whether it enforces authorization at all.
 
-Stonebranch's announcement does **not** state a typed, receipt-to-follow-on
-authorization non-transfer rule comparable to the ACP invariant above.
-However, its 8.1 security and approval documentation **does** describe action
-authorization, controller-enforced RBAC, MCP tool whitelisting, approval tasks
-and workflow dependency conditions. Absence of a named ACP-style object in the
-reviewed public material **does not prove absence of equivalent behavior** in
-Stonebranch's product.
+## Where Stonebranch is ahead (no defensiveness — state it)
 
-The defensible distinction is **specificity of ACP's exposed post-execution
-authority contract and falsifiable engineering focus**, not comparative
-superiority, first invention, stronger enforcement, or proof of a missing vendor
-security boundary.
+- **Shipping product, enterprise scope.** UAC 8.1 is available now with an
+  installed base, covering deterministic jobs, events, applications, and
+  infrastructure alongside agent actions. ACP is experimental engineering, not a
+  production orchestrator, security boundary, or distributed control plane.
+- **Operational breadth.** Retries, exception handling, dependency management,
+  recovery controls, and service levels across every execution type. ACP does
+  not center this machinery.
+- **Authoring path.** The AI Workflow Builder turns a natural-language
+  description into a workflow, refined visually, run under the same governance.
+  ACP has no equivalent authoring story.
 
-### Different optimization targets
+## Where ACP specializes (not a superiority claim)
 
-Stonebranch documents a shipping enterprise orchestration product with retries,
-recovery controls, scheduling/dependencies, SLAs and natural-language workflow
-authoring. ACP is experimental kernel and governance research. ACP's local
-fail-closed rejection and cooperative resource budgets are useful engineering
-tests, but cooperative accounting **does not** enforce a hostile process or
-provider's real resource usage. Availability/recovery and denial are not mutually
-exclusive: vendor documentation includes both governance and operational controls.
+### 1. Receipt is evidence, never authority
 
-## Deliberate non-goals
+Stonebranch's "traceable record" proves something happened. ACP splits that
+record into two separate objects that must never be merged:
 
-Do not expand ACP to chase parity with Stonebranch's enterprise scheduling,
-SLA/retry/recovery product suite or AI Workflow Builder. ACP has bounded
-supervisor/retry candidates, but they do not justify enterprise-operational
-equivalence. Prefer a small reproducible authorization/receipt test over a broad
-feature imitation.
+- **Provenance manifest** — what ran, which capability was invoked, what the
+  policy decision was. This is evidence of execution.
+- **Authority envelope** — what may run next, as a bounded, revocable,
+  observable envelope (candidates implemented for envelope, revocation,
+  authority-state, sync, and watermark under bounded test conditions).
 
-## Candidate falsification / comparison protocol (NOT executed)
+A manifest never authorizes the next action. Follow-on authorization is a
+**fresh decision**, not a continuation of the previous run. This is not a
+philosophical position only — it is a typed contract in the implementation,
+verified live 2026-10-25 in `src/agent_control_plane/remote_mutation_executor.py`:
 
-1. **Receipt laundering:** provide a valid past execution receipt but no new
-   authorization; require denial of a subsequent consequential action.
-2. **Stale approval:** revoke, expire or alter the bound scope between first and
-   second actions; require fresh decision and denial when authorization is stale.
-3. **Changed effect:** keep receipt and identity but vary target, operation or
-   argument; require denial unless a current policy explicitly authorizes it.
-4. **Omitted lineage:** remove the caller-supplied previous closure; verify
-   behavior against ACP's bounded durable local lineage, without inferring
-   distributed/global protection.
-5. **Controls mapping for UAC:** compare documented RBAC, Approval Tasks,
-   workflow dependencies and audit records against these properties without
-   claiming an execution experiment on UAC. A true product-to-product benchmark
-   would require access, matched fixtures, rule versions and independent review.
+- execution results carry `authority_effect=NONE`;
+- `follow_on_authority=FRESH_ADJUDICATION_REQUIRED`;
+- the executor raises on "execution result cannot carry authority" and on
+  "follow-on effects require fresh adjudication";
+- the executor is flagged `bounded_local_test_only=True`.
 
-Record fixture, policy/identity versions, timestamps, raw decisions,
-runtime/environment, source commit and negative outcomes. A local self-test is
-not independent validation.
+Bounded scope, stated honestly: the durable local mutation lineage behind
+this was established under bounded disposable-repository conditions (bounded
+executor posture PR #156, durable lineage PR #159, implementation baseline
+through merged PR #170 per `docs/CURRENT_FRONTIER.md`, 2026-10-04). The
+specific chained-mutation test coverage was not re-verified for this note.
 
-## Career / portfolio-safe translation
+What Stonebranch's public material does NOT establish is an equivalent
+separation: the press release specifies no follow-on authorization semantics,
+and whether their implementation enforces them internally is unknown from
+public sources. That is a gap in public evidence, not a demonstrated ACP win.
 
-**Short interview line:** "Enterprise orchestration vendors increasingly
-separate agents requesting actions from governed systems executing them. My ACP
-research targets a narrower failure mode: a successful execution receipt must
-never silently become permission for the next action."
+### 2. Fail-closed at dispatch, not retries after the fact
 
-**Technical follow-up:** "In bounded local tests, ACP implements deterministic
-dispatch, explicit policy checks and run-scoped provenance; its disposable-repo
-executor contract includes typed fresh adjudication for chained actions.
-Production security, distributed lineage and independent validation remain
-unestablished."
+ACP rejects unknown capabilities outright and enforces cooperative execution
+budgets (reported steps, tool calls, tokens, cost) at dispatch time.
+Stonebranch's failure story is retries and recovery — availability-oriented.
+These are different postures for different layers, not a ranking: fail-closed
+at the authorization boundary, retries at execution after authorization is
+granted. ACP's specialization is the first layer.
 
-Do **not** say "ahead of Stonebranch," "more secure than UAC," "Stonebranch lacks
-fresh authorization," "production-ready," or "independently validated."
+### 3. Capability discipline as a primitive
 
-## Claims ceiling
+Capability registration with duplicate-registration rejection, deterministic
+dispatch and cancellation semantics, and authority as a bounded envelope rather
+than an ambient grant. Stonebranch's release attributes enforcement generically
+to "governed workflows" — no policy language, no least-privilege scoping, and
+no stated violation behavior (deny, block, escalate, rollback) appear in the
+release. Their platform documentation separately confirms roles/permissions
+and audit records; the gap is specifically about receipt→authority semantics,
+not about authorization in general.
 
-ACP's README explicitly does not establish production reliability, security
-certification, independent validation, distributed reliability, general
-model/provider integration, automatic metering, durable external audit logging,
-tamper-evident provenance, autonomous background operation, cross-runtime
-portability or governance efficacy. `docs/CURRENT_FRONTIER.md` additionally
-limits mutation execution to `BOUNDED_LOCAL_TEST` disposable-repository scope;
-real-project mutation and rollback execution remain unauthorized. Do not
-promote DGAF scientific/High-Assurance claims through this related-work note.
+### 4. Ceilings stated as a feature, not an apology
 
-## Sources and evidence type
+ACP's README states what is NOT established, and this note preserves that
+list verbatim in spirit: no production reliability, no security certification,
+no independent validation, no distributed-system reliability, no model/provider
+integration, no automatic metering, no durable external audit logging, no
+tamper-evident provenance, no autonomous background operation, no cross-runtime
+portability evidence, no governance efficacy. A design that names its
+non-claims is more trustworthy than a release that implies them.
 
-- [Stonebranch announcement, 2026-10-08](https://www.stonebranch.com/news/stonebranch-launches-hybrid-orchestration-control-plane-to-provide-governed-reliability-in-the-agentic-era) — **vendor release** (UAC 8.1 features, positioning, availability).
-- [Stonebranch Robi AI Security & Privacy FAQ, UAC 8.1](https://documentation.stonebranch.com/uac/ai/robi-faq) — **vendor product documentation** (RBAC, approvals, MCP tool whitelisting, audit).
-- [Stonebranch UAC Approval Task documentation, v8.1](https://documentation.stonebranch.com/uac/uc/approval-task) — **vendor product documentation** (approval conditions and workflow pauses).
-- [Stonebranch workflow dependencies](https://documentation.stonebranch.com/uac/8.0/uc/creating-and-maintaining-workflows) — **vendor documentation for v8.0**, not independently verified as exact UAC 8.1 behavior.
-- [ACP README](../README.md), [implementation inventory](CURRENT_IMPLEMENTATION_INVENTORY.md), [frontier and scope](CURRENT_FRONTIER.md) — **repository-authored engineering claims and boundaries**.
-- [ACP PR #156](https://github.com/ndrorchestration/agent-control-plane/pull/156), [PR #159](https://github.com/ndrorchestration/agent-control-plane/pull/159) — **historical bounded implementation/review provenance**.
+## What ACP will NOT chase (scope discipline)
 
-**Review gates:** confirm live exact-head implementation/tests, correct vendor
-documentation versioning, independent reviewer scrutiny if claiming comparative
-performance, and explicit approval before promoting this draft into public
-portfolio claims. This proposed PR is public to repository visitors; it is
-**not yet part of protected main**.
+- Enterprise job-scheduling breadth (deterministic jobs, events, infra).
+- SLA / recovery / retries ops machinery as a core feature.
+- Natural-language workflow authoring.
+
+Chasing any of these dilutes the specialization. They are Stonebranch's moat
+(installed base + ops machinery), not ACP's argument.
+
+## Next experiment (highest-value follow-up, not another description)
+
+Demonstrate, reproducibly and in public, that a valid historical receipt,
+presented without fresh authorization, cannot authorize a second consequential
+action. ACP already has much of the necessary test machinery in the bounded
+executor. Turning that into a clean public demonstration would strengthen the
+portfolio without pretending to prove that Stonebranch fails the same test.
+That demonstration — not another architectural description — is what would
+move the third question above from "not established" toward "demonstrated."
+
+## The line to use
+
+> Stonebranch ships governed workflows. ACP's specialization is the boundary
+> they leave unspecified: a record of what happened is not permission for
+> what happens next. Provenance and authority are separate objects, and the
+> second one requires a fresh decision every time. Whether that separation
+> outperforms or is unique against Stonebranch's implementation is not
+> established — and this note does not claim otherwise.
+
+## Sources
+
+- Stonebranch press release, BusinessWire, October 8, 2026:
+  https://www.businesswire.com/news/home/20261008712204/en/Stonebranch-Launches-Hybrid-Orchestration-Control-Plane-to-Provide-Governed-Reliability-in-the-Agentic-Era
+- `ndrorchestration/agent-control-plane` README (live read 2026-10-25):
+  experimental Python control-plane kernel; implemented surface and
+  not-established list as summarized above.
+- `src/agent_control_plane/remote_mutation_executor.py` (live code read
+  2026-10-25): `authority_effect=NONE`,
+  `follow_on_authority=FRESH_ADJUDICATION_REQUIRED`, `bounded_local_test_only`.
+- `docs/CURRENT_FRONTIER.md` (2026-10-04): implementation baseline through
+  merged PR #170; bounded executor posture PR #156; durable local mutation
+  lineage PR #159.
+- ACP architecture as recorded in Ender's notes: Provider → Capability →
+  Transport/Adapter → Effect/Risk → Policy; PDP/PEP/credential broker/
+  execution/receipt/follow-on authorization separation. ACP PR #173 was ready
+  per the 2026-10-14 record; its current state was not re-verified for this note.
+- Stonebranch platform documentation (general, older Controller docs):
+  roles/permissions and audit records confirmed; 8.1 agentic-surface
+  enforcement specifics not independently verified for this note.
+
+## Placement (Ender's word required for merge — PR open, unmerged)
+
+- PR #174 opened 2026-10-25 (branch `docs/acp-differentiation-note` → main);
+  this amendment applies to that branch. Merge requires Ender's explicit word.
+- [ ] Adapt for the portfolio (ai-prompt-systems-portfolio) as a positioning page.
+- [ ] Use as interview talking points only (no further publication).
