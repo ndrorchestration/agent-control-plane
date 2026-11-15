@@ -14,7 +14,7 @@ from agent_control_plane.contract import (
     ExecutionIdentity,
     TraceContext,
 )
-from agent_control_plane.contract.interop import (
+from integration.execution_v1_interop import (
     from_cloudevent,
     to_cloudevent,
     to_otel_trace_context,
