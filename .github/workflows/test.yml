@@ -22,5 +22,29 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e . pytest
+      - run: python -m pip install -e . pytest "jsonschema>=4.23,<5"
       - run: python -m pytest
+
+  node-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test integration/tests/execution_v1_interop.test.mjs
+
+  cross-process-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: python -m pip install -e . "jsonschema>=4.23,<5"
+      - run: node --test integration/tests/cross_process_interop.test.mjs

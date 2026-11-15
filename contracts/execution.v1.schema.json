@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ndrorchestration:agent-control-plane:execution:v1",
+  "title": "ACP execution.v1 serialized ExecutionEvent",
+  "description": "Serialization contract for ACP v1. Does not authenticate records, authorize actions, or establish evidence sufficiency.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_type",
+    "identity",
+    "trace",
+    "component",
+    "task_id",
+    "status",
+    "utc_timestamp",
+    "monotonic_ns",
+    "capability",
+    "policy_decision_ref",
+    "input_artifacts",
+    "output_artifacts",
+    "detail"
+  ],
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_id",
+        "run_id",
+        "schema_version"
+      ],
+      "properties": {
+        "execution_id": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "schema_version": {
+          "const": "agent-control-plane.execution.v1"
+        }
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trace_id",
+        "span_id",
+        "parent_span_id"
+      ],
+      "properties": {
+        "trace_id": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "span_id": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "parent_span_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_id",
+        "component_type",
+        "runtime_id",
+        "adapter_id",
+        "version",
+        "source_ref"
+      ],
+      "properties": {
+        "component_id": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "component_type": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "runtime_id": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "adapter_id": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "status": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "utc_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "monotonic_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "capability": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "policy_decision_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "input_artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "output_artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "detail": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": [
+        "artifact_id",
+        "kind",
+        "uri",
+        "version",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "uri": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
