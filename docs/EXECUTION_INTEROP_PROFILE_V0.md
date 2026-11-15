@@ -10,7 +10,9 @@ scientific-state authorities. This profile does not update those states.
 The ACP `agent-control-plane.execution.v1` immutable Python records remain
 the owning execution/event contract in
 `src/agent_control_plane/contract/model.py`.
-The additive JSON Schema (`contracts/execution.v1.schema.json`) describes
+The adapter is deliberately outside the frozen ACP package at
+`integration/execution_v1_interop.py` to preserve source-bound Stage-A
+experimental invariants. The additive JSON Schema (`contracts/execution.v1.schema.json`) describes
 their current `ExecutionEvent.to_dict()` representation. It is not a new
 state engine, policy decision point, or independently authoritative claim.
 
