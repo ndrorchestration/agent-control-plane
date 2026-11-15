@@ -1,0 +1,248 @@
+{
+  "profile": "acp.execution.v1.interop-fixtures.v1",
+  "claim_boundary": "Synthetic golden vectors: content identity and observation context only; no source authenticity, execution proof, or authorization",
+  "cases": [
+    {
+      "name": "completed-unicode-artifacts",
+      "event": {
+        "event_type": "task.completed",
+        "identity": {
+          "execution_id": "exec-17",
+          "run_id": "run-synthetic-01",
+          "schema_version": "agent-control-plane.execution.v1"
+        },
+        "trace": {
+          "trace_id": "11111111111111111111111111111111",
+          "span_id": "2222222222222222",
+          "parent_span_id": "3333333333333333"
+        },
+        "component": {
+          "component_id": "kernel",
+          "component_type": "kernel",
+          "runtime_id": "python",
+          "adapter_id": "native-acp",
+          "version": "0.1.0",
+          "source_ref": "commit:fixture"
+        },
+        "task_id": "task-17",
+        "status": "completed",
+        "utc_timestamp": "2026-11-15T18:00:00Z",
+        "monotonic_ns": 42,
+        "capability": "echo",
+        "policy_decision_ref": "decision-17",
+        "input_artifacts": [
+          {
+            "artifact_id": "input-17",
+            "kind": "input",
+            "uri": "memory://input-17",
+            "version": "v1",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "output_artifacts": [
+          {
+            "artifact_id": "output-17",
+            "kind": "output",
+            "uri": null,
+            "version": null,
+            "sha256": null
+          }
+        ],
+        "detail": "café 雪 & source receipt"
+      },
+      "expected": {
+        "cloudevent_id": "15ef7a2b6a5b81441f7982247c6dbcf85866625f6cbcedc14f82cf03273e0f37",
+        "cloudevent_source": "/agent-control-plane/python/kernel",
+        "otel": {
+          "trace_id": "11111111111111111111111111111111",
+          "span_id": "2222222222222222",
+          "parent_span_id": "3333333333333333"
+        }
+      }
+    },
+    {
+      "name": "denied-uri-escaping",
+      "event": {
+        "event_type": "task.rejected",
+        "identity": {
+          "execution_id": "exec-18",
+          "run_id": "run-synthetic-02",
+          "schema_version": "agent-control-plane.execution.v1"
+        },
+        "trace": {
+          "trace_id": "44444444444444444444444444444444",
+          "span_id": "5555555555555555",
+          "parent_span_id": null
+        },
+        "component": {
+          "component_id": "worker/é",
+          "component_type": "adapter",
+          "runtime_id": "node worker",
+          "adapter_id": "synthetic",
+          "version": null,
+          "source_ref": null
+        },
+        "task_id": "task-18",
+        "status": "denied",
+        "utc_timestamp": "2026-11-15T19:14:00Z",
+        "monotonic_ns": 0,
+        "capability": "delete-file",
+        "policy_decision_ref": "explicit-deny-18",
+        "input_artifacts": [],
+        "output_artifacts": [],
+        "detail": "authorization denied"
+      },
+      "expected": {
+        "cloudevent_id": "45d514f19dce1f50a8343d3ffe58e723f792796fb62a8e9b315357be107a8b6d",
+        "cloudevent_source": "/agent-control-plane/node%20worker/worker%2F%C3%A9",
+        "otel": {
+          "trace_id": "44444444444444444444444444444444",
+          "span_id": "5555555555555555",
+          "parent_span_id": null
+        }
+      }
+    },
+    {
+      "name": "legacy-context-must-not-upgrade",
+      "event": {
+        "event_type": "task.started",
+        "identity": {
+          "execution_id": "exec-legacy-19",
+          "run_id": "run-synthetic-03",
+          "schema_version": "agent-control-plane.execution.v1"
+        },
+        "trace": {
+          "trace_id": "trace-legacy",
+          "span_id": "span-old",
+          "parent_span_id": null
+        },
+        "component": {
+          "component_id": "original",
+          "component_type": "legacy",
+          "runtime_id": "python",
+          "adapter_id": "legacy-map",
+          "version": null,
+          "source_ref": null
+        },
+        "task_id": "task-19",
+        "status": "running",
+        "utc_timestamp": "2026-11-15T18:00:00Z",
+        "monotonic_ns": 19,
+        "capability": null,
+        "policy_decision_ref": null,
+        "input_artifacts": [],
+        "output_artifacts": [],
+        "detail": null
+      },
+      "expected": {
+        "cloudevent_id": "bad8417402ddaed4591700302dc395f0135772269914731ef1c7eab31bd6abcc",
+        "cloudevent_source": "/agent-control-plane/python/original",
+        "otel": null
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "tamper-status-no-receipt",
+      "case": "completed-unicode-artifacts",
+      "target": "envelope",
+      "path": [
+        "data",
+        "status"
+      ],
+      "value": "authorized"
+    },
+    {
+      "name": "changed-source",
+      "case": "denied-uri-escaping",
+      "target": "envelope",
+      "path": [
+        "source"
+      ],
+      "value": "/incorrect"
+    },
+    {
+      "name": "altered-event-id",
+      "case": "completed-unicode-artifacts",
+      "target": "envelope",
+      "path": [
+        "id"
+      ],
+      "value": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "unsupported-cloud-events-version",
+      "case": "completed-unicode-artifacts",
+      "target": "envelope",
+      "path": [
+        "specversion"
+      ],
+      "value": "2.0"
+    },
+    {
+      "name": "missing-event-id",
+      "case": "completed-unicode-artifacts",
+      "target": "envelope",
+      "path": [
+        "id"
+      ],
+      "remove": true
+    },
+    {
+      "name": "unknown-envelope-field",
+      "case": "completed-unicode-artifacts",
+      "target": "envelope",
+      "path": [
+        "sneaky_claim"
+      ],
+      "value": true
+    },
+    {
+      "name": "unsupported-contract-version",
+      "case": "completed-unicode-artifacts",
+      "target": "event",
+      "path": [
+        "identity",
+        "schema_version"
+      ],
+      "value": "agent-control-plane.execution.v2"
+    },
+    {
+      "name": "non-integer-order",
+      "case": "completed-unicode-artifacts",
+      "target": "event",
+      "path": [
+        "monotonic_ns"
+      ],
+      "value": 1.5
+    },
+    {
+      "name": "missing-required-identity",
+      "case": "completed-unicode-artifacts",
+      "target": "event",
+      "path": [
+        "identity",
+        "run_id"
+      ],
+      "remove": true
+    },
+    {
+      "name": "invalid-utc",
+      "case": "completed-unicode-artifacts",
+      "target": "event",
+      "path": [
+        "utc_timestamp"
+      ],
+      "value": "2026-11-15T18:00:00+01:00"
+    },
+    {
+      "name": "unknown-data-field",
+      "case": "completed-unicode-artifacts",
+      "target": "event",
+      "path": [
+        "authority_promoted"
+      ],
+      "value": true
+    }
+  ]
+}

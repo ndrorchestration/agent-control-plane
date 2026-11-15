@@ -24,3 +24,12 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest "jsonschema>=4.23,<5"
       - run: python -m pytest
+
+  node-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test integration/tests/execution_v1_interop.test.mjs

@@ -89,3 +89,36 @@ verification and cannot by itself establish an independent conformance gate.
 References: CloudEvents 1.0 specification; OpenTelemetry SpanContext API;
 JSON Schema Draft 2020-12. Versions and external support should be pinned
 in a later adapter-specific ADR, not inferred from a general roadmap.
+
+## Shared Python/Node.js conformance fixtures (candidate)
+
+- `fixtures/execution_v1/interop_cases.json` is one synthetic, source-locked
+  golden vector set, not a generated report or empirical run log.
+- Python consumes the vector set through native `ExecutionEvent.from_dict`,
+  JSON Schema Draft 2020-12 validation and the additive Python projection.
+- An independently written Node.js 22 implementation consumes the same
+  fixtures without importing Python or changing the ACP kernel.
+- Three fixture classes: successful execution with Unicode and artifacts;
+  denied execution with escaped URI; legacy trace identifiers that must not
+  be upgraded into OpenTelemetry context. Eleven shared mutations cover
+  digest tampering, invalid envelopes, schema drift, invalid timestamps,
+  missing IDs and unauthorized synthetic fields.
+- Canonical digest parity covers this fixture-defined interoperable subset:
+  ASCII property names, finite safe JSON integers (0..2^53-1), canonical UTC
+  output, nonempty optional strings where present. ACP's Python event model
+  admits a wider domain in some fields; this slice does **not** claim full
+  bidirectional cross-language equivalence for all hypothetical ACP values.
+- Node.js tests use the built-in `node:test` runner and `node:crypto`,
+  with no network calls or credentials. The existing Python test matrix
+  runs the new shared-fixture consumer; a separate Node 22 job runs the
+  JavaScript consumer. Hosted results must be verified at the exact PR head.
+- Passing these tests establishes bounded **two-language fixture parity**,
+  not interoperable external agent runtimes, production security, independent
+  review, native MCP/A2A integration, OTel SDK reconstruction, or efficacy.
+
+Local testing:
+
+```bash
+python -m pytest tests/test_contract_interop_fixtures.py
+node --test integration/tests/execution_v1_interop.test.mjs
+```
