@@ -122,3 +122,36 @@ Local testing:
 python -m pytest tests/test_contract_interop_fixtures.py
 node --test integration/tests/execution_v1_interop.test.mjs
 ```
+ 
+## Bounded cross-process interchange (candidate)
+
+Separate Python and Node.js interpreter processes now exchange a **single**
+synthetic JSON request/response over standard input/output, without network,
+provider calls, credentials, side effects, or tool dispatch. The external CLI
+entry points live under `integration/`; frozen `src/agent_control_plane/`
+sources are unchanged:
+
+- `python -m integration.execution_v1_bridge` — JSON Schema validation +
+  native `ExecutionEvent.from_dict` / Python CloudEvents projection.
+- `node integration/execution_v1_bridge.mjs` — independently written
+  JavaScript validation / CloudEvents projection.
+- Request shape is exactly `{"operation":"encode"|"decode","payload":...}`.
+  Every request is bounded to 65,536 input bytes. Failure returns exit 2,
+  empty stdout, and `ACP_INTEROP_REJECTED` on stderr.
+- A separate CI job launches each as a child process and verifies **both
+  directions**, using the three shared golden events and all eleven common
+  rejection mutations, plus unsupported operations, extra controls, malformed
+  JSON, and oversize inputs.
+- This is **two-language / two-process local transport interoperability**,
+  not two independently operated external agent runtimes or deployed MCP/A2A
+  adapters. A content digest cannot authenticate the writer or grant policy
+  authority; no authorization or revocation checks are implemented here.
+- CLI input/output is **synthetic, local, process-bounded test data**. No
+  global replay database, durable receipt, network authentication, real
+  effect execution, independently reviewed evidence, or safety certification.
+
+Test:
+```bash
+python -m pip install -e . "jsonschema>=4.23,<5"
+node --test integration/tests/cross_process_interop.test.mjs
+```
